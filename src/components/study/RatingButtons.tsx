@@ -115,7 +115,6 @@ const RatingButtons: React.FC<RatingButtonsProps> = ({ onRate, disabled = false,
           >
             <span className="flex flex-col items-center">
               <span>{config.label}</span>
-              <span className="text-xs opacity-70">({config.shortcut})</span>
               {config.intervalPreview && (
                 <span className="text-xs opacity-60">{config.intervalPreview}</span>
               )}
