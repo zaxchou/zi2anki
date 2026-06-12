@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Alert } from '@mui/material';
 import { useStudyStore } from '@/stores/useStudyStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+import { fetchDecks } from '@/lib/api';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
 import RatingButtons from '@/components/study/RatingButtons';
@@ -28,22 +28,25 @@ const StudyPage: React.FC = () => {
     rateCard,
     reset,
   } = useStudyStore();
-  const { dailyNewCardLimit, dailyReviewLimit } = useSettingsStore();
 
-  /** 当前卡片是否已翻转 */
   const [flipped, setFlipped] = useState(false);
 
-  // 初始化学习会话
+  // 加载牌组信息 → 获取牌组专属上限 → 启动学习
   useEffect(() => {
-    if (deckId) {
-      startSession(deckId, dailyNewCardLimit, dailyReviewLimit);
-    }
-
-    // 组件卸载时重置状态
-    return () => {
-      reset();
+    if (!deckId) return;
+    const init = async () => {
+      const decks = await fetchDecks();
+      const deck = decks.find((d) => d.id === deckId);
+      startSession(
+        deckId,
+        deck?.daily_new_card_limit,
+        deck?.daily_review_limit
+      );
     };
-  }, [deckId, dailyNewCardLimit, dailyReviewLimit, startSession, reset]);
+    init();
+
+    return () => { reset(); };
+  }, [deckId, startSession, reset]);
 
   /** 翻转卡片 */
   const handleFlip = useCallback(() => {
@@ -83,7 +86,7 @@ const StudyPage: React.FC = () => {
           action={
             <Box
               component="button"
-              onClick={() => startSession(deckId!, dailyNewCardLimit, dailyReviewLimit)}
+              onClick={() => startSession(deckId!)}
               className="cursor-pointer bg-transparent border-0 underline text-blue-600"
             >
               重试

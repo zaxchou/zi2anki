@@ -10,13 +10,15 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  IconButton,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
+import EditIcon from '@mui/icons-material/Edit';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+import { DEFAULT_DAILY_NEW_CARD_LIMIT, DEFAULT_DAILY_REVIEW_LIMIT } from '@/lib/constants';
 import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal, resetDeckProgress } from '@/lib/api';
 import StatsBar from '@/components/dashboard/StatsBar';
 import StreakBadge from '@/components/dashboard/StreakBadge';
@@ -59,10 +61,9 @@ function calculateStreak(
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { decks, loading, error, loadDecks } = useDeckStore();
-  const { dailyNewCardLimit, dailyReviewLimit } = useSettingsStore();
 
   const [dueCount, setDueCount] = useState(0);
-  const [newCardRemaining, setNewCardRemaining] = useState(dailyNewCardLimit);
+  const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
   const [streakDays, setStreakDays] = useState(0);
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -87,8 +88,8 @@ const DashboardPage: React.FC = () => {
         ]);
 
         const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
-        setDueCount(Math.min(rawDue, dailyReviewLimit));
-        setNewCardRemaining(Math.max(0, dailyNewCardLimit - (todayStats?.new_cards_learned ?? 0)));
+        setDueCount(Math.min(rawDue, DEFAULT_DAILY_REVIEW_LIMIT));
+        setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
         setStreakDays(calculateStreak(statsRange));
       } catch (err) {
         console.error('[Dashboard] 加载统计失败:', err);
@@ -96,7 +97,7 @@ const DashboardPage: React.FC = () => {
     };
 
     loadStats();
-  }, [decks, dailyNewCardLimit, dailyReviewLimit]);
+  }, [decks, DEFAULT_DAILY_NEW_CARD_LIMIT, DEFAULT_DAILY_REVIEW_LIMIT]);
 
   /** 确认重置进度 */
   const handleConfirmReset = useCallback(async () => {
@@ -106,7 +107,7 @@ const DashboardPage: React.FC = () => {
       const res = await resetDeckProgress(resetTarget.id);
       console.log('[Dashboard] 重置成功:', res);
       setDueCount(0);
-      setNewCardRemaining(dailyNewCardLimit);
+      setNewCardRemaining(DEFAULT_DAILY_NEW_CARD_LIMIT);
       setStreakDays(0);
       await loadDecks();
     } catch (err) {
@@ -115,7 +116,7 @@ const DashboardPage: React.FC = () => {
     } finally {
       setResetTarget(null);
     }
-  }, [resetTarget, dailyNewCardLimit, loadDecks]);
+  }, [resetTarget, loadDecks]);
 
   // 错误状态
   if (error) {
@@ -229,6 +230,14 @@ const DashboardPage: React.FC = () => {
                     )}
                   </Box>
                 </CardContent>
+                <Box className="px-4 pt-0 pb-1 flex items-center gap-2">
+                  <Typography variant="caption" color="text.secondary">
+                    新卡 {deck.daily_new_card_limit ?? 20} · 复习 {deck.daily_review_limit ?? 200}
+                  </Typography>
+                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); /* 跳转到卡片管理页编辑 */ navigate(`/decks/${deck.id}/cards`); }}>
+                    <EditIcon fontSize="inherit" />
+                  </IconButton>
+                </Box>
                 <CardActions className="justify-end px-4 pt-1 pb-3 gap-1">
                   <Button
                     size="small"

@@ -118,6 +118,8 @@ export class SyncService {
               id: row.id,
               name: row.name,
               card_count: row.card_count,
+              daily_new_card_limit: (row as any).daily_new_card_limit ?? 20,
+              daily_review_limit: (row as any).daily_review_limit ?? 200,
               created_at: row.created_at,
               updated_at: row.updated_at,
               synced: true,
@@ -214,6 +216,8 @@ export class SyncService {
             id: deck.id,
             name: deck.name,
             card_count: deck.card_count,
+            daily_new_card_limit: deck.daily_new_card_limit ?? 20,
+            daily_review_limit: deck.daily_review_limit ?? 200,
             created_at: deck.created_at,
             updated_at: deck.updated_at,
           };

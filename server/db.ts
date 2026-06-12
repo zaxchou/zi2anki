@@ -36,6 +36,8 @@ export function getDb(): Database.Database {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       card_count INTEGER DEFAULT 0,
+      daily_new_card_limit INTEGER DEFAULT 20,
+      daily_review_limit INTEGER DEFAULT 200,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -76,6 +78,9 @@ export function getDb(): Database.Database {
 
   // 迁移：为已有数据库添加 back_text 列
   try { db.exec('ALTER TABLE cards ADD COLUMN back_text TEXT DEFAULT \'\''); } catch { /* 列已存在 */ }
+  // 迁移：为已有数据库添加牌组独立上限
+  try { db.exec('ALTER TABLE decks ADD COLUMN daily_new_card_limit INTEGER DEFAULT 20'); } catch {}
+  try { db.exec('ALTER TABLE decks ADD COLUMN daily_review_limit INTEGER DEFAULT 200'); } catch {}
 
   return db;
 }

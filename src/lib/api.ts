@@ -65,6 +65,16 @@ export function resetDeckProgress(id: string): Promise<{ success: boolean; reset
   return request(`/api/decks/${id}/reset-progress`, { method: 'PUT' });
 }
 
+export function updateDeckLimits(
+  id: string,
+  limits: { daily_new_card_limit?: number; daily_review_limit?: number }
+): Promise<Deck> {
+  return request(`/api/decks/${id}/limits`, {
+    method: 'PUT',
+    body: JSON.stringify(limits),
+  });
+}
+
 export function updateCardCountApi(
   deckId: string,
   count: number

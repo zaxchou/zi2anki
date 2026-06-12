@@ -21,7 +21,7 @@ decksRouter.get('/decks', (_req: Request, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare(
-      'SELECT id, name, card_count, created_at, updated_at FROM decks ORDER BY created_at DESC'
+      'SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks ORDER BY created_at DESC'
     ).all() as Array<{
       id: string;
       name: string;
@@ -50,10 +50,10 @@ decksRouter.post('/decks', (req: Request, res: Response) => {
     const now = nowISO();
 
     db.prepare(
-      'INSERT INTO decks (id, name, card_count, created_at, updated_at) VALUES (?, ?, 0, ?, ?)'
+      'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at) VALUES (?, ?, 0, 20, 200, ?, ?)'
     ).run(id, name.trim(), now, now);
 
-    const deck = db.prepare('SELECT id, name, card_count, created_at, updated_at FROM decks WHERE id = ?').get(id);
+    const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.status(201).json(deck);
   } catch (err) {
     console.error('POST /decks error:', err);
@@ -82,7 +82,7 @@ decksRouter.put('/decks/:id', (req: Request, res: Response) => {
     const now = nowISO();
     db.prepare('UPDATE decks SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now, id);
 
-    const deck = db.prepare('SELECT id, name, card_count, created_at, updated_at FROM decks WHERE id = ?').get(id);
+    const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.json(deck);
   } catch (err) {
     console.error('PUT /decks/:id error:', err);
@@ -157,7 +157,7 @@ decksRouter.put('/decks/:id/card-count', (req: Request, res: Response) => {
     const now = nowISO();
     db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count, now, id);
 
-    const deck = db.prepare('SELECT id, name, card_count, created_at, updated_at FROM decks WHERE id = ?').get(id);
+    const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.json(deck);
   } catch (err) {
     console.error('PUT /decks/:id/card-count error:', err);
@@ -193,5 +193,35 @@ decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
   } catch (err) {
     console.error('PUT /decks/:id/reset-progress error:', err);
     res.status(500).json({ error: 'Failed to reset progress' });
+  }
+});
+
+// PUT /api/decks/:id/limits —— 更新牌组学习上限
+decksRouter.put('/decks/:id/limits', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { daily_new_card_limit, daily_review_limit } = req.body;
+    const db = getDb();
+
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
+
+    const now = nowISO();
+    if (typeof daily_new_card_limit === 'number') {
+      db.prepare('UPDATE decks SET daily_new_card_limit = ?, updated_at = ? WHERE id = ?')
+        .run(Math.max(1, Math.round(daily_new_card_limit)), now, id);
+    }
+    if (typeof daily_review_limit === 'number') {
+      db.prepare('UPDATE decks SET daily_review_limit = ?, updated_at = ? WHERE id = ?')
+        .run(Math.max(1, Math.round(daily_review_limit)), now, id);
+    }
+
+    const deck = db.prepare(
+      'SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?'
+    ).get(id);
+    res.json(deck);
+  } catch (err) {
+    console.error('PUT /decks/:id/limits error:', err);
+    res.status(500).json({ error: 'Failed to update limits' });
   }
 });

@@ -26,6 +26,8 @@ export interface Deck {
   id: string;
   name: string;
   card_count: number;
+  daily_new_card_limit: number;
+  daily_review_limit: number;
   created_at: string;
   updated_at: string;
   synced: boolean;
