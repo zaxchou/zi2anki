@@ -677,7 +677,7 @@ const CardManagePage: React.FC = () => {
           description="点击上方按钮添加书法记忆卡片"
         />
       ) : (
-        <MuiCard variant="outlined" sx={{ borderRadius: 3 }}>
+        <MuiCard variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
             {cards.map((card, index) => (
               <ListItem
