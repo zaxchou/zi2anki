@@ -47,7 +47,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/zi2anki.git
+git clone https://github.com/zaxchou/zi2anki.git
 cd zi2anki
 
 # 安装依赖
@@ -154,7 +154,7 @@ zi2anki/
 
 ## 相关项目
 
-- **[zi2anki-skills](https://github.com/YOUR_USERNAME/zi2anki-skills)** — WorkBuddy 技能包：书法单字提取、碑帖裁切等自动化工具
+- **[zi2anki-skills](https://github.com/zaxchou/zi2anki-skills)** — WorkBuddy 技能包：书法单字提取、碑帖裁切等自动化工具
 
 ---
 
