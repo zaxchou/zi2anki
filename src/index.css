@@ -21,7 +21,6 @@ html {
 body {
   font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
-  color: #333;
   min-height: 100vh;
 }
 
@@ -43,10 +42,7 @@ body {
   line-height: 1.2;
 }
 
-/* ===== 图片容器（卡片背面）始终浅色背景 ===== */
-.card-image-back {
-  background-color: #fafafa;
-}
+/* ===== 图片容器（卡片背面）- 由组件内联样式控制暗色模式 ===== */
 
 /* ===== 3D 翻转动画工具类 ===== */
 .perspective-1000 {

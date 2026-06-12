@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Button, LinearProgress, Paper } from '@mui/material';
+import { Box, Typography, Button, LinearProgress, Paper, useTheme } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { StudySession } from '@/types';
 
@@ -16,6 +16,7 @@ const ratingConfig = [
 ];
 
 const StudyComplete: React.FC<StudyCompleteProps> = ({ session, onBackToDashboard }) => {
+  const theme = useTheme();
   const total = session.cards_studied || 1;
 
   return (
@@ -60,7 +61,7 @@ const StudyComplete: React.FC<StudyCompleteProps> = ({ session, onBackToDashboar
                   flex: 1,
                   height: 10,
                   borderRadius: 5,
-                  bgcolor: 'rgba(0,0,0,0.06)',
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
                   '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: item.color },
                 }}
               />
