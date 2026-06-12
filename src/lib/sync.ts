@@ -72,6 +72,7 @@ export class SyncService {
               id: row.id,
               deck_id: row.deck_id,
               front_text: row.front_text,
+              back_text: row.back_text || '',
               image_url: '', // 远程图片 URL 由 storage 获取
               image_storage_path: row.image_storage_path,
               ease: row.ease,
@@ -179,6 +180,7 @@ export class SyncService {
             id: card.id,
             deck_id: card.deck_id,
             front_text: card.front_text,
+              back_text: card.back_text || '',
             image_storage_path: card.image_storage_path,
             ease: card.ease,
             interval: card.interval,

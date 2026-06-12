@@ -44,6 +44,7 @@ export function getDb(): Database.Database {
       id TEXT PRIMARY KEY,
       deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
       front_text TEXT NOT NULL,
+      back_text TEXT DEFAULT '',
       image_url TEXT DEFAULT '',
       ease REAL DEFAULT 2.5,
       interval INTEGER DEFAULT 0,
@@ -72,6 +73,9 @@ export function getDb(): Database.Database {
       new_cards_learned INTEGER DEFAULT 0
     );
   `);
+
+  // 迁移：为已有数据库添加 back_text 列
+  try { db.exec('ALTER TABLE cards ADD COLUMN back_text TEXT DEFAULT \'\''); } catch { /* 列已存在 */ }
 
   return db;
 }

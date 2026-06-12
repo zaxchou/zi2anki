@@ -84,13 +84,15 @@ export function fetchCards(deckId: string): Promise<Card[]> {
 export function createCard(
   deckId: string,
   frontText: string,
-  imageBase64?: string
+  imageBase64?: string,
+  backText?: string
 ): Promise<Card> {
   return request<Card>(`/api/decks/${deckId}/cards`, {
     method: 'POST',
     body: JSON.stringify({
       front_text: frontText,
       image_url: imageBase64 || '',
+      back_text: backText || '',
     }),
   });
 }
@@ -113,6 +115,16 @@ export function batchImportCards(
       });
     }
     return res.json();
+  });
+}
+
+export function batchImportText(
+  deckId: string,
+  text: string
+): Promise<{ created: number; cards: Array<{ front: string; back: string }> }> {
+  return request(`/api/decks/${deckId}/cards/batch-text`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
   });
 }
 

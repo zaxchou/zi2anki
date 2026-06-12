@@ -5,6 +5,7 @@ export interface CardRow {
   id: string;
   deck_id: string;
   front_text: string;
+  back_text: string;
   image_storage_path: string;
   ease: number;
   interval: number;

@@ -75,6 +75,7 @@ const CardManagePage: React.FC = () => {
   // 添加卡片对话框
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newFrontText, setNewFrontText] = useState('');
+  const [newBackText, setNewBackText] = useState('');
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
   const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
@@ -171,6 +172,7 @@ const CardManagePage: React.FC = () => {
   const handleCloseAddDialog = useCallback(() => {
     setAddDialogOpen(false);
     setNewFrontText('');
+    setNewBackText('');
     setNewImageFile(null);
     setNewImagePreview(null);
     setAddError(null);
@@ -222,7 +224,7 @@ const CardManagePage: React.FC = () => {
         imageBase64 = await fileToBase64(newImageFile);
       }
 
-      const newCard = await createCardApi(deckId, newFrontText.trim(), imageBase64);
+      const newCard = await createCardApi(deckId, newFrontText.trim(), imageBase64, newBackText.trim());
 
       const updatedCards = [newCard, ...cards];
       setCards(updatedCards);
@@ -233,7 +235,7 @@ const CardManagePage: React.FC = () => {
     } finally {
       setAdding(false);
     }
-  }, [deckId, newFrontText, newImageFile, adding, cards, refreshCardCount, handleCloseAddDialog]);
+  }, [deckId, newFrontText, newBackText, newImageFile, adding, cards, refreshCardCount, handleCloseAddDialog]);
 
   /** 打开删除确认 */
   const handleOpenDelete = useCallback((card: Card) => {
@@ -661,6 +663,18 @@ const CardManagePage: React.FC = () => {
             placeholder="输入卡片正面的汉字..."
             className="mb-3 mt-1"
             inputProps={{ maxLength: 30 }}
+          />
+
+          <TextField
+            label="背面文字（可选，留空则使用图片）"
+            fullWidth
+            value={newBackText}
+            onChange={(e) => setNewBackText(e.target.value)}
+            placeholder="纯文字卡片可在此输入背面内容..."
+            className="mb-3"
+            multiline
+            minRows={2}
+            inputProps={{ maxLength: 200 }}
           />
 
           {/* 图片上传区域 */}

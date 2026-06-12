@@ -70,8 +70,12 @@ const FlashCard: React.FC<FlashCardProps> = ({ card, flipped, onFlip }) => {
                 className="object-contain max-h-full max-w-full p-4"
                 draggable={false}
               />
+            ) : card.back_text ? (
+              <span className="card-front-text text-center px-4 break-all">
+                {card.back_text}
+              </span>
             ) : (
-              <p className="text-ink-light text-sm">暂无图片</p>
+              <p className="text-ink-light text-sm">暂无内容</p>
             )}
           </div>
         </div>

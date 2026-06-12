@@ -87,7 +87,7 @@ cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
     }
 
     const cards = db.prepare(
-      `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
+      `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
        FROM cards WHERE deck_id = ? ORDER BY created_at DESC`
     ).all(deckId);
@@ -103,7 +103,7 @@ cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
 cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
-    const { front_text, image_url } = req.body;
+    const { front_text, back_text, image_url } = req.body;
 
     if (!front_text || typeof front_text !== 'string' || front_text.trim().length === 0) {
       res.status(400).json({ error: 'front_text is required' });
@@ -135,10 +135,10 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
 
     const createCard = db.transaction(() => {
       db.prepare(
-        `INSERT INTO cards (id, deck_id, front_text, image_url, ease, interval, repetitions,
+        `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
                             next_review, last_review, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 2.5, 0, 0, ?, NULL, ?, ?)`
-      ).run(id, deckId, front_text.trim(), finalImageUrl, nextReview, now, now);
+         VALUES (?, ?, ?, ?, ?, 2.5, 0, 0, ?, NULL, ?, ?)`
+      ).run(id, deckId, front_text.trim(), (back_text || '').trim(), finalImageUrl, nextReview, now, now);
 
       // 更新牌组卡片计数
       const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(deckId) as { cnt: number };
@@ -148,7 +148,7 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
     createCard();
 
     const card = db.prepare(
-      `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
+      `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
        FROM cards WHERE id = ?`
     ).get(id);
@@ -210,7 +210,7 @@ cardsRouter.post(
       // 在事务中批量创建
       const batchCreate = db.transaction(() => {
         const stmt = db.prepare(
-          `INSERT INTO cards (id, deck_id, front_text, image_url, ease, interval, repetitions,
+          `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
                               next_review, last_review, created_at, updated_at)
            VALUES (?, ?, ?, ?, 2.5, 0, 0, ?, NULL, ?, ?)`
         );
@@ -256,6 +256,59 @@ cardsRouter.post(
   }
 );
 
+// POST /api/decks/:deckId/cards/batch-text —— 文字批量导入
+// 格式：每两行为一张卡片（正面 / 背面），空行分隔
+cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response) => {
+  try {
+    const { deckId } = req.params;
+    const { text } = req.body;
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      res.status(400).json({ error: 'text is required' });
+      return;
+    }
+
+    const db = getDb();
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    if (!deck) {
+      res.status(404).json({ error: 'Deck not found' });
+      return;
+    }
+
+    // 解析文本：按行分割，过滤空行，每两行为一组
+    const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+    const created: Array<{ front: string; back: string }> = [];
+    const now = nowISO();
+    const nextReview = now;
+
+    const batchCreate = db.transaction(() => {
+      const stmt = db.prepare(
+        `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
+                            next_review, last_review, created_at, updated_at)
+         VALUES (?, ?, ?, ?, '', 2.5, 0, 0, ?, NULL, ?, ?)`
+      );
+
+      for (let i = 0; i < lines.length - 1; i += 2) {
+        const front = lines[i];
+        const back = lines[i + 1];
+        if (!front) continue;
+        stmt.run(uuid(), deckId, front, back || '', nextReview, now, now);
+        created.push({ front, back: back || '' });
+      }
+
+      // 更新计数
+      const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(deckId) as { cnt: number };
+      db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, now, deckId);
+    });
+
+    batchCreate();
+    res.status(201).json({ created: created.length, cards: created });
+  } catch (err) {
+    console.error('POST /decks/:deckId/cards/batch-text error:', err);
+    res.status(500).json({ error: 'Failed to import text cards' });
+  }
+});
+
 // PUT /api/cards/:id —— 更新卡片
 cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
   try {
@@ -273,6 +326,7 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
 
     const {
       front_text,
+      back_text,
       image_url,
       ease,
       interval,
@@ -290,6 +344,11 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     if (front_text !== undefined) {
       updates.push('front_text = ?');
       values.push(front_text);
+    }
+
+    if (back_text !== undefined) {
+      updates.push('back_text = ?');
+      values.push(back_text);
     }
 
     // 处理图片更新
@@ -344,7 +403,7 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     }
 
     const card = db.prepare(
-      `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
+      `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
        FROM cards WHERE id = ?`
     ).get(id);
@@ -408,7 +467,7 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
     }
 
     const now = nowISO();
-    let sql = `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
+    let sql = `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
                       next_review, last_review, created_at, updated_at
                FROM cards
                WHERE deck_id = ? AND next_review <= ? AND interval > 0
@@ -441,7 +500,7 @@ cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
       return;
     }
 
-    let sql = `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
+    let sql = `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
                       next_review, last_review, created_at, updated_at
                FROM cards
                WHERE deck_id = ? AND interval = 0

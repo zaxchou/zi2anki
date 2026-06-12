@@ -8,6 +8,7 @@ export interface Card {
   id: string;
   deck_id: string;
   front_text: string; // 正面文字（从文件名提取）
+  back_text: string; // 背面文字（纯文字卡片）
   image_url: string; // 本地 ObjectURL 或远程 Supabase Storage URL
   image_storage_path: string; // Supabase Storage 路径
   ease: number; // SM-2 ease factor，默认 2.5，最小 1.3
