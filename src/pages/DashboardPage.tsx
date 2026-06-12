@@ -16,7 +16,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { DEFAULT_DAILY_NEW_CARD_LIMIT, DEFAULT_DAILY_REVIEW_LIMIT } from '@/lib/constants';
+import { DEFAULT_DAILY_NEW_CARD_LIMIT } from '@/lib/constants';
 import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal, resetDeckProgress } from '@/lib/api';
 import StatsBar from '@/components/dashboard/StatsBar';
 import StreakBadge from '@/components/dashboard/StreakBadge';
@@ -86,7 +86,8 @@ const DashboardPage: React.FC = () => {
         ]);
 
         const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
-        setDueCount(Math.min(rawDue, DEFAULT_DAILY_REVIEW_LIMIT));
+        // 全局统计：显示所有牌组汇总，不受单个牌组上限影响
+        setDueCount(rawDue);
         setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
         setStreakDays(calculateStreak(statsRange));
       } catch (err) {
@@ -95,7 +96,7 @@ const DashboardPage: React.FC = () => {
     };
 
     loadStats();
-  }, [decks, DEFAULT_DAILY_NEW_CARD_LIMIT, DEFAULT_DAILY_REVIEW_LIMIT]);
+  }, [decks, DEFAULT_DAILY_NEW_CARD_LIMIT]);
 
   /** 确认重置进度 */
   const handleConfirmReset = useCallback(async () => {
