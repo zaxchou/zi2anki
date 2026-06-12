@@ -10,11 +10,9 @@ import {
   Alert,
   LinearProgress,
   Chip,
-  IconButton,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
-import EditIcon from '@mui/icons-material/Edit';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
@@ -230,13 +228,10 @@ const DashboardPage: React.FC = () => {
                     )}
                   </Box>
                 </CardContent>
-                <Box className="px-4 pt-0 pb-1 flex items-center gap-2">
+                <Box className="px-4 pt-0 pb-1">
                   <Typography variant="caption" color="text.secondary">
                     新卡 {deck.daily_new_card_limit ?? 20} · 复习 {deck.daily_review_limit ?? 200}
                   </Typography>
-                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); /* 跳转到卡片管理页编辑 */ navigate(`/decks/${deck.id}/cards`); }}>
-                    <EditIcon fontSize="inherit" />
-                  </IconButton>
                 </Box>
                 <CardActions className="justify-end px-4 pt-1 pb-3 gap-1">
                   <Button
