@@ -177,3 +177,18 @@ export function upsertDailyStats(
     body: JSON.stringify(data),
   });
 }
+
+/** 获取日期范围内的每日统计（用于计算打卡天数） */
+export function fetchDailyStatsRange(
+  from: string,
+  to: string
+): Promise<{ date: string; cards_studied: number; new_cards_learned: number }[]> {
+  return request(`/api/daily-stats/range?from=${from}&to=${to}`);
+}
+
+/** 获取所有牌组的到期卡片计数 */
+export function fetchDueCounts(): Promise<
+  { id: string; name: string; due_count: number }[]
+> {
+  return request('/api/due-counts');
+}

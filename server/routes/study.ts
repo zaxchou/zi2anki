@@ -156,6 +156,26 @@ studyRouter.put('/study-sessions/:id', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/daily-stats/range —— 获取日期范围统计（必须在 /:date 之前注册）
+studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to || typeof from !== 'string' || typeof to !== 'string') {
+      res.status(400).json({ error: 'from and to query params required (YYYY-MM-DD)' });
+      return;
+    }
+    const db = getDb();
+    const rows = db.prepare(
+      `SELECT date, cards_studied, new_cards_learned
+       FROM daily_stats WHERE date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(from, to);
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /daily-stats/range error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats range' });
+  }
+});
+
 // GET /api/daily-stats/:date —— 获取指定日期的统计
 studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
   try {
@@ -202,5 +222,22 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
   } catch (err) {
     console.error('PUT /daily-stats/:date error:', err);
     res.status(500).json({ error: 'Failed to update daily stats' });
+  }
+});
+
+// GET /api/due-counts —— 获取所有牌组的到期卡片计数
+studyRouter.get('/due-counts', (_req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const now = nowISO();
+    const rows = db.prepare(
+      `SELECT d.id, d.name, COUNT(c.id) as due_count
+       FROM decks d LEFT JOIN cards c ON c.deck_id = d.id AND c.next_review <= ?
+       GROUP BY d.id, d.name ORDER BY d.created_at DESC`
+    ).all(now) as { id: string; name: string; due_count: number }[];
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /due-counts error:', err);
+    res.status(500).json({ error: 'Failed to fetch due counts' });
   }
 });
