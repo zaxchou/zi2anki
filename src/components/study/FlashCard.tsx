@@ -34,13 +34,13 @@ const FlashCard: React.FC<FlashCardProps> = ({ card, flipped, onFlip }) => {
           style={{ minHeight: '280px', transition: 'transform 0.5s', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
         >
           {/* 正面 */}
-          <div className="backface-hidden absolute inset-0 flex items-center justify-center rounded-xl border" style={faceStyle}>
+          <div className="backface-hidden absolute inset-0 flex items-center justify-center rounded-lg border" style={faceStyle}>
             <span className="card-front-text text-center px-4 break-all">{card.front_text}</span>
           </div>
 
           {/* 背面 */}
           <div
-            className="backface-hidden rotate-y-180 absolute inset-0 flex items-center justify-center rounded-xl border card-image-back overflow-hidden"
+            className="backface-hidden rotate-y-180 absolute inset-0 flex items-center justify-center rounded-lg border card-image-back overflow-hidden"
             style={{ backgroundColor: isDark ? '#2d2d2d' : '#fafafa', borderColor: isDark ? '#444' : '#e5e7eb' }}
           >
             {card.image_url ? (

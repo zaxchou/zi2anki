@@ -60,7 +60,7 @@ const StatsBar: React.FC<StatsBarProps> = ({ dueCount, newCardRemaining, streakD
       {statItems.map((item) => (
         <Box
           key={item.key}
-          className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl"
+          className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg"
           sx={{ background: isDark ? item.gradientDark : item.gradient }}
         >
           <Box sx={{ color: isDark ? item.colorDark : item.color }}>{item.icon}</Box>

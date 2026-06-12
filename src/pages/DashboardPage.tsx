@@ -183,13 +183,13 @@ const DashboardPage: React.FC = () => {
               <Card
                 key={deck.id}
                 variant="outlined"
-                className="cursor-pointer hover:shadow-md transition-shadow rounded-xl"
+                className="cursor-pointer hover:shadow-md transition-shadow rounded-lg"
                 sx={{ borderColor: 'divider' }}
                 onClick={() => navigate(`/study/${deck.id}`)}
               >
                 <CardContent className="flex items-center gap-4 !pb-2">
                   <Box
-                    className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
+                    className="flex items-center justify-center w-12 h-12 rounded-lg shrink-0"
                     sx={{ bgcolor: 'primary.main', color: '#fff' }}
                   >
                     <AutoStoriesIcon />
