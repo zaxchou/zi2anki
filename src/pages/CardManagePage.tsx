@@ -20,6 +20,10 @@ import {
   Card as MuiCard,
   Chip,
   LinearProgress,
+  Slider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
@@ -28,6 +32,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ImageIcon from '@mui/icons-material/Image';
 import UploadIcon from '@mui/icons-material/Upload';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
 import {
@@ -38,6 +43,7 @@ import {
   fetchDecks,
   getImageUrl,
   updateCard,
+  updateDeckLimits,
 } from '@/lib/api';
 import type { Card, Deck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -98,6 +104,12 @@ const CardManagePage: React.FC = () => {
   const [textBatchContent, setTextBatchContent] = useState('');
   const [textBatchImporting, setTextBatchImporting] = useState(false);
   const [textBatchResult, setTextBatchResult] = useState<string | null>(null);
+
+  // 牌组学习上限编辑
+  const [deckLimitsOpen, setDeckLimitsOpen] = useState(false);
+  const [editingNewLimit, setEditingNewLimit] = useState(20);
+  const [editingReviewLimit, setEditingReviewLimit] = useState(200);
+  const [savingLimits, setSavingLimits] = useState(false);
   const [batchImporting, setBatchImporting] = useState(false);
   const [batchImportProgress, setBatchImportProgress] = useState(0);
   const [batchImportTotal, setBatchImportTotal] = useState(0);
@@ -141,6 +153,8 @@ const CardManagePage: React.FC = () => {
 
       setDeck(deckData);
       setCards(cardsData);
+      setEditingNewLimit(deckData.daily_new_card_limit ?? 20);
+      setEditingReviewLimit(deckData.daily_review_limit ?? 200);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载卡片失败');
     } finally {
@@ -514,6 +528,24 @@ const CardManagePage: React.FC = () => {
     }
   }, [deckId, textBatchContent, textBatchImporting, refreshCardCount]);
 
+  /** 保存牌组学习上限 */
+  const handleSaveLimits = useCallback(async () => {
+    if (!deckId || savingLimits) return;
+    setSavingLimits(true);
+    try {
+      const updated = await updateDeckLimits(deckId, {
+        daily_new_card_limit: editingNewLimit,
+        daily_review_limit: editingReviewLimit,
+      });
+      setDeck((prev) => prev ? { ...prev, ...updated } : prev);
+      setDeckLimitsOpen(false);
+    } catch (err) {
+      console.error('保存上限失败:', err);
+    } finally {
+      setSavingLimits(false);
+    }
+  }, [deckId, editingNewLimit, editingReviewLimit, savingLimits]);
+
   /** 清理 ObjectURL（组件卸载时） */
   useEffect(() => {
     return () => {
@@ -579,6 +611,35 @@ const CardManagePage: React.FC = () => {
           />
         )}
       </Box>
+
+      {/* 学习上限设置 */}
+      <Accordion
+        expanded={deckLimitsOpen}
+        onChange={() => setDeckLimitsOpen(!deckLimitsOpen)}
+        variant="outlined"
+        sx={{ borderRadius: 2, '&:before': { display: 'none' } }}
+      >
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="body2" fontWeight={500}>
+            每日学习上限：新卡 {editingNewLimit} · 复习 {editingReviewLimit}
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Box className="space-y-4">
+            <Box>
+              <Typography variant="body2" className="mb-1">每日新卡上限：{editingNewLimit}</Typography>
+              <Slider value={editingNewLimit} onChange={(_, v) => setEditingNewLimit(v as number)} min={1} max={100} step={1} valueLabelDisplay="auto" />
+            </Box>
+            <Box>
+              <Typography variant="body2" className="mb-1">每日复习上限：{editingReviewLimit}</Typography>
+              <Slider value={editingReviewLimit} onChange={(_, v) => setEditingReviewLimit(v as number)} min={1} max={500} step={1} valueLabelDisplay="auto" />
+            </Box>
+            <Button variant="contained" size="small" onClick={handleSaveLimits} disabled={savingLimits}>
+              {savingLimits ? '保存中...' : '保存上限'}
+            </Button>
+          </Box>
+        </AccordionDetails>
+      </Accordion>
 
       {/* 添加 / 批量导入按钮 */}
       <Box className="flex gap-2">
