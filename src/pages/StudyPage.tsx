@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Alert } from '@mui/material';
 import { useStudyStore } from '@/stores/useStudyStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
 import RatingButtons from '@/components/study/RatingButtons';
@@ -27,6 +28,7 @@ const StudyPage: React.FC = () => {
     rateCard,
     reset,
   } = useStudyStore();
+  const { dailyNewCardLimit, dailyReviewLimit } = useSettingsStore();
 
   /** 当前卡片是否已翻转 */
   const [flipped, setFlipped] = useState(false);
@@ -34,14 +36,14 @@ const StudyPage: React.FC = () => {
   // 初始化学习会话
   useEffect(() => {
     if (deckId) {
-      startSession(deckId);
+      startSession(deckId, dailyNewCardLimit, dailyReviewLimit);
     }
 
     // 组件卸载时重置状态
     return () => {
       reset();
     };
-  }, [deckId, startSession, reset]);
+  }, [deckId, dailyNewCardLimit, dailyReviewLimit, startSession, reset]);
 
   /** 翻转卡片 */
   const handleFlip = useCallback(() => {
@@ -51,13 +53,14 @@ const StudyPage: React.FC = () => {
   /** 评分并翻回正面 */
   const handleRate = useCallback(
     async (rating: Rating) => {
-      await rateCard(rating);
+      // 先重置翻转状态（同步），避免切到下一张卡时短暂显示背面
       setFlipped(false);
+      await rateCard(rating);
     },
     [rateCard]
   );
 
-  /** 返回仪表盘 */
+  /** 返回 Zi2Anki */
   const handleBackToDashboard = useCallback(() => {
     reset();
     navigate('/dashboard');
@@ -80,7 +83,7 @@ const StudyPage: React.FC = () => {
           action={
             <Box
               component="button"
-              onClick={() => startSession(deckId!)}
+              onClick={() => startSession(deckId!, dailyNewCardLimit, dailyReviewLimit)}
               className="cursor-pointer bg-transparent border-0 underline text-blue-600"
             >
               重试
@@ -101,8 +104,9 @@ const StudyPage: React.FC = () => {
         {/* 进度条 */}
         <ProgressBar current={currentIndex + 1} total={queue.length} />
 
-        {/* 闪卡 */}
+        {/* 闪卡（key 强制重挂载，避免 CSS transition 在新旧卡片间延续） */}
         <FlashCard
+          key={currentCard.id}
           card={currentCard}
           flipped={flipped}
           onFlip={handleFlip}
@@ -110,7 +114,15 @@ const StudyPage: React.FC = () => {
 
         {/* 评分按钮（仅翻转后可用） */}
         <Box className="w-full max-w-lg mt-2">
-          <RatingButtons onRate={handleRate} disabled={!flipped} />
+          <RatingButtons
+          onRate={handleRate}
+          disabled={!flipped}
+          card={currentCard ? {
+            ease: currentCard.ease,
+            interval: currentCard.interval,
+            repetitions: currentCard.repetitions,
+          } : undefined}
+        />
         </Box>
       </Box>
     );

@@ -25,14 +25,8 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({ days }) => {
     );
   }
 
-  return (
-    <Chip
-      label="尚未开始"
-      variant="outlined"
-      size="medium"
-      sx={{ color: 'text.disabled', borderColor: 'text.disabled' }}
-    />
-  );
+  // days = 0：不显示徽章，避免干扰
+  return null;
 };
 
 export default StreakBadge;

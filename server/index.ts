@@ -7,6 +7,7 @@ import { getDb } from './db.js';
 import { decksRouter } from './routes/decks.js';
 import { cardsRouter } from './routes/cards.js';
 import { studyRouter } from './routes/study.js';
+import { analyticsRouter } from './routes/analytics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/api', decksRouter);
 app.use('/api', cardsRouter);
 app.use('/api', studyRouter);
+app.use('/api', analyticsRouter);
 
 // 生产模式：托管前端构建产物
 const distDir = path.join(__dirname, '..', 'dist');

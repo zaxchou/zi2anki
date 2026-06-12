@@ -24,6 +24,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import ImageIcon from '@mui/icons-material/Image';
 import UploadIcon from '@mui/icons-material/Upload';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
@@ -36,6 +37,7 @@ import {
   batchImportCards,
   fetchDecks,
   getImageUrl,
+  updateCard,
 } from '@/lib/api';
 import type { Card, Deck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -94,6 +96,16 @@ const CardManagePage: React.FC = () => {
   const [batchImportTotal, setBatchImportTotal] = useState(0);
   const [batchGeneralError, setBatchGeneralError] = useState<string | null>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 编辑卡片
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Card | null>(null);
+  const [editFrontText, setEditFrontText] = useState('');
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // 加载牌组和卡片数据
   const loadData = useCallback(async () => {
@@ -258,6 +270,87 @@ const CardManagePage: React.FC = () => {
     setDeleteTarget(null);
   }, []);
 
+  /** 打开编辑对话框 */
+  const handleOpenEdit = useCallback((card: Card) => {
+    setEditTarget(card);
+    setEditFrontText(card.front_text);
+    setEditImageFile(null);
+    setEditImagePreview(null);
+    setEditError(null);
+    setEditDialogOpen(true);
+  }, []);
+
+  /** 关闭编辑对话框 */
+  const handleCloseEdit = useCallback(() => {
+    setEditDialogOpen(false);
+    setEditTarget(null);
+    setEditFrontText('');
+    setEditImageFile(null);
+    if (editImagePreview) {
+      URL.revokeObjectURL(editImagePreview);
+    }
+    setEditImagePreview(null);
+    setEditError(null);
+  }, [editImagePreview]);
+
+  /** 编辑状态下选择新图片 */
+  const handleEditFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setEditError(null);
+
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
+        setEditError('不支持的图片格式，请选择 JPG、PNG 或 WebP 格式');
+        return;
+      }
+
+      if (file.size > MAX_IMAGE_SIZE) {
+        setEditError(`图片大小不能超过 ${MAX_IMAGE_SIZE / 1024 / 1024}MB`);
+        return;
+      }
+
+      if (editImagePreview) {
+        URL.revokeObjectURL(editImagePreview);
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      setEditImageFile(file);
+      setEditImagePreview(previewUrl);
+    },
+    [editImagePreview]
+  );
+
+  /** 确认保存编辑 */
+  const handleConfirmEdit = useCallback(async () => {
+    if (!editTarget || !editFrontText.trim() || editing) return;
+
+    setEditError(null);
+    setEditing(true);
+
+    try {
+      if (editImageFile) {
+        const base64Data = await fileToBase64(editImageFile);
+        const updated = await updateCard(editTarget.id, {
+          front_text: editFrontText.trim(),
+          image_url: base64Data,
+        });
+        setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      } else {
+        const updated = await updateCard(editTarget.id, {
+          front_text: editFrontText.trim(),
+        });
+        setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      }
+      handleCloseEdit();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : '保存卡片失败');
+    } finally {
+      setEditing(false);
+    }
+  }, [editTarget, editFrontText, editImageFile, editing, handleCloseEdit]);
+
   /** 打开批量导入对话框 */
   const handleOpenBatchDialog = useCallback(() => {
     setBatchFiles([]);
@@ -400,13 +493,16 @@ const CardManagePage: React.FC = () => {
       if (newImagePreview) {
         URL.revokeObjectURL(newImagePreview);
       }
+      if (editImagePreview) {
+        URL.revokeObjectURL(editImagePreview);
+      }
       for (const entry of batchPreviews) {
         if (entry.previewUrl) {
           URL.revokeObjectURL(entry.previewUrl);
         }
       }
     };
-  }, [newImagePreview, batchPreviews]);
+  }, [newImagePreview, editImagePreview, batchPreviews]);
 
   // 加载状态
   if (loading) {
@@ -518,6 +614,13 @@ const CardManagePage: React.FC = () => {
                 <ListItemSecondaryAction>
                   <IconButton
                     edge="end"
+                    onClick={() => handleOpenEdit(card)}
+                    size="small"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    edge="end"
                     aria-label={`删除卡片 ${card.front_text}`}
                     onClick={() => handleOpenDelete(card)}
                     size="small"
@@ -623,6 +726,99 @@ const CardManagePage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
+
+      {/* 编辑卡片对话框 */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={handleCloseEdit}
+        aria-labelledby="edit-card-dialog-title"
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle id="edit-card-dialog-title">编辑卡片</DialogTitle>
+        <DialogContent>
+          {editError && (
+            <Alert severity="error" className="mb-3">
+              {editError}
+            </Alert>
+          )}
+
+          <TextField
+            autoFocus
+            label="正面文字（汉字）"
+            fullWidth
+            required
+            value={editFrontText}
+            onChange={(e) => setEditFrontText(e.target.value)}
+            placeholder="输入卡片正面的汉字..."
+            className="mb-3 mt-1"
+            inputProps={{ maxLength: 30 }}
+          />
+
+          {/* 图片区域 */}
+          <Box className="mb-2">
+            <Typography variant="body2" color="text.secondary" className="mb-2">
+              书法图片
+            </Typography>
+
+            {/* 当前图片 */}
+            {editTarget?.image_url && (
+              <Box className="flex justify-center mb-2">
+                <Box
+                  component="img"
+                  src={getImageUrl(editTarget.image_url)}
+                  alt={editTarget.front_text}
+                  className="max-h-32 max-w-full rounded-lg border border-gray-200 object-contain"
+                />
+              </Box>
+            )}
+
+            <input
+              ref={editFileInputRef}
+              type="file"
+              accept={ACCEPT_TYPES}
+              onChange={handleEditFileSelect}
+              style={{ display: 'none' }}
+            />
+            <Button
+              variant="outlined"
+              startIcon={<UploadIcon />}
+              onClick={() => editFileInputRef.current?.click()}
+              fullWidth
+              disabled={editing}
+            >
+              {editImageFile ? editImageFile.name : '更换图片'}
+            </Button>
+            <Typography variant="caption" color="text.secondary" className="mt-1 block">
+              选择新图片则替换，不选则保留原图；支持 JPG、PNG、WebP 格式，最大 10MB
+            </Typography>
+          </Box>
+
+          {/* 新图片预览 */}
+          {editImagePreview && (
+            <Box className="flex justify-center mt-3">
+              <Box
+                component="img"
+                src={editImagePreview}
+                alt="新图片预览"
+                className="max-h-48 max-w-full rounded-lg border border-gray-200 object-contain"
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEdit} color="inherit" disabled={editing}>
+            取消
+          </Button>
+          <Button
+            onClick={handleConfirmEdit}
+            variant="contained"
+            disabled={!editFrontText.trim() || editing}
+          >
+            {editing ? '保存中...' : '保存'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 批量导入对话框 */}
       <Dialog

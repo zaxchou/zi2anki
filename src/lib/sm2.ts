@@ -69,8 +69,8 @@ export function calculateNextReview(rating: Rating, input: SM2Input): SM2Output 
         newInterval = Math.round(interval * 1.2);
         newRepetitions = repetitions + 1;
       } else if (interval === 0) {
-        // 全新卡点 Hard：保持在当前（0 = 未学），实际上应该给一个最小间隔
-        newInterval = steps[0];
+        // 全新卡点 Hard：给一个比 Again 稍长的间隔
+        newInterval = SM2_DEFAULTS.HARD_NEW_CARD_INTERVAL;
         newRepetitions = 0;
       } else {
         // 学习阶段：保持当前步骤
@@ -90,8 +90,8 @@ export function calculateNextReview(rating: Rating, input: SM2Input): SM2Output 
         // 学习阶段：进入下一步
         const currentIdx = getCurrentStepIndex(input);
         if (currentIdx === -1) {
-          // interval = 0（全新卡），第一步
-          newInterval = steps[0];
+          // interval = 0（全新卡），跳过第一步，直接进入 10 分钟
+          newInterval = steps[1];
           newRepetitions = 1;
         } else if (currentIdx < steps.length - 1) {
           // 还有下一步

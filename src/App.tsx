@@ -1,29 +1,41 @@
 import { useMemo } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { ThemeProvider, createTheme, CssBaseline, useMediaQuery } from '@mui/material';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import AppShell from '@/components/layout/AppShell';
 import DashboardPage from '@/pages/DashboardPage';
 import StudyPage from '@/pages/StudyPage';
 import DecksPage from '@/pages/DecksPage';
 import CardManagePage from '@/pages/CardManagePage';
 import SettingsPage from '@/pages/SettingsPage';
+import AnalyticsPage from '@/pages/AnalyticsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 function App() {
+  const darkMode = useSettingsStore((s) => s.darkMode);
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+
+  const resolvedMode: 'light' | 'dark' =
+    darkMode === 'dark'
+      ? 'dark'
+      : darkMode === 'system'
+        ? (prefersDark ? 'dark' : 'light')
+        : 'light';
+
   const theme = useMemo(
     () =>
       createTheme({
         palette: {
-          mode: 'light',
+          mode: resolvedMode,
           primary: {
-            main: '#5c4033',
+            main: resolvedMode === 'dark' ? '#63d4cb' : '#3eb5a8',
           },
           secondary: {
-            main: '#8d6e63',
+            main: resolvedMode === 'dark' ? '#8eddd6' : '#66c9bf',
           },
           background: {
-            default: '#faf8f5',
-            paper: '#ffffff',
+            default: resolvedMode === 'dark' ? '#121212' : '#f0faf9',
+            paper: resolvedMode === 'dark' ? '#1e1e1e' : '#ffffff',
           },
         },
         typography: {
@@ -48,7 +60,7 @@ function App() {
           borderRadius: 12,
         },
       }),
-    []
+    [resolvedMode]
   );
 
   return (
@@ -63,6 +75,7 @@ function App() {
             <Route path="/decks" element={<DecksPage />} />
             <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

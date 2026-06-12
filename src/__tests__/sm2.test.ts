@@ -63,16 +63,16 @@ console.log('\n📋 测试组 2: 全新卡片评分');
 }
 
 {
-  // Hard (2): 新卡点Hard应进入第一步
+  // Hard (2): 新卡点Hard应给 3 分钟间隔
   const result = calculateNextReview(2, { ease: 2.5, interval: 0, repetitions: 0 });
-  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[0], 'Hard: interval 应为 1 分钟');
+  assertEqual(result.interval, SM2_DEFAULTS.HARD_NEW_CARD_INTERVAL, 'Hard: interval 应为 3 分钟');
   assertClose(result.ease, 2.35, 'Hard: ease 应为 2.35 (2.5 - 0.15)');
 }
 
 {
-  // Good (3): 新卡点Good应进入第一步
+  // Good (3): 新卡点Good应进入第二步（10 分钟）
   const result = calculateNextReview(3, { ease: 2.5, interval: 0, repetitions: 0 });
-  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[0], 'Good: interval 应为 1 分钟');
+  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[1], 'Good: interval 应为 10 分钟');
   assertEqual(result.ease, 2.5, 'Good: ease 应不变');
   assertEqual(result.repetitions, 1, 'Good: repetitions 应 +1');
 }
@@ -232,7 +232,7 @@ console.log('\n📋 测试组 8: 边缘情况');
 {
   // interval 为 0 但已经被评分过 Again（理论上不会，但防护）
   const result = calculateNextReview(3, { ease: 2.5, interval: 0, repetitions: 0 });
-  assertEqual(result.interval, 1, 'interval 0 + Good = 第一步');
+  assertEqual(result.interval, 10, 'interval 0 + Good = 第二步 10 分钟');
 }
 
 {

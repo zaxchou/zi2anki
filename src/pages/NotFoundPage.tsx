@@ -4,7 +4,7 @@ import HomeIcon from '@mui/icons-material/Home';
 
 /**
  * 404 页面未找到。
- * 大号 404 文字 + 返回仪表盘按钮。
+ * 大号 404 文字 + 返回 Zi2Anki按钮。
  */
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ const NotFoundPage: React.FC = () => {
         startIcon={<HomeIcon />}
         onClick={() => navigate('/dashboard')}
       >
-        返回仪表盘
+        返回 Zi2Anki
       </Button>
     </Box>
   );

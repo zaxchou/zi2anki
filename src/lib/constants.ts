@@ -11,6 +11,7 @@ export const SM2_DEFAULTS = {
   GRADUATING_INTERVAL: 24 * 60, // 1 天（分钟）
   EASY_GRADUATING_INTERVAL: 4 * 24 * 60, // 4 天
   INITIAL_STEPS: [1, 10], // [1 分钟, 10 分钟] 学习阶梯
+  HARD_NEW_CARD_INTERVAL: 3, // 新卡片评 Hard(2) 的间隔（分钟）
 } as const;
 
 /** Supabase Storage 存储桶名称 */
@@ -24,6 +25,9 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as 
 
 /** 每日新卡学习上限默认值 */
 export const DEFAULT_DAILY_NEW_CARD_LIMIT = 20;
+
+/** 每日复习卡片上限默认值 */
+export const DEFAULT_DAILY_REVIEW_LIMIT = 200;
 
 /** 后台同步间隔：30 秒 */
 export const SYNC_INTERVAL = 30_000;

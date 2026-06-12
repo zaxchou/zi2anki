@@ -164,3 +164,34 @@ decksRouter.put('/decks/:id/card-count', (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to update card count' });
   }
 });
+
+// PUT /api/decks/:id/reset-progress —— 重置牌组所有卡片到初始状态
+decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    if (!existing) {
+      res.status(404).json({ error: 'Deck not found' });
+      return;
+    }
+
+    const now = nowISO();
+    const info = db.prepare(
+      `UPDATE cards SET ease = 2.5, interval = 0, repetitions = 0,
+                        next_review = ?, last_review = NULL, updated_at = ?
+       WHERE deck_id = ?`
+    ).run(now, now, id);
+
+    // 同时清除今日统计（避免因旧记录导致新卡数为 0）
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    db.prepare('DELETE FROM daily_stats WHERE date = ?').run(dateStr);
+
+    res.json({ success: true, reset_count: info.changes });
+  } catch (err) {
+    console.error('PUT /decks/:id/reset-progress error:', err);
+    res.status(500).json({ error: 'Failed to reset progress' });
+  }
+});

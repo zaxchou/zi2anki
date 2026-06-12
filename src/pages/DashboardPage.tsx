@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -7,17 +7,21 @@ import {
   CardContent,
   CardActions,
   Button,
-  Grid,
   Alert,
+  LinearProgress,
+  Chip,
 } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import SettingsIcon from '@mui/icons-material/Settings';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { fetchDueCounts, fetchDailyStatsRange } from '@/lib/api';
+import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal, resetDeckProgress } from '@/lib/api';
 import StatsBar from '@/components/dashboard/StatsBar';
 import StreakBadge from '@/components/dashboard/StreakBadge';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 /**
  * 根据 daily_stats 历史记录计算连续打卡天数。
@@ -27,12 +31,15 @@ function calculateStreak(
   stats: { date: string; cards_studied: number }[]
 ): number {
   let streak = 0;
-  let checkDate = new Date();
+  const checkDate = new Date();
   // 从昨天开始检查（今天还没结束）
   checkDate.setDate(checkDate.getDate() - 1);
 
   while (true) {
-    const dateStr = checkDate.toISOString().slice(0, 10);
+    const y = checkDate.getFullYear();
+    const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+    const d = String(checkDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
     const found = stats.find((s) => s.date === dateStr);
     if (found && found.cards_studied > 0) {
       streak++;
@@ -52,10 +59,13 @@ function calculateStreak(
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { decks, loading, error, loadDecks } = useDeckStore();
-  const { dailyNewCardLimit } = useSettingsStore();
+  const { dailyNewCardLimit, dailyReviewLimit } = useSettingsStore();
 
   const [dueCount, setDueCount] = useState(0);
+  const [newCardRemaining, setNewCardRemaining] = useState(dailyNewCardLimit);
   const [streakDays, setStreakDays] = useState(0);
+  const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDecks();
@@ -65,18 +75,20 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     const loadStats = async () => {
       try {
-        // 并行加载到期计数 + 历史统计
-        const today = new Date().toISOString().slice(0, 10);
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
-          .toISOString()
-          .slice(0, 10);
+        const today = todayLocal();
+        const d30 = new Date();
+        d30.setDate(d30.getDate() - 30);
+        const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
 
-        const [dueCounts, statsRange] = await Promise.all([
+        const [dueCounts, todayStats, statsRange] = await Promise.all([
           fetchDueCounts(),
+          fetchDailyStats(today),
           fetchDailyStatsRange(thirtyDaysAgo, today),
         ]);
 
-        setDueCount(dueCounts.reduce((sum, d) => sum + d.due_count, 0));
+        const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
+        setDueCount(Math.min(rawDue, dailyReviewLimit));
+        setNewCardRemaining(Math.max(0, dailyNewCardLimit - (todayStats?.new_cards_learned ?? 0)));
         setStreakDays(calculateStreak(statsRange));
       } catch (err) {
         console.error('[Dashboard] 加载统计失败:', err);
@@ -84,7 +96,26 @@ const DashboardPage: React.FC = () => {
     };
 
     loadStats();
-  }, [decks]);
+  }, [decks, dailyNewCardLimit, dailyReviewLimit]);
+
+  /** 确认重置进度 */
+  const handleConfirmReset = useCallback(async () => {
+    if (!resetTarget) return;
+    setResetError(null);
+    try {
+      const res = await resetDeckProgress(resetTarget.id);
+      console.log('[Dashboard] 重置成功:', res);
+      setDueCount(0);
+      setNewCardRemaining(dailyNewCardLimit);
+      setStreakDays(0);
+      await loadDecks();
+    } catch (err) {
+      console.error('[Dashboard] 重置失败:', err);
+      setResetError(err instanceof Error ? err.message : '重置失败');
+    } finally {
+      setResetTarget(null);
+    }
+  }, [resetTarget, dailyNewCardLimit, loadDecks]);
 
   // 错误状态
   if (error) {
@@ -121,9 +152,8 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  const newCardRemaining = dailyNewCardLimit;
-
   return (
+    <>
     <Box className="space-y-6 py-4">
       {/* 统计栏 */}
       <StatsBar
@@ -132,56 +162,107 @@ const DashboardPage: React.FC = () => {
         streakDays={streakDays}
       />
 
-      {/* 连续打卡徽章 */}
-      <Box className="flex justify-center">
-        <StreakBadge days={streakDays} />
-      </Box>
+      {/* 连续打卡徽章（仅在有打卡记录时显示） */}
+      {streakDays > 0 && (
+        <Box className="flex justify-center">
+          <StreakBadge days={streakDays} />
+        </Box>
+      )}
 
       {/* 牌组列表 */}
       <Box>
-        <Typography variant="h5" className="font-kai mb-3">
+        <Typography variant="h6" className="font-kai mb-5" sx={{ fontWeight: 600, transform: 'translateY(-16px)' }}>
           我的牌组
         </Typography>
-        <Grid container spacing={2}>
-          {decks.map((deck) => (
-            <Grid item xs={12} sm={6} md={4} key={deck.id}>
+        <Box className="space-y-3">
+          {decks.map((deck) => {
+            const reviewProgress = deck.card_count > 0
+              ? Math.round(((deck.card_count - (deck as any)._newCount || 0)) / deck.card_count * 100)
+              : 0;
+            return (
               <Card
+                key={deck.id}
                 variant="outlined"
-                className="h-full flex flex-col"
-                sx={{ borderRadius: 3 }}
+                className="cursor-pointer hover:shadow-md transition-shadow rounded-xl"
+                sx={{ borderColor: 'divider' }}
+                onClick={() => navigate(`/study/${deck.id}`)}
               >
-                <CardContent className="flex-1">
-                  <Typography variant="h6" className="font-kai" noWrap>
-                    {deck.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" className="mt-1">
-                    {deck.card_count} 张卡片
-                  </Typography>
-                </CardContent>
-                <CardActions className="px-4 pb-3 flex flex-wrap gap-2">
-                  <Button
-                    variant="contained"
-                    size="medium"
-                    startIcon={<PlayArrowIcon />}
-                    onClick={() => navigate(`/study/${deck.id}`)}
-                    disabled={deck.card_count === 0}
+                <CardContent className="flex items-center gap-4 !pb-2">
+                  <Box
+                    className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
+                    sx={{ bgcolor: 'primary.main', color: '#fff' }}
                   >
-                    {deck.card_count === 0 ? '暂无卡片' : '开始学习'}
+                    <AutoStoriesIcon />
+                  </Box>
+                  <Box className="flex-1 min-w-0">
+                    <Box className="flex items-center justify-between mb-1">
+                      <Typography variant="subtitle1" fontWeight={600} noWrap>
+                        {deck.name}
+                      </Typography>
+                      <Box className="flex items-center gap-2 shrink-0 ml-2">
+                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                          {deck.card_count} 张
+                        </Typography>
+                        <Chip
+                          label={deck.card_count > 0 ? (reviewProgress > 0 ? `${reviewProgress}%` : '新牌组') : '空'}
+                          size="small"
+                          sx={{
+                            fontSize: 11,
+                            height: 22,
+                            bgcolor: reviewProgress > 0 ? 'primary.main' : 'grey.200',
+                            color: reviewProgress > 0 ? '#fff' : 'text.secondary',
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    {deck.card_count > 0 && (
+                      <LinearProgress
+                        variant="determinate"
+                        value={reviewProgress}
+                        sx={{
+                          height: 6,
+                          borderRadius: 3,
+                          bgcolor: 'action.hover',
+                          '& .MuiLinearProgress-bar': { borderRadius: 3 },
+                        }}
+                      />
+                    )}
+                  </Box>
+                </CardContent>
+                <CardActions className="justify-end px-4 pt-1 pb-3 gap-1">
+                  <Button
+                    size="small"
+                    startIcon={<SettingsIcon />}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/decks/${deck.id}/cards`); }}
+                  >
+                    管理
                   </Button>
                   <Button
-                    variant="outlined"
-                    size="medium"
-                    onClick={() => navigate(`/decks/${deck.id}/cards`)}
+                    size="small"
+                    color="error"
+                    startIcon={<RestartAltIcon />}
+                    onClick={(e) => { e.stopPropagation(); setResetTarget({ id: deck.id, name: deck.name }); }}
+                    disabled={deck.card_count === 0}
                   >
-                    管理卡片
+                    重置
                   </Button>
                 </CardActions>
               </Card>
-            </Grid>
-          ))}
-        </Grid>
+            );
+          })}
+        </Box>
       </Box>
     </Box>
+
+    {/* 重置进度确认对话框 */}
+    <ConfirmDialog
+      open={!!resetTarget}
+      title="重置学习进度"
+      message={resetError || `确定要重置「${resetTarget?.name ?? ''}」的所有学习进度吗？所有卡片将恢复到未学习状态，此操作不可撤销。`}
+      onConfirm={handleConfirmReset}
+      onCancel={() => { setResetTarget(null); setResetError(null); }}
+    />
+    </>
   );
 };
 

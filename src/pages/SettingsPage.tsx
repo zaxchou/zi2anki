@@ -24,9 +24,11 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 const SettingsPage: React.FC = () => {
   const {
     dailyNewCardLimit,
+    dailyReviewLimit,
     darkMode,
     lastSyncAt,
     setDailyNewCardLimit,
+    setDailyReviewLimit,
     setDarkMode,
     resetToDefaults,
   } = useSettingsStore();
@@ -117,11 +119,49 @@ const SettingsPage: React.FC = () => {
 
           <Divider component="li" />
 
+          {/* 每日复习上限 */}
+          <ListItem className="flex-col items-start py-4">
+            <Box className="w-full">
+              <Box className="flex justify-between items-center mb-2">
+                <ListItemText
+                  primary="每日复习上限"
+                  secondary="控制每天最多复习多少张到期卡片"
+                  primaryTypographyProps={{ variant: 'subtitle1' as const }}
+                />
+                <Typography
+                  variant="h6"
+                  fontWeight={700}
+                  color="primary"
+                  className="ml-4 shrink-0"
+                >
+                  {dailyReviewLimit}
+                </Typography>
+              </Box>
+              <Slider
+                value={dailyReviewLimit}
+                onChange={(_e, value) => setDailyReviewLimit(value as number)}
+                min={1}
+                max={500}
+                step={1}
+                marks={[
+                  { value: 1, label: '1' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' },
+                  { value: 200, label: '200' },
+                  { value: 500, label: '500' },
+                ]}
+                valueLabelDisplay="auto"
+              />
+            </Box>
+          </ListItem>
+
+          <Divider component="li" />
+
           {/* 深色模式 */}
           <ListItem className="py-4">
             <ListItemText
               primary="深色模式"
-              secondary="切换界面的颜色主题（当前为展示功能）"
+              secondary="切换界面的颜色主题"
               primaryTypographyProps={{ variant: 'subtitle1' as const }}
             />
             <ListItemSecondaryAction>

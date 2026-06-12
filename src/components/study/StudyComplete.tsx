@@ -1,80 +1,87 @@
 import React from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, Button, LinearProgress, Paper } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type { StudySession } from '@/types';
 
 export interface StudyCompleteProps {
-  /** 本次学习会话数据 */
   session: StudySession;
-  /** 返回仪表盘回调 */
   onBackToDashboard: () => void;
 }
 
-/**
- * 学习完成页。
- * 居中显示完成图标、标题、统计信息及返回按钮。
- */
-const StudyComplete: React.FC<StudyCompleteProps> = ({
-  session,
-  onBackToDashboard,
-}) => {
-  return (
-    <Box className="flex flex-col items-center justify-center py-12 px-4">
-      {/* 完成图标 */}
-      <CheckCircleIcon
-        color="success"
-        sx={{ fontSize: 72, mb: 2 }}
-      />
+const ratingConfig = [
+  { key: 'again' as const, label: '重来', color: '#d32f2f', bg: '#fce4e4' },
+  { key: 'hard' as const, label: '困难', color: '#ed6c02', bg: '#fff3e0' },
+  { key: 'good' as const, label: '良好', color: '#2e7d32', bg: '#e8f5e9' },
+  { key: 'easy' as const, label: '简单', color: '#1565c0', bg: '#e3f2fd' },
+];
 
-      {/* 标题 */}
-      <Typography variant="h4" className="font-kai mb-6">
+const StudyComplete: React.FC<StudyCompleteProps> = ({ session, onBackToDashboard }) => {
+  const total = session.cards_studied || 1;
+
+  return (
+    <Box className="flex flex-col items-center justify-center py-6 px-4">
+      <CheckCircleIcon color="success" sx={{ fontSize: 56, mb: 2 }} />
+
+      <Typography variant="h4" className="font-kai mb-1">
         学习完成！
       </Typography>
 
-      {/* 统计信息 */}
-      <Box className="w-full max-w-sm mb-8">
-        <Typography variant="body1" color="text.secondary" className="text-center mb-4">
-          本次学习卡片数：<strong>{session.cards_studied}</strong>
-        </Typography>
+      <Typography variant="body2" color="text.secondary" className="mb-4">
+        你太棒了，继续保持！
+      </Typography>
 
-        {/* 各评分数量 */}
-        <Box className="grid grid-cols-2 gap-x-4 gap-y-2">
-          <StatRow label="Again" value={session.ratings.again} color="#d32f2f" />
-          <StatRow label="Hard" value={session.ratings.hard} color="#ed6c02" />
-          <StatRow label="Good" value={session.ratings.good} color="#2e7d32" />
-          <StatRow label="Easy" value={session.ratings.easy} color="#1565c0" />
-        </Box>
+      {/* 总卡片数 */}
+      <Typography variant="h3" fontWeight={700} color="primary" className="mb-1">
+        {session.cards_studied}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" className="mb-4">
+        本次学习卡片
+      </Typography>
+
+      {/* 评分分布 */}
+      <Box className="w-full max-w-sm mb-5 space-y-2">
+        {ratingConfig.map((item) => {
+          const count = session.ratings[item.key];
+          const pct = Math.round((count / total) * 100);
+          return (
+            <Paper
+              key={item.key}
+              elevation={0}
+              className="flex items-center gap-3 px-3 py-2"
+              sx={{ bgcolor: item.bg, borderRadius: 2 }}
+            >
+              <Typography variant="body2" fontWeight={600} sx={{ color: item.color, minWidth: 36 }}>
+                {item.label}
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={pct}
+                sx={{
+                  flex: 1,
+                  height: 10,
+                  borderRadius: 5,
+                  bgcolor: 'rgba(0,0,0,0.06)',
+                  '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: item.color },
+                }}
+              />
+              <Typography variant="body2" fontWeight={600} sx={{ color: item.color, minWidth: 24, textAlign: 'right' }}>
+                {count}
+              </Typography>
+            </Paper>
+          );
+        })}
       </Box>
 
-      {/* 返回按钮 */}
       <Button
         variant="contained"
         size="large"
         onClick={onBackToDashboard}
-        sx={{ px: 4, py: 1.5 }}
+        sx={{ px: 6, py: 1.5, borderRadius: 3, fontSize: 16 }}
       >
-        返回仪表盘
+        返回 Zi2Anki
       </Button>
     </Box>
   );
 };
-
-/** 单行评分统计 */
-interface StatRowProps {
-  label: string;
-  value: number;
-  color: string;
-}
-
-const StatRow: React.FC<StatRowProps> = ({ label, value, color }) => (
-  <Box className="flex justify-between items-center py-1 px-3 bg-gray-50 rounded">
-    <Typography variant="body2" sx={{ color }}>
-      ● {label}
-    </Typography>
-    <Typography variant="body2" fontWeight={600}>
-      {value}
-    </Typography>
-  </Box>
-);
 
 export default StudyComplete;

@@ -232,7 +232,7 @@ studyRouter.get('/due-counts', (_req: Request, res: Response) => {
     const now = nowISO();
     const rows = db.prepare(
       `SELECT d.id, d.name, COUNT(c.id) as due_count
-       FROM decks d LEFT JOIN cards c ON c.deck_id = d.id AND c.next_review <= ?
+       FROM decks d LEFT JOIN cards c ON c.deck_id = d.id AND c.next_review <= ? AND c.interval > 0
        GROUP BY d.id, d.name ORDER BY d.created_at DESC`
     ).all(now) as { id: string; name: string; due_count: number }[];
     res.json(rows);

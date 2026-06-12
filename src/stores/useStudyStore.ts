@@ -12,6 +12,7 @@ import {
   updateCard,
   createStudySession as createStudySessionApi,
   endStudySession as endStudySessionApi,
+  todayLocal,
 } from '@/lib/api';
 
 /** 学习阶段 */
@@ -33,8 +34,8 @@ interface StudyStore {
   /** 错误信息 */
   error: string | null;
 
-  /** 初始化学习会话：加载到期卡片 + 新卡片 */
-  startSession: (deckId: string, dailyNewCardLimit?: number) => Promise<void>;
+  /** 初始化学习会话：加载到期卡片 + 新卡片，dailyReviewLimit 控制复习上限 */
+  startSession: (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number) => Promise<void>;
   /** 对当前卡片评分并前进到下一张 */
   rateCard: (rating: Rating) => Promise<void>;
   /** 结束当前学习会话 */
@@ -56,21 +57,22 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
   loading: false,
   error: null,
 
-  startSession: async (deckId: string, dailyNewCardLimit?: number) => {
+  startSession: async (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number) => {
     set({ loading: true, error: null, deckId });
 
     try {
-      const limit = dailyNewCardLimit ?? DEFAULT_DAILY_NEW_CARD_LIMIT;
+      const newCardLimit = dailyNewCardLimit ?? DEFAULT_DAILY_NEW_CARD_LIMIT;
+      const reviewLimit = dailyReviewLimit ?? 200;
 
       // 并行加载到期卡片和每日统计
       const [dueCards, todayStats] = await Promise.all([
-        fetchDueCards(deckId),
-        fetchDailyStats(new Date().toISOString().slice(0, 10)),
+        fetchDueCards(deckId, reviewLimit),
+        fetchDailyStats(todayLocal()),
       ]);
 
       // 计算今天还能学多少新卡
       const newCardsLearnedToday = todayStats.new_cards_learned;
-      const remainingNewCards = Math.max(0, limit - newCardsLearnedToday);
+      const remainingNewCards = Math.max(0, newCardLimit - newCardsLearnedToday);
 
       // 加载新卡片
       let newCards: Card[] = [];
@@ -179,8 +181,8 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
         ratings: updatedRatings,
       };
 
-      // 更新每日统计
-      const today = now.slice(0, 10);
+      // 更新每日统计（使用本地日期，不受 UTC 时区偏移影响）
+      const today = todayLocal();
       const existingStats = await fetchDailyStats(today);
       await upsertDailyStats(today, {
         cards_studied: (existingStats.cards_studied ?? 0) + 1,

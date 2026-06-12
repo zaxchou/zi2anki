@@ -51,7 +51,7 @@ const FlashCard: React.FC<FlashCardProps> = ({ card, flipped, onFlip }) => {
           {/* ===== 正面：楷体大字 ===== */}
           <div
             className="backface-hidden absolute inset-0 flex items-center justify-center 
-                           rounded-xl border border-gray-200 bg-paper-light"
+                           rounded-xl border border-gray-200 bg-white"
           >
             <span className="card-front-text text-center px-4 break-all">
               {card.front_text}

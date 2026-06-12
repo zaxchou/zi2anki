@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 /** 导航项定义 */
@@ -18,13 +19,18 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     icon: <DashboardIcon />,
-    label: '仪表盘',
+    label: 'Zi2Anki',
     value: '/dashboard',
   },
   {
     icon: <PhotoLibraryIcon />,
     label: '牌组',
     value: '/decks',
+  },
+  {
+    icon: <BarChartIcon />,
+    label: '数据',
+    value: '/analytics',
   },
   {
     icon: <SettingsIcon />,

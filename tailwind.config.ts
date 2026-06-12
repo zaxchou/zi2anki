@@ -14,10 +14,10 @@ export default {
           DEFAULT: '#333',
           dark: '#1a1a1a',
         },
-        paper: {
-          light: '#fafafa',
-          DEFAULT: '#f5f0e8',
-          dark: '#e8e0d0',
+        mint: {
+          light: '#e8faf8',
+          DEFAULT: '#d0f4f0',
+          dark: '#b8eeea',
         },
       },
       animation: {

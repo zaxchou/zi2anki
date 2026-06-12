@@ -4,6 +4,15 @@ import type { Card, Deck, StudySession, DailyStats } from '@/types';
 
 const API_BASE = 'http://localhost:3001';
 
+/** 获取本地日期字符串 YYYY-MM-DD（不受 UTC 时区偏移影响） */
+export function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** 将服务端图片路径转为完整 URL（用于 <img src> 显示） */
 export function getImageUrl(imageUrl: string): string {
   if (!imageUrl) return '';
@@ -50,6 +59,10 @@ export function renameDeck(id: string, name: string): Promise<Deck> {
 
 export function deleteDeckApi(id: string): Promise<{ success: boolean }> {
   return request(`/api/decks/${id}`, { method: 'DELETE' });
+}
+
+export function resetDeckProgress(id: string): Promise<{ success: boolean; reset_count: number }> {
+  return request(`/api/decks/${id}/reset-progress`, { method: 'PUT' });
 }
 
 export function updateCardCountApi(
@@ -191,4 +204,50 @@ export function fetchDueCounts(): Promise<
   { id: string; name: string; due_count: number }[]
 > {
   return request('/api/due-counts');
+}
+
+// ===== 数据分析 API =====
+
+export interface CardStatus {
+  new: number;
+  learning: number;
+  young: number;
+  mature: number;
+}
+
+export function fetchCardStatus(deckId: string): Promise<CardStatus> {
+  return request(`/api/analytics/${deckId}/card-status`);
+}
+
+export interface Difficulty {
+  hard: number;
+  medium: number;
+  easy: number;
+  unreviewed: number;
+}
+
+export function fetchDifficulty(deckId: string): Promise<Difficulty> {
+  return request(`/api/analytics/${deckId}/difficulty`);
+}
+
+export interface RatingsSummary {
+  again: number;
+  hard: number;
+  good: number;
+  easy: number;
+  total: number;
+}
+
+export function fetchRatingsSummary(deckId: string): Promise<RatingsSummary> {
+  return request(`/api/analytics/${deckId}/ratings`);
+}
+
+export interface DailyTrendPoint {
+  date: string;
+  cards_studied: number;
+  new_cards_learned: number;
+}
+
+export function fetchDailyTrend(days?: number): Promise<DailyTrendPoint[]> {
+  return request(`/api/analytics/daily-trend${days ? `?days=${days}` : ''}`);
 }

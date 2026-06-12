@@ -5,9 +5,10 @@ import BottomNav from './BottomNav';
 
 /** 路由路径 → 页面标题映射 */
 const ROUTE_TITLE_MAP: Record<string, string> = {
-  '/': '仪表盘',
-  '/dashboard': '仪表盘',
+  '/': 'Zi2Anki',
+  '/dashboard': 'Zi2Anki',
   '/decks': '牌组',
+  '/analytics': '数据分析',
   '/settings': '设置',
   '/study': '学习',
 };

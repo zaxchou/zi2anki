@@ -411,7 +411,7 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
     let sql = `SELECT id, deck_id, front_text, image_url, ease, interval, repetitions,
                       next_review, last_review, created_at, updated_at
                FROM cards
-               WHERE deck_id = ? AND next_review <= ?
+               WHERE deck_id = ? AND next_review <= ? AND interval > 0
                ORDER BY next_review ASC`;
     const params: unknown[] = [deckId, now];
 

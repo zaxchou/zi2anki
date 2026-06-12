@@ -65,6 +65,7 @@ export interface SM2Output {
 /** 用户设置 */
 export interface UserSettings {
   dailyNewCardLimit: number; // 默认 20
+  dailyReviewLimit: number; // 每日复习上限，默认 200
   darkMode: 'system' | 'light' | 'dark';
   lastSyncAt: string | null;
 }
