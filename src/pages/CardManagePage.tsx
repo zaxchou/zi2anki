@@ -92,6 +92,12 @@ const CardManagePage: React.FC = () => {
   const [batchPreviews, setBatchPreviews] = useState<
     { file: File; previewUrl: string; frontText: string; valid: boolean; error?: string }[]
   >([]);
+
+  // 文字批量导入
+  const [textBatchOpen, setTextBatchOpen] = useState(false);
+  const [textBatchContent, setTextBatchContent] = useState('');
+  const [textBatchImporting, setTextBatchImporting] = useState(false);
+  const [textBatchResult, setTextBatchResult] = useState<string | null>(null);
   const [batchImporting, setBatchImporting] = useState(false);
   const [batchImportProgress, setBatchImportProgress] = useState(0);
   const [batchImportTotal, setBatchImportTotal] = useState(0);
@@ -102,6 +108,7 @@ const CardManagePage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Card | null>(null);
   const [editFrontText, setEditFrontText] = useState('');
+  const [editBackText, setEditBackText] = useState('');
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
@@ -276,6 +283,7 @@ const CardManagePage: React.FC = () => {
   const handleOpenEdit = useCallback((card: Card) => {
     setEditTarget(card);
     setEditFrontText(card.front_text);
+    setEditBackText(card.back_text || '');
     setEditImageFile(null);
     setEditImagePreview(null);
     setEditError(null);
@@ -287,6 +295,7 @@ const CardManagePage: React.FC = () => {
     setEditDialogOpen(false);
     setEditTarget(null);
     setEditFrontText('');
+    setEditBackText('');
     setEditImageFile(null);
     if (editImagePreview) {
       URL.revokeObjectURL(editImagePreview);
@@ -332,26 +341,22 @@ const CardManagePage: React.FC = () => {
     setEditing(true);
 
     try {
+      const updateFields: Record<string, string> = {
+        front_text: editFrontText.trim(),
+        back_text: editBackText.trim(),
+      };
       if (editImageFile) {
-        const base64Data = await fileToBase64(editImageFile);
-        const updated = await updateCard(editTarget.id, {
-          front_text: editFrontText.trim(),
-          image_url: base64Data,
-        });
-        setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      } else {
-        const updated = await updateCard(editTarget.id, {
-          front_text: editFrontText.trim(),
-        });
-        setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        updateFields.image_url = await fileToBase64(editImageFile);
       }
+      const updated = await updateCard(editTarget.id, updateFields as any);
+      setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       handleCloseEdit();
     } catch (err) {
       setEditError(err instanceof Error ? err.message : '保存卡片失败');
     } finally {
       setEditing(false);
     }
-  }, [editTarget, editFrontText, editImageFile, editing, handleCloseEdit]);
+  }, [editTarget, editFrontText, editBackText, editImageFile, editing, handleCloseEdit]);
 
   /** 打开批量导入对话框 */
   const handleOpenBatchDialog = useCallback(() => {
@@ -489,6 +494,26 @@ const CardManagePage: React.FC = () => {
     }
   }, [deckId, batchImporting, batchPreviews, cards, refreshCardCount]);
 
+  /** 文字批量导入 */
+  const handleTextBatchImport = useCallback(async () => {
+    if (!deckId || !textBatchContent.trim() || textBatchImporting) return;
+    setTextBatchImporting(true);
+    setTextBatchResult(null);
+    try {
+      const { batchImportText } = await import('@/lib/api');
+      const result = await batchImportText(deckId, textBatchContent);
+      setTextBatchResult(`成功导入 ${result.created} 张卡片`);
+      setTextBatchContent('');
+      const updatedCards = await fetchCards(deckId);
+      setCards(updatedCards);
+      await refreshCardCount(updatedCards);
+    } catch (err) {
+      setTextBatchResult(err instanceof Error ? err.message : '导入失败');
+    } finally {
+      setTextBatchImporting(false);
+    }
+  }, [deckId, textBatchContent, textBatchImporting, refreshCardCount]);
+
   /** 清理 ObjectURL（组件卸载时） */
   useEffect(() => {
     return () => {
@@ -572,6 +597,14 @@ const CardManagePage: React.FC = () => {
           onClick={handleOpenBatchDialog}
         >
           批量导入
+        </Button>
+        <Button
+          variant="outlined"
+          fullWidth
+          startIcon={<EditIcon />}
+          onClick={() => setTextBatchOpen(true)}
+        >
+          文字导入
         </Button>
       </Box>
 
@@ -728,6 +761,52 @@ const CardManagePage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* 文字批量导入对话框 */}
+      <Dialog
+        open={textBatchOpen}
+        onClose={() => { setTextBatchOpen(false); setTextBatchResult(null); }}
+        maxWidth="sm" fullWidth
+      >
+        <DialogTitle>文字批量导入</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" className="mb-2">
+            每两行为一组卡片（第一行正面，第二行背面），空行自动忽略
+          </Typography>
+          <TextField
+            autoFocus
+            multiline
+            minRows={8}
+            maxRows={16}
+            fullWidth
+            value={textBatchContent}
+            onChange={(e) => setTextBatchContent(e.target.value)}
+            placeholder={`天地
+世界
+日月
+星辰`}
+            className="mb-2"
+            disabled={textBatchImporting}
+          />
+          {textBatchResult && (
+            <Alert severity={textBatchResult.startsWith('成功') ? 'success' : 'error'} className="mt-2">
+              {textBatchResult}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setTextBatchOpen(false); setTextBatchResult(null); }} disabled={textBatchImporting}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleTextBatchImport}
+            disabled={!textBatchContent.trim() || textBatchImporting}
+          >
+            {textBatchImporting ? '导入中...' : '确认导入'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* 删除确认对话框 */}
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -767,6 +846,18 @@ const CardManagePage: React.FC = () => {
             placeholder="输入卡片正面的汉字..."
             className="mb-3 mt-1"
             inputProps={{ maxLength: 30 }}
+          />
+
+          <TextField
+            label="背面文字"
+            fullWidth
+            value={editBackText}
+            onChange={(e) => setEditBackText(e.target.value)}
+            placeholder="纯文字卡片在此输入背面内容..."
+            className="mb-3"
+            multiline
+            minRows={2}
+            inputProps={{ maxLength: 200 }}
           />
 
           {/* 图片区域 */}
