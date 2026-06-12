@@ -36,7 +36,7 @@ const SettingsPage: React.FC = () => {
     <Box className="space-y-4 py-4">
       <Typography variant="h5" className="font-kai">设置</Typography>
 
-      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <List disablePadding>
           <ListItem className="py-4">
             <ListItemText

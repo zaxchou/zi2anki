@@ -221,9 +221,9 @@ const DashboardPage: React.FC = () => {
                         value={reviewProgress}
                         sx={{
                           height: 6,
-                          borderRadius: 3,
+                          borderRadius: 2,
                           bgcolor: 'action.hover',
-                          '& .MuiLinearProgress-bar': { borderRadius: 3 },
+                          '& .MuiLinearProgress-bar': { borderRadius: 2 },
                         }}
                       />
                     )}

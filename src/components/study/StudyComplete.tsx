@@ -77,7 +77,7 @@ const StudyComplete: React.FC<StudyCompleteProps> = ({ session, onBackToDashboar
         variant="contained"
         size="large"
         onClick={onBackToDashboard}
-        sx={{ px: 6, py: 1.5, borderRadius: 3, fontSize: 16 }}
+        sx={{ px: 6, py: 1.5, borderRadius: 2, fontSize: 16 }}
       >
         返回 Zi2Anki
       </Button>

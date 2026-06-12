@@ -163,7 +163,7 @@ const AnalyticsPage: React.FC = () => {
         <Grid container spacing={3}>
           {/* 卡片状态分布 */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent>
                 <Typography variant="h6" className="font-kai mb-2">卡片状态</Typography>
                 <ResponsiveContainer width="100%" height={260}>
@@ -196,7 +196,7 @@ const AnalyticsPage: React.FC = () => {
 
           {/* 难度分布 */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent>
                 <Typography variant="h6" className="font-kai mb-2">难度分布</Typography>
                 <ResponsiveContainer width="100%" height={260}>
@@ -229,7 +229,7 @@ const AnalyticsPage: React.FC = () => {
 
           {/* 评分分布 */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent>
                 <Typography variant="h6" className="font-kai mb-2">评分分布</Typography>
                 {ratings && ratings.total > 0 ? (
@@ -271,7 +271,7 @@ const AnalyticsPage: React.FC = () => {
 
           {/* 每日复习趋势 */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent>
                 <Typography variant="h6" className="font-kai mb-2">每日复习</Typography>
                 <ResponsiveContainer width="100%" height={260}>
