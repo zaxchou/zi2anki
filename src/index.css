@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 全局重置（配合 MUI CssBaseline） ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  background-color: #faf8f5;
+  color: #333;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ===== 楷体字体工具类 ===== */
+.font-kai {
+  font-family: 'Noto Serif SC', '楷体', KaiTi, 'Ma Shan Zheng', serif;
+}
+
+/* ===== 书法卡片正面的楷体大字 ===== */
+.card-front-text {
+  font-family: 'Noto Serif SC', '楷体', KaiTi, 'Ma Shan Zheng', serif;
+  font-size: 4rem;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.2;
+}
+
+/* ===== 图片容器（卡片背面）始终浅色背景 ===== */
+.card-image-back {
+  background-color: #fafafa;
+}
+
+/* ===== 3D 翻转动画工具类 ===== */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* ===== 滚动条美化 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+/* ===== 选择文本颜色 ===== */
+::selection {
+  background-color: rgba(92, 64, 51, 0.15);
+  color: inherit;
+}
+
+/* ===== 响应式字号微调 ===== */
+@media (max-width: 600px) {
+  .card-front-text {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 960px) {
+  .card-front-text {
+    font-size: 5rem;
+  }
+}

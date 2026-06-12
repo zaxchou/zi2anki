@@ -1,0 +1,76 @@
+sequenceDiagram
+    actor User
+    participant App as App Shell
+    participant Sync as SyncService
+    participant DexieDB as IndexedDB (Dexie)
+    participant Supabase as Supabase
+    participant Router as React Router
+
+    Note over User,Router: ===== 应用启动 + 同步 =====
+
+    App->>Sync: fullSync()
+    Sync->>DexieDB: 获取 last_sync_at
+    Sync->>Supabase: SELECT * FROM cards WHERE updated_at > last_sync_at
+    Supabase-->>Sync: 远程变更列表
+    loop 逐条比对
+        Sync->>DexieDB: 本地版本查询
+        alt 远程更新
+            Sync->>DexieDB: 覆盖本地 (synced=true)
+        end
+    end
+    Sync->>DexieDB: WHERE synced = false
+    loop 本地未同步
+        Sync->>Supabase: UPSERT card + upload image
+        Sync->>DexieDB: 标记 synced=true
+    end
+    Sync->>DexieDB: 更新 last_sync_at
+    Sync-->>App: 同步完成
+
+    Note over User,Router: ===== 导入图片 =====
+
+    User->>Router: 进入牌组管理 (/decks)
+    User->>Router: 点击"导入"
+    Router->>Router: 打开 ImportModal
+
+    User->>Router: 拖入 / 选择图片文件
+    Router->>Router: 校验格式 + 生成缩略图
+
+    User->>Router: 确认导入
+    loop 每张图片
+        Router->>Supabase: upload image → storage_path
+        Router->>Router: 构建 Card (front_text = 文件名去扩展名)
+        Router->>DexieDB: upsertCard(card, synced=false)
+    end
+    Router->>DexieDB: updateDeckCardCount()
+    Router-->>User: 导入完成
+
+    Note over User,Router: ===== 学习流程 =====
+
+    User->>Router: 仪表盘点击"开始学习"
+    Router->>Router: 导航到 /study/:deckId
+
+    Router->>DexieDB: getDueCards(deckId)
+    Router->>DexieDB: getNewCards(deckId, dailyLimit - dueCount)
+    Router->>Router: 合并为学习队列
+
+    loop 队列中每张卡片
+        Router-->>User: 显示正面：楷体大号文字
+        User->>Router: 点击卡片
+        Router-->>User: 翻转动画 → 背面书法图片
+        Router-->>User: 显示评分按钮
+
+        User->>Router: 点击评分 (Again/Hard/Good/Easy)
+        Router->>Router: SM2.calculate(rating, card)
+        Router->>DexieDB: updateCard(新状态, synced=false)
+        Router->>DexieDB: updateSessionStats()
+        Router->>DexieDB: upsertDailyStats(today)
+    end
+
+    Router-->>User: 学习完成页
+
+    Note over User,Router: ===== 后台同步 =====
+
+    App->>Sync: startBackgroundSync()
+    loop 每 30 秒 + 页面隐藏
+        Sync->>Sync: pushLocal()
+    end

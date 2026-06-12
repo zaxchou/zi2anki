@@ -1,0 +1,112 @@
+classDiagram
+    direction TB
+
+    class Card {
+        +string id
+        +string deck_id
+        +string front_text
+        +string image_url
+        +string image_storage_path
+        +number ease
+        +number interval
+        +number repetitions
+        +string next_review
+        +string last_review
+        +string created_at
+        +string updated_at
+        +boolean synced
+    }
+
+    class Deck {
+        +string id
+        +string name
+        +number card_count
+        +string created_at
+        +string updated_at
+        +boolean synced
+    }
+
+    class StudySession {
+        +string id
+        +string deck_id
+        +string started_at
+        +string ended_at
+        +number cards_studied
+        +RatingCount ratings
+    }
+
+    class RatingCount {
+        +number again
+        +number hard
+        +number good
+        +number easy
+    }
+
+    class DailyStats {
+        +string date
+        +number cards_studied
+        +number new_cards_learned
+    }
+
+    class UserSettings {
+        +number dailyNewCardLimit
+        +string darkMode
+        +string lastSyncAt
+    }
+
+    class SM2Input {
+        +number ease
+        +number interval
+        +number repetitions
+        +string current_time
+    }
+
+    class SM2Output {
+        +number ease
+        +number interval
+        +number repetitions
+        +string next_review
+    }
+
+    class SM2Engine {
+        +calculate(rating, input) SM2Output
+        +isDue(card, now) boolean
+    }
+
+    class DexieDB {
+        +cards: Table~Card~
+        +decks: Table~Deck~
+        +studySessions: Table~StudySession~
+        +dailyStats: Table~DailyStats~
+        +getDueCards(deckId, limit) Promise~Card[]~
+        +getNewCards(deckId, limit) Promise~Card[]~
+        +upsertCard(card) Promise~void~
+        +upsertDeck(deck) Promise~void~
+        +upsertDailyStats(stats) Promise~void~
+    }
+
+    class SyncService {
+        +lastSyncAt: string
+        +pullRemote() Promise~void~
+        +pushLocal() Promise~void~
+        +fullSync() Promise~void~
+        +startBackgroundSync() void
+        +stopBackgroundSync() void
+    }
+
+    class SupabaseClient {
+        +from(table) QueryBuilder
+        +storage: StorageClient
+        +auth: AuthClient
+    }
+
+    Deck "1" --> "*" Card : contains
+    Card --> SM2Engine : processed by
+    StudySession --> RatingCount : has
+    StudySession "*" --> "1" Deck : belongs to
+    DexieDB --> Card : stores
+    DexieDB --> Deck : stores
+    DexieDB --> StudySession : stores
+    DexieDB --> DailyStats : stores
+    SyncService --> DexieDB : reads/writes
+    SyncService --> SupabaseClient : syncs via
