@@ -29,18 +29,15 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 function calculateStreak(
   stats: { date: string; cards_studied: number }[]
 ): number {
+  // 用 Set 做 O(1) 查找
+  const activeDays = new Set(stats.filter((s) => s.cards_studied > 0).map((s) => s.date));
   let streak = 0;
   const checkDate = new Date();
-  // 从昨天开始检查（今天还没结束）
-  checkDate.setDate(checkDate.getDate() - 1);
+  checkDate.setDate(checkDate.getDate() - 1); // 从昨天开始
 
   while (true) {
-    const y = checkDate.getFullYear();
-    const m = String(checkDate.getMonth() + 1).padStart(2, '0');
-    const d = String(checkDate.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
-    const found = stats.find((s) => s.date === dateStr);
-    if (found && found.cards_studied > 0) {
+    const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+    if (activeDays.has(dateStr)) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     } else {
@@ -78,21 +75,25 @@ const DashboardPage: React.FC = () => {
     const loadStats = async () => {
       try {
         const today = todayLocal();
+        // 30 天用于日历展示
         const d30 = new Date();
         d30.setDate(d30.getDate() - 30);
         const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
+        // 全量用于连续打卡（无上限）
+        const allFrom = '2020-01-01';
 
-        const [dueCounts, todayStats, statsRange] = await Promise.all([
+        const [dueCounts, todayStats, statsRange, allStats] = await Promise.all([
           fetchDueCounts(),
           fetchDailyStats(today),
           fetchDailyStatsRange(thirtyDaysAgo, today),
+          fetchDailyStatsRange(allFrom, today),
         ]);
 
         const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
         // 全局统计：显示所有牌组汇总，不受单个牌组上限影响
         setDueCount(rawDue);
         setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
-        setStreakDays(calculateStreak(statsRange));
+        setStreakDays(calculateStreak(allStats));
         setActivityData(statsRange);
       } catch (err) {
         console.error('[Dashboard] 加载统计失败:', err);
