@@ -4,15 +4,12 @@ import type { Rating, SM2Input, SM2Output } from '@/types';
 import { SM2_DEFAULTS } from './constants';
 
 /**
- * 判断一个学习步骤是否已毕业（不再处于 INITIAL_STEPS 中）。
- * 毕业的条件：interval 大于所有初始步骤，且 repetitions > 0。
+ * 判断一个学习步骤是否已毕业。
+ * interval 为 0、或在 INITIAL_STEPS 中 → 学习中；否则已毕业。
  */
 function hasGraduated(input: SM2Input): boolean {
-  const steps = SM2_DEFAULTS.INITIAL_STEPS;
-  // interval 为 0 表示全新卡片
-  // interval 在 steps 数组中的某个值表示还在学习阶梯中
   if (input.interval === 0) return false;
-  if (steps.includes(input.interval as (typeof steps)[number])) return false;
+  if (SM2_DEFAULTS.INITIAL_STEPS.includes(input.interval as (typeof SM2_DEFAULTS.INITIAL_STEPS)[number])) return false;
   return true;
 }
 
@@ -69,8 +66,8 @@ export function calculateNextReview(rating: Rating, input: SM2Input): SM2Output 
         newInterval = Math.round(interval * 1.2);
         newRepetitions = repetitions + 1;
       } else if (interval === 0) {
-        // 全新卡点 Hard：给一个比 Again 稍长的间隔
-        newInterval = SM2_DEFAULTS.HARD_NEW_CARD_INTERVAL;
+        // 全新卡点 Hard：进入第二步 (3 分钟)
+        newInterval = steps[1];
         newRepetitions = 0;
       } else {
         // 学习阶段：保持当前步骤
@@ -90,8 +87,8 @@ export function calculateNextReview(rating: Rating, input: SM2Input): SM2Output 
         // 学习阶段：进入下一步
         const currentIdx = getCurrentStepIndex(input);
         if (currentIdx === -1) {
-          // interval = 0（全新卡），跳过第一步，直接进入 10 分钟
-          newInterval = steps[1];
+          // interval = 0（全新卡），跳过前两步，直接进入 10 分钟
+          newInterval = steps[2]; // 10 分钟
           newRepetitions = 1;
         } else if (currentIdx < steps.length - 1) {
           // 还有下一步

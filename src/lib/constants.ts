@@ -10,8 +10,7 @@ export const SM2_DEFAULTS = {
   EASY_EASE_DELTA: +0.15,
   GRADUATING_INTERVAL: 24 * 60, // 1 天（分钟）
   EASY_GRADUATING_INTERVAL: 4 * 24 * 60, // 4 天
-  INITIAL_STEPS: [1, 10], // [1 分钟, 10 分钟] 学习阶梯
-  HARD_NEW_CARD_INTERVAL: 3, // 新卡片评 Hard(2) 的间隔（分钟）
+  INITIAL_STEPS: [1, 3, 10], // [1分钟, 3分钟(Hard), 10分钟] 学习阶梯
 } as const;
 
 /** Supabase Storage 存储桶名称 */

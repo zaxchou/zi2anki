@@ -65,14 +65,14 @@ console.log('\n📋 测试组 2: 全新卡片评分');
 {
   // Hard (2): 新卡点Hard应给 3 分钟间隔
   const result = calculateNextReview(2, { ease: 2.5, interval: 0, repetitions: 0 });
-  assertEqual(result.interval, SM2_DEFAULTS.HARD_NEW_CARD_INTERVAL, 'Hard: interval 应为 3 分钟');
+  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[1], 'Hard: interval 应为 3 分钟');
   assertClose(result.ease, 2.35, 'Hard: ease 应为 2.35 (2.5 - 0.15)');
 }
 
 {
-  // Good (3): 新卡点Good应进入第二步（10 分钟）
+  // Good (3): 新卡点Good应跳过前两步直接进入 10 分钟
   const result = calculateNextReview(3, { ease: 2.5, interval: 0, repetitions: 0 });
-  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[1], 'Good: interval 应为 10 分钟');
+  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[2], 'Good: interval 应为 10 分钟');
   assertEqual(result.ease, 2.5, 'Good: ease 应不变');
   assertEqual(result.repetitions, 1, 'Good: repetitions 应 +1');
 }
@@ -86,7 +86,7 @@ console.log('\n📋 测试组 2: 全新卡片评分');
 }
 
 // ================================================================
-// 测试组 3: 学习第一步 (interval=1) 的评分
+// 测试组 3: 学习第一步 (interval=1) 的评分, 下一步为 3 分钟
 // ================================================================
 console.log('\n📋 测试组 3: 学习第一步 (interval=1)');
 
@@ -105,9 +105,9 @@ console.log('\n📋 测试组 3: 学习第一步 (interval=1)');
 }
 
 {
-  // Good: 进入下一步 (10分钟)
+  // Good: 进入下一步 (3分钟 Hard 阶梯)
   const result = calculateNextReview(3, { ease: 2.5, interval: 1, repetitions: 1 });
-  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[1], 'Good: 应进入 10 分钟');
+  assertEqual(result.interval, SM2_DEFAULTS.INITIAL_STEPS[1], 'Good: 应进入 3 分钟');
   assertEqual(result.repetitions, 2, 'Good: repetitions 应为 2');
 }
 
@@ -119,7 +119,26 @@ console.log('\n📋 测试组 3: 学习第一步 (interval=1)');
 }
 
 // ================================================================
-// 测试组 4: 学习第二步 (interval=10) 的评分
+// 测试组 3b: 学习第二步 (interval=3, Hard) 的评分
+// ================================================================
+console.log('\n📋 测试组 3b: 学习第二步 (interval=3)');
+
+{
+  // Good: 进入下一步 10 分钟
+  const r = calculateNextReview(3, { ease: 2.35, interval: 3, repetitions: 0 });
+  assertEqual(r.interval, SM2_DEFAULTS.INITIAL_STEPS[2], 'Good: 应进入 10 分钟');
+  assertEqual(r.repetitions, 1, 'Good: repetitions 应为 1');
+}
+
+{
+  // Hard: 保持在当前步骤
+  const r = calculateNextReview(2, { ease: 2.35, interval: 3, repetitions: 0 });
+  assertEqual(r.interval, 3, 'Hard: 应保持 interval=3');
+  assertClose(r.ease, 2.20, 'Hard: ease 应减到 2.20');
+}
+
+// ================================================================
+// 测试组 4: 学习第三步 (interval=10) 的评分 → 毕业
 // ================================================================
 console.log('\n📋 测试组 4: 学习第二步 (interval=10)');
 
