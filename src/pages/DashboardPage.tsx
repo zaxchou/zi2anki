@@ -10,47 +10,25 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { DEFAULT_DAILY_NEW_CARD_LIMIT } from '@/lib/constants';
-import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal, resetDeckProgress } from '@/lib/api';
+import { resetDeckProgress } from '@/lib/api';
 import StatsOverview from '@/components/dashboard/StatsOverview';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-
-/**
- * 根据 daily_stats 历史记录计算连续打卡天数。
- * 从昨天开始往前推，统计连续有 cards_studied > 0 的天数。
- */
-function calculateStreak(
-  stats: { date: string; cards_studied: number }[]
-): number {
-  // 用 Set 做 O(1) 查找
-  const activeDays = new Set(stats.filter((s) => s.cards_studied > 0).map((s) => s.date));
-  let streak = 0;
-  const checkDate = new Date();
-  checkDate.setDate(checkDate.getDate() - 1); // 从昨天开始
-
-  while (true) {
-    const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-    if (activeDays.has(dateStr)) {
-      streak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 /**
  * 仪表盘页面。
- * 显示学习统计概览 + 牌组列表入口。
+ * 显示牌组列表入口。统计逻辑已抽离到 useDashboardStats：
+ *  - PC 端由 AppShell 侧栏注入展示
+ *  - 移动端仍在本页顶部渲染
  */
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -58,50 +36,17 @@ const DashboardPage: React.FC = () => {
   const loading = useDeckStore((s) => s.loading);
   const error = useDeckStore((s) => s.error);
   const loadDecks = useDeckStore((s) => s.loadDecks);
+  const theme = useTheme();
+  const isPc = useMediaQuery(theme.breakpoints.up('md'));
 
-  const [dueCount, setDueCount] = useState(0);
-  const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
-  const [streakDays, setStreakDays] = useState(0);
-  const [activityData, setActivityData] = useState<Array<{ date: string; cards_studied: number; new_cards_learned: number }>>([]);
+  const { dueCount, newCardRemaining, streakDays, activityData } = useDashboardStats();
+
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDecks();
   }, [loadDecks]);
-
-  // 加载真实统计数据
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const today = todayLocal();
-        // 30 天用于日历展示
-        const d30 = new Date();
-        d30.setDate(d30.getDate() - 30);
-        const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
-        // 全量用于连续打卡（无上限）
-        const allFrom = '2020-01-01';
-
-        const [dueCounts, todayStats, statsRange, allStats] = await Promise.all([
-          fetchDueCounts(),
-          fetchDailyStats(today),
-          fetchDailyStatsRange(thirtyDaysAgo, today),
-          fetchDailyStatsRange(allFrom, today),
-        ]);
-
-        const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
-        // 全局统计：显示所有牌组汇总，不受单个牌组上限影响
-        setDueCount(rawDue);
-        setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
-        setStreakDays(calculateStreak(allStats));
-        setActivityData(statsRange);
-      } catch (err) {
-        console.error('[Dashboard] 加载统计失败:', err);
-      }
-    };
-
-    loadStats();
-  }, [decks, DEFAULT_DAILY_NEW_CARD_LIMIT]);
 
   /** 确认重置进度 */
   const handleConfirmReset = useCallback(async () => {
@@ -110,9 +55,6 @@ const DashboardPage: React.FC = () => {
     try {
       const res = await resetDeckProgress(resetTarget.id);
       console.log('[Dashboard] 重置成功:', res);
-      setDueCount(0);
-      setNewCardRemaining(DEFAULT_DAILY_NEW_CARD_LIMIT);
-      setStreakDays(0);
       await loadDecks();
     } catch (err) {
       console.error('[Dashboard] 重置失败:', err);
@@ -160,20 +102,29 @@ const DashboardPage: React.FC = () => {
   return (
     <>
     <Box className="space-y-6 py-4">
-      {/* 统计 + 签到日历（一块） */}
-      <StatsOverview
-        dueCount={dueCount}
-        newCardRemaining={newCardRemaining}
-        streakDays={streakDays}
-        activityData={activityData}
-      />
+      {/* 统计 + 签到日历：PC 端由侧栏展示，此处仅在移动端渲染 */}
+      {!isPc && (
+        <StatsOverview
+          dueCount={dueCount}
+          newCardRemaining={newCardRemaining}
+          streakDays={streakDays}
+          activityData={activityData}
+        />
+      )}
 
-      {/* 牌组列表 */}
-      <Box>
-        <Typography variant="h6" className="font-kai mb-5" sx={{ fontWeight: 600, transform: 'translateY(-16px)' }}>
+      {/* 牌组列表：宽度撑满主区，卡片列数按容器宽度自动计算 */}
+      <Box sx={{ width: '100%' }}>
+        <Typography variant="h6" className="font-kai mb-4" sx={{ fontWeight: 600, transform: 'translateY(-16px)' }}>
           我的牌组
         </Typography>
-        <Box className="space-y-3">
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: 2,
+            alignItems: 'stretch',
+          }}
+        >
           {decks.map((deck) => {
             const reviewProgress = deck.card_count > 0
               ? Math.round(((deck.card_count - (deck as any)._newCount || 0)) / deck.card_count * 100)
@@ -198,6 +149,7 @@ const DashboardPage: React.FC = () => {
                       <Typography variant="subtitle1" fontWeight={600} noWrap>
                         {deck.name}
                       </Typography>
+
                       <Box className="flex items-center gap-2 shrink-0 ml-2">
                         <Typography variant="body2" color="text.secondary" fontWeight={500}>
                           {deck.card_count} 张

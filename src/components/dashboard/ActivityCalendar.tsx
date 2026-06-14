@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 
 export interface ActivityDay { date: string; cards_studied: number; new_cards_learned: number; }
-export interface ActivityCalendarProps { data: ActivityDay[]; weeks?: number; }
+export interface ActivityCalendarProps { data: ActivityDay[]; weeks?: number; /** 紧凑模式：去掉月份/星期/图例文字 */ compact?: boolean; }
 
 function getLevel(c: number) { if (c === 0) return 0; if (c < 5) return 1; if (c < 15) return 2; if (c < 30) return 3; return 4; }
 function getColor(lv: number, d: boolean) { return d ? ['#2d2d2d','#1e4a3a','#2d6e4f','#3d9163','#5bbf8a'][lv] : ['#ebedf0','#c6e4d8','#8fcfa9','#5bbf8a','#3d9163'][lv]; }
@@ -11,7 +11,7 @@ function fmt(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padS
 const DAY = ['一','','三','','五','','日'];
 const MO = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13 }) => {
+const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13, compact = false }) => {
   const theme = useTheme(); const dark = theme.palette.mode === 'dark';
   const [tip, setTip] = useState<string | null>(null);
 
@@ -44,23 +44,27 @@ const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13 })
 
   return (
     <Box sx={{ width: '100%', position: 'relative' }}>
-      {/* 月份标签 */}
-      <Box sx={{ display: 'flex', ml: '28px', mb: '4px', height: '14px', position: 'relative' }}>
-        {ml.map((m, i) => m >= 0 ? (
-          <Typography key={i} variant="caption" sx={{ position: 'absolute', left: `calc(${i} * (100% / ${weeks}))`, fontSize: '10px', color: 'text.secondary' }}>
-            {MO[m]}
-          </Typography>
-        ) : null)}
-      </Box>
+      {/* 月份标签（紧凑模式隐藏） */}
+      {!compact && (
+        <Box sx={{ display: 'flex', ml: '28px', mb: '4px', height: '14px', position: 'relative' }}>
+          {ml.map((m, i) => m >= 0 ? (
+            <Typography key={i} variant="caption" sx={{ position: 'absolute', left: `calc(${i} * (100% / ${weeks}))`, fontSize: '10px', color: 'text.secondary' }}>
+              {MO[m]}
+            </Typography>
+          ) : null)}
+        </Box>
+      )}
 
       <Box sx={{ display: 'flex' }}>
-        {/* 星期 */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', mr: '4px', pt: '2px', width: '24px' }}>
-          {DAY.map((l, i) => <Box key={i} sx={{ height: '14px', fontSize: '10px', color: 'text.secondary', lineHeight: '14px', textAlign: 'center' }}>{l}</Box>)}
-        </Box>
+        {/* 星期标签（紧凑模式隐藏） */}
+        {!compact && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', mr: '4px', pt: '2px', width: '24px' }}>
+            {DAY.map((l, i) => <Box key={i} sx={{ height: '14px', fontSize: '10px', color: 'text.secondary', lineHeight: '14px', textAlign: 'center' }}>{l}</Box>)}
+          </Box>
+        )}
 
         {/* 格子 */}
-        <Box sx={{ display: 'flex', gap: '3px', flex: 1 }}>
+        <Box sx={{ display: 'flex', gap: compact ? '2px' : '3px', flex: 1 }}>
           {grid.map((col, w) => (
             <Box key={w} sx={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
               {col.map((cell, d) => (
@@ -82,12 +86,14 @@ const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13 })
         </Box>
       </Box>
 
-      {/* 图例 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px', mt: '8px', justifyContent: 'flex-end' }}>
-        <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>少</Typography>
-        {[0,1,2,3,4].map(lv => <Box key={lv} sx={{ width: 12, height: 12, borderRadius: '2px', bgcolor: getColor(lv, dark) }} />)}
-        <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>多</Typography>
-      </Box>
+      {/* 图例（紧凑模式隐藏） */}
+      {!compact && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px', mt: '8px', justifyContent: 'flex-end' }}>
+          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>少</Typography>
+          {[0,1,2,3,4].map(lv => <Box key={lv} sx={{ width: 12, height: 12, borderRadius: '2px', bgcolor: getColor(lv, dark) }} />)}
+          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>多</Typography>
+        </Box>
+      )}
 
       {/* 轻量 tooltip */}
       {tip && (

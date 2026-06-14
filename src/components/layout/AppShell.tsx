@@ -1,7 +1,11 @@
 import React, { useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { Box, useMediaQuery, useTheme } from '@mui/material';
 import TopBar from './TopBar';
 import BottomNav from './BottomNav';
+import SideMenu from './SideMenu';
+import SidebarStats from '@/components/dashboard/SidebarStats';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 /** 路由路径 → 页面标题映射 */
 const ROUTE_TITLE_MAP: Record<string, string> = {
@@ -13,42 +17,72 @@ const ROUTE_TITLE_MAP: Record<string, string> = {
   '/study': '学习',
 };
 
+/** PC 端侧边栏宽度（px） */
+const SIDE_MENU_WIDTH = 280;
+
 /**
  * 应用外壳布局组件。
- * 组合 TopBar + 内容区域（Outlet）+ BottomNav。
+ * - 移动端（<md）：TopBar + 内容 + BottomNav（原布局）
+ * - PC 端（>=md）：TopBar + 左侧固定 SideMenu（含统计 + 日历） + 主内容
  * 页面标题根据当前路由自动映射。
  */
 const AppShell: React.FC = () => {
   const location = useLocation();
+  const theme = useTheme();
+  const isPc = useMediaQuery(theme.breakpoints.up('md'));
+
+  /** 共享统计：PC 端在侧边栏展示 */
+  const stats = useDashboardStats();
 
   /** 根据当前路径自动匹配页面标题 */
   const title = useMemo((): string => {
     const pathname = location.pathname;
 
-    // 精确匹配
     if (ROUTE_TITLE_MAP[pathname]) {
       return ROUTE_TITLE_MAP[pathname];
     }
 
-    // 前缀匹配（例如 /study/:deckId）
     for (const [route, label] of Object.entries(ROUTE_TITLE_MAP)) {
       if (route !== '/' && pathname.startsWith(route)) {
         return label;
       }
     }
 
-    // 兜底
     return '书法记忆';
   }, [location.pathname]);
 
+  /** 侧边栏子内容（统计 + 日历），仅 PC 端 */
+  const sideMenuContent = useMemo(
+    () => (
+      <SidebarStats
+        dueCount={stats.dueCount}
+        newCardRemaining={stats.newCardRemaining}
+        streakDays={stats.streakDays}
+        activityData={stats.activityData}
+      />
+    ),
+    [stats.dueCount, stats.newCardRemaining, stats.streakDays, stats.activityData]
+  );
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <Box className="flex flex-col min-h-screen">
       <TopBar title={title} />
-      <main className="flex-1 px-4 py-3">
-        <Outlet />
-      </main>
-      <BottomNav />
-    </div>
+      <Box sx={{ display: 'flex', flex: 1, position: 'relative' }}>
+        {isPc && <SideMenu width={SIDE_MENU_WIDTH}>{sideMenuContent}</SideMenu>}
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            px: { xs: 2, md: 4 },
+            py: 3,
+          }}
+        >
+          <Outlet />
+        </Box>
+      </Box>
+      {!isPc && <BottomNav />}
+    </Box>
   );
 };
 
