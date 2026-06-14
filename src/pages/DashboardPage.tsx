@@ -17,6 +17,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { resetDeckProgress } from '@/lib/api';
 import StatsOverview from '@/components/dashboard/StatsOverview';
@@ -185,11 +186,39 @@ const DashboardPage: React.FC = () => {
                     新卡 {deck.daily_new_card_limit ?? 20} · 复习 {deck.daily_review_limit ?? 200}
                   </Typography>
                 </Box>
-                <CardActions className="justify-end px-4 pt-1 pb-3 gap-1">
+                <CardActions className="flex items-center px-4 pt-1 pb-3 gap-1">
+                  <Box
+                    onClick={(e) => { e.stopPropagation(); navigate(`/study/${deck.id}`); }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      px: 1.5,
+                      py: 0.4,
+                      borderRadius: 99,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: deck.card_count === 0 ? 'text.disabled' : 'primary.main',
+                      bgcolor: deck.card_count === 0 ? 'action.disabledBackground' : 'rgba(62,181,168,0.08)',
+                      cursor: deck.card_count === 0 ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s',
+                      userSelect: 'none',
+                      '&:hover': {
+                        bgcolor: deck.card_count === 0 ? 'action.disabledBackground' : 'primary.main',
+                        color: deck.card_count === 0 ? 'text.disabled' : '#fff',
+                      },
+                      pointerEvents: deck.card_count === 0 ? 'none' : 'auto',
+                    }}
+                  >
+                    <PlayArrowIcon sx={{ fontSize: 15 }} />
+                    开始学习
+                  </Box>
+                  <Box sx={{ flex: 1 }} />
                   <Button
                     size="small"
                     startIcon={<SettingsIcon />}
                     onClick={(e) => { e.stopPropagation(); navigate(`/decks/${deck.id}/cards`); }}
+                    sx={{ textTransform: 'none', minWidth: 0 }}
                   >
                     管理
                   </Button>
@@ -199,6 +228,7 @@ const DashboardPage: React.FC = () => {
                     startIcon={<RestartAltIcon />}
                     onClick={(e) => { e.stopPropagation(); setResetTarget({ id: deck.id, name: deck.name }); }}
                     disabled={deck.card_count === 0}
+                    sx={{ textTransform: 'none', minWidth: 0 }}
                   >
                     重置
                   </Button>

@@ -24,8 +24,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  CardMedia,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -33,6 +36,7 @@ import ImageIcon from '@mui/icons-material/Image';
 import UploadIcon from '@mui/icons-material/Upload';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SchoolIcon from '@mui/icons-material/School';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
 import {
@@ -125,6 +129,9 @@ const CardManagePage: React.FC = () => {
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+
+  // 预览卡片
+  const [previewCard, setPreviewCard] = useState<Card | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // 加载牌组和卡片数据
@@ -589,8 +596,8 @@ const CardManagePage: React.FC = () => {
 
   return (
     <Box className="space-y-4 py-4">
-      {/* 顶部：返回按钮 + 牌组名称 */}
-      <Box className="flex items-center gap-2">
+      {/* 顶部：返回按钮 + 牌组名称 + 开始学习按钮 */}
+      <Box className="flex items-center gap-2 flex-wrap">
         <IconButton
           edge="start"
           aria-label="返回"
@@ -609,6 +616,18 @@ const CardManagePage: React.FC = () => {
             color="primary"
             variant="outlined"
           />
+        )}
+        <Box sx={{ flex: 1 }} />
+        {deck && (
+          <Button
+            variant="contained"
+            startIcon={<SchoolIcon />}
+            onClick={() => navigate(`/study/${deck.id}`)}
+            disabled={deck.card_count === 0}
+            sx={{ fontWeight: 600 }}
+          >
+            开始学习
+          </Button>
         )}
       </Box>
 
@@ -685,7 +704,10 @@ const CardManagePage: React.FC = () => {
                 divider={index < cards.length - 1}
                 className="px-4 py-3"
               >
-                <ListItemAvatar>
+                <ListItemAvatar
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => setPreviewCard(card)}
+                >
                   {card.image_url ? (
                     <Avatar
                       variant="rounded"
@@ -700,6 +722,8 @@ const CardManagePage: React.FC = () => {
                   )}
                 </ListItemAvatar>
                 <ListItemText
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => setPreviewCard(card)}
                   primary={
                     <Typography variant="subtitle1" className="font-kai">
                       {card.front_text}
@@ -731,82 +755,192 @@ const CardManagePage: React.FC = () => {
         </MuiCard>
       )}
 
+      {/* 卡片预览弹窗 */}
+      {previewCard && (() => {
+        const idx = cards.findIndex((c) => c.id === previewCard.id);
+        const prevCard = idx > 0 ? cards[idx - 1] : null;
+        const nextCard = idx >= 0 && idx < cards.length - 1 ? cards[idx + 1] : null;
+        return (
+      <Dialog
+        open={!!previewCard}
+        onClose={() => setPreviewCard(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6" className="font-kai" fontWeight={600}>
+            卡片预览
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {idx + 1} / {cards.length}
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
+          {previewCard && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* 图片 */}
+              {previewCard.image_url && (
+                <Box
+                  sx={{
+                    width: '100%',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    border: 1,
+                    borderColor: 'divider',
+                  }}
+                >
+                  <CardMedia
+                    component="img"
+                    image={getImageUrl(previewCard.image_url)}
+                    alt={previewCard.front_text}
+                    sx={{ maxHeight: 280, objectFit: 'contain', bgcolor: 'grey.50' }}
+                  />
+                </Box>
+              )}
+
+              {/* 正面 */}
+              <Box sx={{ px: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                  正面
+                </Typography>
+                <Typography variant="h5" className="font-kai" fontWeight={700} sx={{ mt: 0.5 }}>
+                  {previewCard.front_text}
+                </Typography>
+              </Box>
+
+              {/* 反面 */}
+              <Box sx={{ px: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                  背面
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                  {previewCard.back_text || '（无释义）'}
+                </Typography>
+              </Box>
+
+              {/* 元信息 */}
+              <Box sx={{ px: 1, pt: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  创建于 {new Date(previewCard.created_at).toLocaleDateString('zh-CN')}
+                  {previewCard.interval > 0 && ` · 已学习 ${previewCard.repetitions} 次`}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+          <Button
+            onClick={() => prevCard && setPreviewCard(prevCard)}
+            disabled={!prevCard}
+            startIcon={<ChevronLeftIcon />}
+            sx={{ textTransform: 'none' }}
+          >
+            上一张
+          </Button>
+          <Button onClick={() => setPreviewCard(null)} variant="outlined" sx={{ textTransform: 'none' }}>
+            关闭
+          </Button>
+          <Button
+            onClick={() => nextCard && setPreviewCard(nextCard)}
+            disabled={!nextCard}
+            endIcon={<ChevronRightIcon />}
+            sx={{ textTransform: 'none' }}
+          >
+            下一张
+          </Button>
+        </DialogActions>
+      </Dialog>
+        );
+      })()}
+
       {/* 添加卡片对话框 */}
       <Dialog
         open={addDialogOpen}
         onClose={handleCloseAddDialog}
         aria-labelledby="add-card-dialog-title"
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
-        <DialogTitle id="add-card-dialog-title">添加卡片</DialogTitle>
-        <DialogContent>
+        <DialogTitle id="add-card-dialog-title" sx={{ py: 1.5 }}>添加卡片</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
           {addError && (
-            <Alert severity="error" className="mb-3">
+            <Alert severity="error" sx={{ mb: 2 }}>
               {addError}
             </Alert>
           )}
 
-          <TextField
-            autoFocus
-            label="正面文字（汉字）"
-            fullWidth
-            required
-            value={newFrontText}
-            onChange={(e) => setNewFrontText(e.target.value)}
-            placeholder="输入卡片正面的汉字..."
-            className="mb-3 mt-1"
-            inputProps={{ maxLength: 30 }}
-          />
-
-          <TextField
-            label="背面文字（可选，留空则使用图片）"
-            fullWidth
-            value={newBackText}
-            onChange={(e) => setNewBackText(e.target.value)}
-            placeholder="纯文字卡片可在此输入背面内容..."
-            className="mb-3"
-            multiline
-            minRows={2}
-            inputProps={{ maxLength: 200 }}
-          />
-
-          {/* 图片上传区域 */}
-          <Box className="mb-2">
-            <Typography variant="body2" color="text.secondary" className="mb-2">
-              书法图片（可选）
-            </Typography>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPT_TYPES}
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-            />
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={() => fileInputRef.current?.click()}
-              fullWidth
-            >
-              {newImageFile ? newImageFile.name : '选择图片'}
-            </Button>
-            <Typography variant="caption" color="text.secondary" className="mt-1 block">
-              支持 JPG、PNG、WebP 格式，最大 10MB
-            </Typography>
-          </Box>
-
-          {/* 图片预览 */}
-          {newImagePreview && (
-            <Box className="flex justify-center mt-3">
-              <Box
-                component="img"
-                src={newImagePreview}
-                alt="预览"
-                className="max-h-48 max-w-full rounded-lg border border-gray-200 object-contain"
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Box>
+              <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>
+                正面文字<span style={{ color: '#d32f2f', marginLeft: 2 }}>*</span>
+              </Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                required
+                value={newFrontText}
+                onChange={(e) => setNewFrontText(e.target.value)}
+                placeholder="输入卡片正面的汉字..."
+                multiline
+                minRows={3}
+                maxRows={8}
+                inputProps={{ maxLength: 100 }}
               />
             </Box>
-          )}
+
+            <Box>
+              <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>
+                背面文字
+              </Typography>
+              <TextField
+                fullWidth
+                value={newBackText}
+                onChange={(e) => setNewBackText(e.target.value)}
+                placeholder="纯文字卡片可在此输入背面内容..."
+                multiline
+                minRows={4}
+                maxRows={10}
+                inputProps={{ maxLength: 500 }}
+              />
+            </Box>
+
+            {/* 图片上传区域 */}
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                书法图片（可选）
+              </Typography>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_TYPES}
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                fullWidth
+              >
+                {newImageFile ? newImageFile.name : '选择图片'}
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                支持 JPG、PNG、WebP 格式，最大 10MB
+              </Typography>
+            </Box>
+
+            {/* 图片预览 */}
+            {newImagePreview && (
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <Box
+                  component="img"
+                  src={newImagePreview}
+                  alt="预览"
+                  sx={{ maxHeight: 200, maxWidth: '100%', borderRadius: 2, border: 1, borderColor: 'divider', objectFit: 'contain' }}
+                />
+              </Box>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddDialog} color="inherit" disabled={adding}>
@@ -886,91 +1020,103 @@ const CardManagePage: React.FC = () => {
         open={editDialogOpen}
         onClose={handleCloseEdit}
         aria-labelledby="edit-card-dialog-title"
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
-        <DialogTitle id="edit-card-dialog-title">编辑卡片</DialogTitle>
-        <DialogContent>
+        <DialogTitle id="edit-card-dialog-title" sx={{ py: 1.5 }}>编辑卡片</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
           {editError && (
-            <Alert severity="error" className="mb-3">
+            <Alert severity="error" sx={{ mb: 2 }}>
               {editError}
             </Alert>
           )}
 
-          <TextField
-            autoFocus
-            label="正面文字（汉字）"
-            fullWidth
-            required
-            value={editFrontText}
-            onChange={(e) => setEditFrontText(e.target.value)}
-            placeholder="输入卡片正面的汉字..."
-            className="mb-3 mt-1"
-            inputProps={{ maxLength: 30 }}
-          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Box>
+              <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>
+                正面文字<span style={{ color: '#d32f2f', marginLeft: 2 }}>*</span>
+              </Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                required
+                value={editFrontText}
+                onChange={(e) => setEditFrontText(e.target.value)}
+                placeholder="输入卡片正面的汉字..."
+                multiline
+                minRows={3}
+                maxRows={8}
+                inputProps={{ maxLength: 100 }}
+              />
+            </Box>
 
-          <TextField
-            label="背面文字"
-            fullWidth
-            value={editBackText}
-            onChange={(e) => setEditBackText(e.target.value)}
-            placeholder="纯文字卡片在此输入背面内容..."
-            className="mb-3"
-            multiline
-            minRows={2}
-            inputProps={{ maxLength: 200 }}
-          />
+            <Box>
+              <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>
+                背面文字
+              </Typography>
+              <TextField
+                fullWidth
+                value={editBackText}
+                onChange={(e) => setEditBackText(e.target.value)}
+                placeholder="纯文字卡片在此输入背面内容..."
+                multiline
+                minRows={4}
+                maxRows={10}
+                inputProps={{ maxLength: 500 }}
+              />
+            </Box>
 
-          {/* 图片区域 */}
-          <Box className="mb-2">
-            <Typography variant="body2" color="text.secondary" className="mb-2">
-              书法图片
-            </Typography>
+            {/* 图片区域 */}
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                书法图片
+              </Typography>
 
-            {/* 当前图片 */}
-            {editTarget?.image_url && (
-              <Box className="flex justify-center mb-2">
+              {/* 当前图片 */}
+              {editTarget?.image_url && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
+                  <Box
+                    component="img"
+                    src={getImageUrl(editTarget.image_url)}
+                    alt={editTarget.front_text}
+                    sx={{ maxHeight: 160, maxWidth: '100%', borderRadius: 2, border: 1, borderColor: 'divider', objectFit: 'contain' }}
+                  />
+                </Box>
+              )}
+
+              <input
+                ref={editFileInputRef}
+                type="file"
+                accept={ACCEPT_TYPES}
+                onChange={handleEditFileSelect}
+                style={{ display: 'none' }}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon />}
+                onClick={() => editFileInputRef.current?.click()}
+                fullWidth
+                disabled={editing}
+              >
+                {editImageFile ? editImageFile.name : '更换图片'}
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                选择新图片则替换，不选则保留原图；支持 JPG、PNG、WebP 格式，最大 10MB
+              </Typography>
+            </Box>
+
+            {/* 新图片预览 */}
+            {editImagePreview && (
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                 <Box
                   component="img"
-                  src={getImageUrl(editTarget.image_url)}
-                  alt={editTarget.front_text}
-                  className="max-h-32 max-w-full rounded-lg border border-gray-200 object-contain"
+                  src={editImagePreview}
+                  alt="新图片预览"
+                  sx={{ maxHeight: 200, maxWidth: '100%', borderRadius: 2, border: 1, borderColor: 'divider', objectFit: 'contain' }}
                 />
               </Box>
             )}
-
-            <input
-              ref={editFileInputRef}
-              type="file"
-              accept={ACCEPT_TYPES}
-              onChange={handleEditFileSelect}
-              style={{ display: 'none' }}
-            />
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={() => editFileInputRef.current?.click()}
-              fullWidth
-              disabled={editing}
-            >
-              {editImageFile ? editImageFile.name : '更换图片'}
-            </Button>
-            <Typography variant="caption" color="text.secondary" className="mt-1 block">
-              选择新图片则替换，不选则保留原图；支持 JPG、PNG、WebP 格式，最大 10MB
-            </Typography>
           </Box>
-
-          {/* 新图片预览 */}
-          {editImagePreview && (
-            <Box className="flex justify-center mt-3">
-              <Box
-                component="img"
-                src={editImagePreview}
-                alt="新图片预览"
-                className="max-h-48 max-w-full rounded-lg border border-gray-200 object-contain"
-              />
-            </Box>
-          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseEdit} color="inherit" disabled={editing}>
