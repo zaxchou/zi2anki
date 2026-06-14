@@ -1,18 +1,22 @@
 # 字2Anki (Zi2Anki)
 
-> 书法单字记忆工具 · 基于 SM-2 间隔重复算法，专为书法爱好者设计
+> 书法单字记忆工具 · 基于 SM-2 间隔重复算法 · 本地优先 · 离线可用
 
-**Zi2Anki** 是一款专为书法学习者设计的间隔重复记忆工具。将书法字帖中的单字以图片或文本形式导入后，通过 SM-2 算法自动安排每日复习，让字形记忆变得高效而持久。
+**Zi2Anki** 是一款专为书法学习者打造的间隔重复记忆工具。将书法字帖单字以图片或文本形式导入后，系统通过 SM-2 算法自动安排每日复习计划，让字形记忆高效而持久。
+
+PC 端采用双栏布局（左侧固定 280px 菜单含学习概览 + 热力图日历），移动端自动切换底部 tab，适配全平台使用。数据存储于本地 SQLite，无需注册账号，无需网络连接。支持批量导入、卡片预览翻页、学习中断恢复，以及按牌组自定义每日新卡/复习上限。
 
 ---
 
 ## 截图
 
-| PC 端双栏布局 | 牌组管理 | 学习统计 |
+| PC 端 · 仪表盘 | PC 端 · 牌组管理 | PC 端 · 学习统计 |
 |:---:|:---:|:---:|
-| ![仪表盘](docs/screenshots/dashboard.png) | ![牌组管理](docs/screenshots/decks.png) | ![统计](docs/screenshots/analytics.png) |
+| ![仪表盘-PC](docs/screenshots/dashboard.png) | ![牌组管理-PC](docs/screenshots/decks.png) | ![统计-PC](docs/screenshots/analytics.png) |
 
----
+| 移动端 · 仪表盘 | 移动端 · 牌组列表 | 移动端 · 底部 tab |
+|:---:|:---:|:---:|
+| ![仪表盘-移动](docs/screenshots/mobile-dashboard.png) | ![牌组列表-移动](docs/screenshots/mobile-decks.png) | ![底部tab-移动](docs/screenshots/mobile-decks-list.png) |
 
 ## 功能特性
 
