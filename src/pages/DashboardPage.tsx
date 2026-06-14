@@ -18,8 +18,7 @@ import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { DEFAULT_DAILY_NEW_CARD_LIMIT } from '@/lib/constants';
 import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal, resetDeckProgress } from '@/lib/api';
-import StatsBar from '@/components/dashboard/StatsBar';
-import StreakBadge from '@/components/dashboard/StreakBadge';
+import StatsOverview from '@/components/dashboard/StatsOverview';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
@@ -63,6 +62,7 @@ const DashboardPage: React.FC = () => {
   const [dueCount, setDueCount] = useState(0);
   const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
   const [streakDays, setStreakDays] = useState(0);
+  const [activityData, setActivityData] = useState<Array<{ date: string; cards_studied: number; new_cards_learned: number }>>([]);
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
 
@@ -90,6 +90,7 @@ const DashboardPage: React.FC = () => {
         setDueCount(rawDue);
         setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
         setStreakDays(calculateStreak(statsRange));
+        setActivityData(statsRange);
       } catch (err) {
         console.error('[Dashboard] 加载统计失败:', err);
       }
@@ -155,19 +156,13 @@ const DashboardPage: React.FC = () => {
   return (
     <>
     <Box className="space-y-6 py-4">
-      {/* 统计栏 */}
-      <StatsBar
+      {/* 统计 + 签到日历（一块） */}
+      <StatsOverview
         dueCount={dueCount}
         newCardRemaining={newCardRemaining}
         streakDays={streakDays}
+        activityData={activityData}
       />
-
-      {/* 连续打卡徽章（仅在有打卡记录时显示） */}
-      {streakDays > 0 && (
-        <Box className="flex justify-center">
-          <StreakBadge days={streakDays} />
-        </Box>
-      )}
 
       {/* 牌组列表 */}
       <Box>
