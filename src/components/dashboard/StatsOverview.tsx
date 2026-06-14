@@ -94,4 +94,4 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ dueCount, newCardRemainin
   );
 };
 
-export default StatsOverview;
+export default React.memo(StatsOverview);

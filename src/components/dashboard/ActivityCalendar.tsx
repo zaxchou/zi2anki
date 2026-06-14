@@ -104,4 +104,4 @@ const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13 })
   );
 };
 
-export default ActivityCalendar;
+export default React.memo(ActivityCalendar);

@@ -57,7 +57,10 @@ function calculateStreak(
  */
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { decks, loading, error, loadDecks } = useDeckStore();
+  const decks = useDeckStore((s) => s.decks);
+  const loading = useDeckStore((s) => s.loading);
+  const error = useDeckStore((s) => s.error);
+  const loadDecks = useDeckStore((s) => s.loadDecks);
 
   const [dueCount, setDueCount] = useState(0);
   const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
