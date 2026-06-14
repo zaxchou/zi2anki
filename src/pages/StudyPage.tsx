@@ -89,17 +89,14 @@ const StudyPage: React.FC = () => {
     }
   }, [phase, session?.cards_studied]);
 
-  /** 确认退出：先结束会话（保留已评分的卡） → 跳回牌组管理页（带筛选） */
+  /** 确认退出：先结束会话（保留已评分的卡） → 回到来源页 */
   const handleConfirmExit = useCallback(async () => {
     setConfirmExit(false);
     if (phase === 'studying') {
       await endSession().catch(() => {/* 静默失败 */});
     }
-    const backUrl = deckId
-      ? `/decks/${deckId}/cards${difficultyFilter ? `?difficulty=${difficultyFilter}` : ''}`
-      : '/dashboard';
-    navigate(backUrl);
-  }, [phase, endSession, navigate, deckId, difficultyFilter]);
+    navigate(-1);
+  }, [phase, endSession, navigate]);
 
   // 加载状态
   if (phase === 'loading' || loading) {
@@ -201,27 +198,10 @@ const StudyPage: React.FC = () => {
   // 完成阶段
   if (phase === 'complete' && session) {
     return (
-      <Box>
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={1}
-          sx={{ mb: 2 }}
-        >
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(deckId ? `/decks/${deckId}/cards${difficultyFilter ? `?difficulty=${difficultyFilter}` : ''}` : '/dashboard')}
-            size="small"
-            color="inherit"
-          >
-            返回牌组
-          </Button>
-        </Stack>
-        <StudyComplete
-          session={session}
-          onBackToDashboard={handleConfirmExit}
-        />
-      </Box>
+      <StudyComplete
+        session={session}
+        onBackToDashboard={handleConfirmExit}
+      />
     );
   }
 
