@@ -9,10 +9,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  IconButton,
-  Tooltip,
   Stack,
-  Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useStudyStore } from '@/stores/useStudyStore';
@@ -133,26 +130,20 @@ const StudyPage: React.FC = () => {
     const currentCard = queue[currentIndex];
     return (
       <Box className="flex flex-col items-center gap-6 py-4 relative">
-        {/* 顶部返回按钮：固定左上角，不打扰学习 */}
+        {/* 顶部返回按钮：整个区域可点击 */}
         <Stack
           direction="row"
           alignItems="center"
-          spacing={1}
           sx={{ position: 'absolute', left: 0, top: 0 }}
         >
-          <Tooltip title="中断学习并返回">
-            <IconButton
-              onClick={handleRequestExit}
-              size="small"
-              sx={{ color: 'text.secondary' }}
-              aria-label="返回"
-            >
-              <ArrowBackIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Typography variant="body2" color="text.secondary">
+          <Button
+            onClick={handleRequestExit}
+            size="small"
+            startIcon={<ArrowBackIcon />}
+            sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 500 }}
+          >
             返回
-          </Typography>
+          </Button>
         </Stack>
 
         {/* 进度条 */}

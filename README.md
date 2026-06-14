@@ -192,19 +192,6 @@ zi2anki/
 
 ---
 
-## 部署
-
-部署采用 SCP 直传方式（不走 GitHub）：
-
-```bash
-bash Z:\molin-wiki\deploy.sh anki       # 仅部署 zi2anki
-bash Z:\molin-wiki\deploy.sh anki --full # 含 uploads 完整部署
-```
-
-生产环境：PM2 守护进程 + nginx 反向代理
-
----
-
 ## License
 
 MIT
