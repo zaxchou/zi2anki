@@ -53,21 +53,20 @@ const RATING_LABELS: Record<string, string> = {
 };
 
 /**
- * 自定义饼图标签（适配暗色/浅色主题）
+ * 饼图标签渲染函数（接收 textColor 参数，避免组件内 useTheme）
  */
-const PieLabel = ({ cx, cy, midAngle, innerRadius: _ir, outerRadius, name, value, fill: _f }: any) => {
-  const theme = useTheme();
-  const textColor = theme.palette.mode === 'dark' ? '#e0e0e0' : '#333';
-  const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 24;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  return (
-    <text x={x} y={y} fill={textColor} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
-      {name} {value}
-    </text>
-  );
-};
+const renderPieLabel = (textColor: string) =>
+  ({ cx, cy, midAngle, outerRadius, name, value }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 24;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text x={x} y={y} fill={textColor} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
+        {name} {value}
+      </text>
+    );
+  };
 
 /**
  * 自定义 Tooltip（适配暗色/浅色主题）
@@ -239,7 +238,7 @@ const AnalyticsPage: React.FC = () => {
                       cx="50%" cy="50%"
                       innerRadius={50} outerRadius={90}
                       dataKey="value" nameKey="name"
-                      label={<PieLabel />}
+                      label={renderPieLabel(textColor)}
                       onClick={(data: any) => handlePieClick(data.name)}
                       style={{ cursor: 'pointer' }}
                     >
@@ -274,7 +273,7 @@ const AnalyticsPage: React.FC = () => {
                       cx="50%" cy="50%"
                       innerRadius={50} outerRadius={90}
                       dataKey="value" nameKey="name"
-                      label={<PieLabel />}
+                      label={renderPieLabel(textColor)}
                       onClick={(data: any) => handlePieClick(data.name)}
                       style={{ cursor: 'pointer' }}
                     >
@@ -314,7 +313,7 @@ const AnalyticsPage: React.FC = () => {
                           cx="50%" cy="50%"
                           innerRadius={50} outerRadius={90}
                           dataKey="value" nameKey="name"
-                          label={<PieLabel />}
+                          label={renderPieLabel(textColor)}
                           onClick={(data: any) => handlePieClick(data.name)}
                           style={{ cursor: 'pointer' }}
                         >
