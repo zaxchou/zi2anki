@@ -71,8 +71,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
           borderRight: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
-          top: 64,
-          height: 'calc(100% - 64px)',
+          top: 0,
+          height: '100%',
         },
       }}
     >

@@ -66,7 +66,9 @@ const AppShell: React.FC = () => {
 
   return (
     <Box className="flex flex-col min-h-screen">
-      <TopBar title={title} />
+      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+        <TopBar title={title} />
+      </Box>
       <Box sx={{ display: 'flex', flex: 1, position: 'relative' }}>
         {isPc && <SideMenu width={SIDE_MENU_WIDTH}>{sideMenuContent}</SideMenu>}
         <Box
