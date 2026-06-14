@@ -2,7 +2,7 @@
 
 import type { Card, Deck, StudySession, DailyStats } from '@/types';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = '';
 
 /** 获取本地日期字符串 YYYY-MM-DD（不受 UTC 时区偏移影响） */
 export function todayLocal(): string {
