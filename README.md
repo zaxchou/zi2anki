@@ -1,20 +1,32 @@
 # 字2Anki (Zi2Anki)
 
-> 书法记忆卡 · 基于 SM-2 间隔重复算法的书法练习工具
+> 书法单字记忆工具 · 基于 SM-2 间隔重复算法，专为书法爱好者设计
 
-**Zi2Anki** 是一款专为书法学习者设计的间隔重复记忆工具。将书法字帖图片批量导入后，通过 SM-2 算法自动安排每日复习，让字形记忆变得高效而持久。
+**Zi2Anki** 是一款专为书法学习者设计的间隔重复记忆工具。将书法字帖中的单字以图片或文本形式导入后，通过 SM-2 算法自动安排每日复习，让字形记忆变得高效而持久。
+
+---
+
+## 截图
+
+| PC 端双栏布局 | 牌组管理 | 学习统计 |
+|:---:|:---:|:---:|
+| ![仪表盘](docs/screenshots/dashboard.png) | ![牌组管理](docs/screenshots/decks.png) | ![统计](docs/screenshots/analytics.png) |
 
 ---
 
 ## 功能特性
 
-- **牌组管理** — 按字帖/碑帖创建牌组（如"春江花月夜"），分类管理书法单字
-- **批量导入** — 支持批量上传图片，自动从文件名提取文字作为卡片正面
-- **SM-2 算法** — 经典间隔重复算法，根据每次学习的评分（重来/困难/良好/简单）智能调整复习间隔
-- **学习统计** — 每日学习量、连续打卡、评分分布一目了然
-- **本地优先** — SQLite 存储所有数据，无需网络即可使用
-- **Supabase 同步**（可选） — 多设备间同步学习进度和卡片数据
-- **响应式设计** — 桌面端 + 移动端适配，随时随地复习
+- **PC 双栏布局** — 左侧固定 280px 菜单（导航 + 学习概览紧凑版热力图 + 统计卡），右侧自适应主区
+- **Mobile 适配** — 移动端自动切换底部 tab 布局，保留完整体验
+- **牌组管理** — 按字帖/碑帖创建牌组，分类管理书法单字卡片
+- **SM-2 算法** — 经典间隔重复算法（3 步学习阶梯：1min → 3min → 10min → 毕业）
+- **卡片预览** — 点击卡片即可预览正面/背面内容，支持上/下一张翻页
+- **批量导入** — 支持批量上传图片 + 文本批量导入（每两行一组卡片）
+- **学习统计** — 签到日历热力图（13 周 × 7 天）、每日学习量、连续打卡、评分分布
+- **学习中断恢复** — 中断学习时进度自动保留，已有评分不会丢失
+- **每日上限** — 按牌组设置新卡/复习每日上限，合理规划学习节奏
+- **响应式设计** — PC 端双栏 + 移动端底部 tab，全屏适配
+- **本地优先** — SQLite 存储，无需网络即可使用
 
 ---
 
@@ -28,11 +40,11 @@
 | 状态管理 | Zustand |
 | 路由 | React Router 6 |
 | 构建工具 | Vite 5 |
-| 后端 | Express 5 + TypeScript |
+| 后端 | Express 5 + TypeScript (tsx) |
 | 数据库 | better-sqlite3 |
-| 算法 | SM-2 (纯函数实现) |
-| 离线存储 | Dexie (IndexedDB) |
-| 同步 | Supabase |
+| 算法 | SM-2（纯函数实现，53 项测试覆盖） |
+| 进程管理 | PM2（生产环境） |
+| 部署 | SCP 直传（不走 GitHub） |
 
 ---
 
@@ -46,7 +58,6 @@
 ### 安装与运行
 
 ```bash
-# 克隆仓库
 git clone https://github.com/zaxchou/zi2anki.git
 cd zi2anki
 
@@ -60,10 +71,16 @@ mkdir -p uploads
 npx tsx server/index.ts
 
 # 新终端，启动前端（端口 3000）
-npx vite --host
+npx vite --port 3000
 ```
 
 打开浏览器访问 `http://localhost:3000`
+
+### 一键启动（Windows）
+
+```bash
+start.bat
+```
 
 ---
 
@@ -74,25 +91,27 @@ zi2anki/
 ├── server/                  # Express 后端
 │   ├── index.ts             # 服务入口
 │   ├── db.ts                # SQLite 数据库初始化 + 迁移
-│   ├── routes/
-│   │   ├── decks.ts         # 牌组 CRUD API
-│   │   ├── cards.ts         # 卡片 CRUD + 批量导入 API
-│   │   └── study.ts         # 学习会话 + 统计 API
-│   └── tsconfig.json
+│   └── routes/
+│       ├── decks.ts         # 牌组 CRUD API
+│       ├── cards.ts         # 卡片 CRUD + 批量导入 API
+│       └── study.ts         # 学习会话 + 统计 API
 ├── src/                     # React 前端
 │   ├── main.tsx             # 应用入口
-│   ├── App.tsx              # 路由配置
+│   ├── App.tsx              # 路由配置 + 主题
 │   ├── components/
 │   │   ├── common/          # 通用组件（对话框、加载态）
-│   │   ├── dashboard/       # 仪表盘组件（统计栏、打卡徽章）
-│   │   ├── layout/          # 布局组件（导航、顶栏）
+│   │   ├── dashboard/       # 仪表盘组件（统计卡、热力图日历）
+│   │   ├── layout/          # 布局组件（SideMenu、AppShell、BottomNav）
 │   │   └── study/           # 学习组件（闪卡、评分按钮、进度条）
 │   ├── pages/               # 页面
-│   │   ├── DecksPage.tsx    # 牌组列表
-│   │   ├── CardManagePage.tsx # 卡片管理
-│   │   ├── StudyPage.tsx    # 学习页面
-│   │   ├── DashboardPage.tsx # 仪表盘
-│   │   └── SettingsPage.tsx # 设置
+│   │   ├── DashboardPage.tsx  # 仪表盘（牌组卡片 + 开始学习按钮）
+│   │   ├── DecksPage.tsx      # 牌组列表
+│   │   ├── CardManagePage.tsx # 卡片管理（添加/编辑/预览/翻页）
+│   │   ├── StudyPage.tsx      # 学习页面（闪卡复习 + 返回确认）
+│   │   ├── AnalyticsPage.tsx  # 学习数据统计
+│   │   └── SettingsPage.tsx   # 系统设置
+│   ├── hooks/               # 自定义 Hooks
+│   │   └── useDashboardStats.ts  # 共享统计加载
 │   ├── lib/
 │   │   ├── api.ts           # Express API 客户端
 │   │   ├── sm2.ts           # SM-2 算法实现
@@ -101,18 +120,39 @@ zi2anki/
 │   │   ├── sync.ts          # Supabase 同步
 │   │   └── supabase.ts      # Supabase 客户端
 │   ├── stores/              # Zustand 状态管理
+│   │   ├── useDeckStore.ts
+│   │   ├── useStudyStore.ts
+│   │   └── useSettingsStore.ts
 │   ├── types/               # TypeScript 类型定义
-│   └── __tests__/           # 单元测试
-├── docs/                    # 设计文档
-│   ├── system_design.md     # 系统设计
-│   ├── class-diagram.mermaid
-│   └── sequence-diagram.mermaid
+│   └── __tests__/           # 单元测试（SM-2 算法 53 项）
+├── docs/
+│   ├── screenshots/         # 功能截图
+│   └── system_design.md     # 系统设计文档
 ├── uploads/                 # 上传图片存储
+├── start.bat                # Windows 一键启动脚本
 ├── package.json
 ├── vite.config.ts
-├── tailwind.config.ts
 └── tsconfig.json
 ```
+
+---
+
+## SM-2 算法
+
+本项目实现了改进的 SM-2 间隔重复算法，3 步学习阶梯：
+
+```
+新卡 → 1 分钟（重来）→ 3 分钟（困难）→ 10 分钟（良好）→ 毕业
+```
+
+| 评分 | 按钮 | ease 变化 | 间隔变化 |
+|------|------|-----------|----------|
+| 1（重来） | 🔴 Again | -0.20 | 重置到 1 分钟 |
+| 2（困难） | 🟡 Hard | -0.15 | 保持当前阶梯 |
+| 3（良好） | 🟢 Good | 不变 | 进入下一步 |
+| 4（简单） | 🔵 Easy | +0.15 | 直接毕业（4 天） |
+
+学习阶梯：`[1, 3, 10]`（分钟），毕业间隔 = 1 天，后续每轮 × ease。
 
 ---
 
@@ -133,28 +173,31 @@ zi2anki/
 | GET | `/api/decks/:id/new-cards` | 获取新卡片 |
 | POST | `/api/study-sessions` | 创建学习会话 |
 | PUT | `/api/study-sessions/:id` | 结束学习会话 |
+| GET | `/api/due-counts` | 各牌组待复习数量 |
 | GET/PUT | `/api/daily-stats/:date` | 每日统计 |
-
----
-
-## SM-2 算法
-
-本项目实现了标准的 SM-2 间隔重复算法，评分分为四档：
-
-| 评分 | 按钮 | ease 变化 | 间隔变化 |
-|------|------|-----------|----------|
-| 1 | 重来 | -0.20 | 重置到 1 分钟 |
-| 2 | 困难 | -0.15 | 当前间隔 × 1.2 |
-| 3 | 良好 | 不变 | 当前间隔 × ease |
-| 4 | 简单 | +0.15 | 当前间隔 × ease × 1.3 |
-
-学习阶梯：1 分钟 → 10 分钟 → 毕业（1 天）
+| GET | `/api/daily-stats/range` | 每日统计范围查询 |
+| PUT | `/api/decks/:id/limits` | 设置每日学习上限 |
+| POST | `/api/decks/:id/reset` | 重置牌组学习进度 |
 
 ---
 
 ## 相关项目
 
+- **[molin-wiki](https://molin.wiki)** — 中国书画 AI 分析与知识平台（Vue3 + FastAPI + Qdrant）
 - **[zi2anki-skills](https://github.com/zaxchou/zi2anki-skills)** — WorkBuddy 技能包：书法单字提取、碑帖裁切等自动化工具
+
+---
+
+## 部署
+
+部署采用 SCP 直传方式（不走 GitHub）：
+
+```bash
+bash Z:\molin-wiki\deploy.sh anki       # 仅部署 zi2anki
+bash Z:\molin-wiki\deploy.sh anki --full # 含 uploads 完整部署
+```
+
+生产环境：PM2 守护进程 + nginx 反向代理
 
 ---
 
