@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -74,6 +74,7 @@ function fileToBase64(file: File): Promise<string> {
 const CardManagePage: React.FC = () => {
   const { deckId } = useParams<{ deckId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { updateCardCount, loadDecks } = useDeckStore();
 
   // 数据状态
@@ -81,6 +82,23 @@ const CardManagePage: React.FC = () => {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 难度筛选（从 URL searchParams 初始化，例如 ?difficulty=hard）
+  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(
+    () => searchParams.get('difficulty') || null
+  );
+
+  /** 难度筛选逻辑：根据 ease/interval 分类 */
+  const filteredCards = useMemo(() => {
+    if (!difficultyFilter) return cards;
+    return cards.filter((c) => {
+      if (difficultyFilter === 'new') return c.interval === 0;
+      if (difficultyFilter === 'hard') return c.interval > 0 && c.ease < 2.0;
+      if (difficultyFilter === 'medium') return c.interval > 0 && c.ease >= 2.0 && c.ease < 2.5;
+      if (difficultyFilter === 'easy') return c.interval > 0 && c.ease >= 2.5;
+      return true;
+    });
+  }, [cards, difficultyFilter]);
 
   // 添加卡片对话框
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -631,6 +649,29 @@ const CardManagePage: React.FC = () => {
         )}
       </Box>
 
+      {/* 难度筛选（支持从分析页跳转） */}
+      <Box className="flex items-center gap-2 flex-wrap">
+        {[null, 'new', 'hard', 'medium', 'easy'].map((f) => {
+          const label = f === null ? '全部' : f === 'new' ? '新卡片' : f === 'hard' ? '困难' : f === 'medium' ? '普通' : '简单';
+          return (
+            <Chip
+              key={f ?? 'all'}
+              label={label}
+              size="small"
+              color={difficultyFilter === f ? 'primary' : 'default'}
+              variant={difficultyFilter === f ? 'filled' : 'outlined'}
+              onClick={() => setDifficultyFilter(f)}
+              sx={{ cursor: 'pointer' }}
+            />
+          );
+        })}
+        {difficultyFilter && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            {filteredCards.length}/{cards.length}
+          </Typography>
+        )}
+      </Box>
+
       {/* 学习上限设置 */}
       <Accordion
         expanded={deckLimitsOpen}
@@ -688,8 +729,31 @@ const CardManagePage: React.FC = () => {
         </Button>
       </Box>
 
+      {/* 难度筛选（支持从分析页跳转） */}
+      <Box className="flex items-center gap-2 flex-wrap">
+        {[null, 'new', 'hard', 'medium', 'easy'].map((f) => {
+          const label = f === null ? '全部' : f === 'new' ? '新卡片' : f === 'hard' ? '困难' : f === 'medium' ? '普通' : '简单';
+          return (
+            <Chip
+              key={f ?? 'all'}
+              label={label}
+              size="small"
+              color={difficultyFilter === f ? 'primary' : 'default'}
+              variant={difficultyFilter === f ? 'filled' : 'outlined'}
+              onClick={() => setDifficultyFilter(f)}
+              sx={{ cursor: 'pointer' }}
+            />
+          );
+        })}
+        {difficultyFilter && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            {filteredCards.length}/{cards.length}
+          </Typography>
+        )}
+      </Box>
+
       {/* 卡片列表或空状态 */}
-      {cards.length === 0 ? (
+      {filteredCards.length === 0 ? (
         <EmptyState
           icon={<ImageIcon />}
           title="还没有卡片"
@@ -698,10 +762,10 @@ const CardManagePage: React.FC = () => {
       ) : (
         <MuiCard variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
-            {cards.map((card, index) => (
+            {filteredCards.map((card, index) => (
               <ListItem
                 key={card.id}
-                divider={index < cards.length - 1}
+                divider={index < filteredCards.length - 1}
                 className="px-4 py-3"
               >
                 <ListItemAvatar

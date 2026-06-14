@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -100,6 +101,7 @@ const ChartTooltip = ({ active, payload }: any) => {
  */
 const AnalyticsPage: React.FC = () => {
   const { decks, loadDecks } = useDeckStore();
+  const navigate = useNavigate();
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const COLORS = dark ? DARK : LIGHT;
@@ -115,6 +117,24 @@ const AnalyticsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+
+  /** 点击饼图扇区 → 跳转到牌组管理页并预选难度筛选 */
+  const handlePieClick = useCallback(
+    (labelKey: string) => {
+      if (!selectedDeck) return;
+      // 状态扇区映射: 新卡片→new, 学习中→new, 复习中→medium, 已掌握→easy
+      // 难度扇区映射: 困难→hard, 普通→medium, 简单→easy, 未复习→new
+      // 评分扇区映射: 重来→hard, 困难→hard, 良好→easy, 简单→easy
+      const diffMap: Record<string, string> = {
+        '新卡片': 'new', '学习中': 'new', '复习中': 'medium', '已掌握': 'easy',
+        '困难': 'hard', '普通': 'medium', '简单': 'easy', '未复习': 'new',
+        '重来': 'hard', '良好': 'easy',
+      };
+      const diff = diffMap[labelKey] || '';
+      navigate(`/decks/${selectedDeck}/cards${diff ? `?difficulty=${diff}` : ''}`);
+    },
+    [selectedDeck, navigate]
+  );
 
   // 页面挂载时加载牌组
   useEffect(() => {
@@ -220,6 +240,8 @@ const AnalyticsPage: React.FC = () => {
                       innerRadius={50} outerRadius={90}
                       dataKey="value" nameKey="name"
                       label={<PieLabel />}
+                      onClick={(data: any) => handlePieClick(data.name)}
+                      style={{ cursor: 'pointer' }}
                     >
                       {pieData(cardStatus, STATUS_LABELS).map((_, i) => (
                         <Cell key={i} fill={COLORS.status[i % COLORS.status.length]} />
@@ -253,6 +275,8 @@ const AnalyticsPage: React.FC = () => {
                       innerRadius={50} outerRadius={90}
                       dataKey="value" nameKey="name"
                       label={<PieLabel />}
+                      onClick={(data: any) => handlePieClick(data.name)}
+                      style={{ cursor: 'pointer' }}
                     >
                       {pieData(difficulty, DIFFICULTY_LABELS).map((_, i) => (
                         <Cell key={i} fill={COLORS.difficulty[i % COLORS.difficulty.length]} />
@@ -291,6 +315,8 @@ const AnalyticsPage: React.FC = () => {
                           innerRadius={50} outerRadius={90}
                           dataKey="value" nameKey="name"
                           label={<PieLabel />}
+                          onClick={(data: any) => handlePieClick(data.name)}
+                          style={{ cursor: 'pointer' }}
                         >
                           {pieData(
                             { again: ratings.again, hard: ratings.hard, good: ratings.good, easy: ratings.easy },
