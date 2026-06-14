@@ -41,15 +41,15 @@ echo Done.
 goto :eof
 
 :start_backend
-echo Starting backend (:3001) ...
-start "Zi2Anki-Backend" cmd /c "cd /d %cd% && npx tsx server/index.ts"
+echo Starting backend ...
+start "Zi2Anki-Backend" cmd /c "cd /d %~dp0 && npx tsx server/index.ts"
 timeout /t 4 /nobreak >nul
-echo Backend started.
+echo Backend: http://localhost:3001
 goto :eof
 
 :start_frontend
-echo Starting frontend (:3000) ...
-start "Zi2Anki-Frontend" cmd /c "cd /d %cd% && npx vite --port 3000"
+echo Starting frontend ...
+start "Zi2Anki-Frontend" cmd /c "cd /d %~dp0 && npx vite --port 3000"
 timeout /t 3 /nobreak >nul
-echo Frontend started. Open http://localhost:3000
+echo Frontend: http://localhost:3000
 goto :eof
