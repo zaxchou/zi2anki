@@ -56,7 +56,7 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ dueCount, newCardRemainin
   }, [activityData]);
 
   return (
-    <Box sx={{ p: 2, borderRadius: 3, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+    <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'background.paper' }}>
       {/* 顶部 3 张统计卡 */}
       <Box className="flex gap-3 mb-3">
         {statItems.map((item) => (
