@@ -21,11 +21,14 @@ decksRouter.get('/decks', (_req: Request, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare(
-      'SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks ORDER BY created_at DESC'
+      `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
+        COALESCE((SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.interval = 0), 0) as new_count
+        FROM decks d ORDER BY d.created_at DESC`
     ).all() as Array<{
       id: string;
       name: string;
       card_count: number;
+      new_count: number;
       created_at: string;
       updated_at: string;
     }>;

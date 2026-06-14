@@ -128,7 +128,7 @@ const DashboardPage: React.FC = () => {
         >
           {decks.map((deck) => {
             const reviewProgress = deck.card_count > 0
-              ? Math.round(((deck.card_count - (deck as any)._newCount || 0)) / deck.card_count * 100)
+              ? Math.round(((deck.card_count - (deck.new_count ?? deck.card_count)) / deck.card_count) * 100)
               : 0;
             return (
               <Card
