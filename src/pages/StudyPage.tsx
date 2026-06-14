@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Alert,
@@ -29,6 +29,8 @@ import type { Rating } from '@/types';
 const StudyPage: React.FC = () => {
   const { deckId } = useParams<{ deckId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const difficultyFilter = searchParams.get('difficulty');
   const {
     phase,
     queue,
@@ -54,7 +56,8 @@ const StudyPage: React.FC = () => {
       startSession(
         deckId,
         deck?.daily_new_card_limit,
-        deck?.daily_review_limit
+        deck?.daily_review_limit,
+        difficultyFilter || undefined
       );
     };
     init();
@@ -86,14 +89,17 @@ const StudyPage: React.FC = () => {
     }
   }, [phase, session?.cards_studied]);
 
-  /** 确认退出：先结束会话（保留已评分的卡） → 跳回仪表盘 */
+  /** 确认退出：先结束会话（保留已评分的卡） → 跳回牌组管理页（带筛选） */
   const handleConfirmExit = useCallback(async () => {
     setConfirmExit(false);
     if (phase === 'studying') {
       await endSession().catch(() => {/* 静默失败 */});
     }
-    navigate('/dashboard');
-  }, [phase, endSession, navigate]);
+    const backUrl = deckId
+      ? `/decks/${deckId}/cards${difficultyFilter ? `?difficulty=${difficultyFilter}` : ''}`
+      : '/dashboard';
+    navigate(backUrl);
+  }, [phase, endSession, navigate, deckId, difficultyFilter]);
 
   // 加载状态
   if (phase === 'loading' || loading) {
@@ -204,11 +210,11 @@ const StudyPage: React.FC = () => {
         >
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(deckId ? `/decks/${deckId}/cards${difficultyFilter ? `?difficulty=${difficultyFilter}` : ''}` : '/dashboard')}
             size="small"
             color="inherit"
           >
-            返回仪表盘
+            返回牌组
           </Button>
         </Stack>
         <StudyComplete

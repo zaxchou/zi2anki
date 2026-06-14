@@ -640,7 +640,11 @@ const CardManagePage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<SchoolIcon />}
-            onClick={() => navigate(`/study/${deck.id}`)}
+            onClick={() => {
+              const base = `/study/${deck.id}`;
+              const filter = difficultyFilter ? `?difficulty=${difficultyFilter}` : '';
+              navigate(base + filter);
+            }}
             disabled={deck.card_count === 0}
             sx={{ fontWeight: 600 }}
           >
@@ -727,29 +731,6 @@ const CardManagePage: React.FC = () => {
         >
           文字导入
         </Button>
-      </Box>
-
-      {/* 难度筛选（支持从分析页跳转） */}
-      <Box className="flex items-center gap-2 flex-wrap">
-        {[null, 'new', 'hard', 'medium', 'easy'].map((f) => {
-          const label = f === null ? '全部' : f === 'new' ? '新卡片' : f === 'hard' ? '困难' : f === 'medium' ? '普通' : '简单';
-          return (
-            <Chip
-              key={f ?? 'all'}
-              label={label}
-              size="small"
-              color={difficultyFilter === f ? 'primary' : 'default'}
-              variant={difficultyFilter === f ? 'filled' : 'outlined'}
-              onClick={() => setDifficultyFilter(f)}
-              sx={{ cursor: 'pointer' }}
-            />
-          );
-        })}
-        {difficultyFilter && (
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-            {filteredCards.length}/{cards.length}
-          </Typography>
-        )}
       </Box>
 
       {/* 卡片列表或空状态 */}

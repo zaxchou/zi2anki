@@ -35,7 +35,7 @@ interface StudyStore {
   error: string | null;
 
   /** 初始化学习会话：加载到期卡片 + 新卡片，dailyReviewLimit 控制复习上限 */
-  startSession: (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number) => Promise<void>;
+  startSession: (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string) => Promise<void>;
   /** 对当前卡片评分并前进到下一张 */
   rateCard: (rating: Rating) => Promise<void>;
   /** 结束当前学习会话 */
@@ -57,7 +57,7 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
   loading: false,
   error: null,
 
-  startSession: async (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number) => {
+  startSession: async (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string) => {
     set({ loading: true, error: null, deckId });
 
     try {
@@ -81,7 +81,17 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       }
 
       // 合并队列：到期卡排在前面
-      const queue = [...dueCards, ...newCards];
+      let queue = [...dueCards, ...newCards];
+
+      // 按难度筛选（如果有关）
+      if (difficultyFilter) {
+        queue = queue.filter((c) => {
+          if (difficultyFilter === 'hard') return c.interval > 0 && c.ease < 2.0;
+          if (difficultyFilter === 'medium') return c.interval > 0 && c.ease >= 2.0 && c.ease < 2.5;
+          if (difficultyFilter === 'easy') return c.interval > 0 && c.ease >= 2.5;
+          return true;
+        });
+      }
 
       if (queue.length === 0) {
         // 没有需要学习的卡片
