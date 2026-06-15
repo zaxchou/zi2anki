@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Card, CardContent, TextField, Button, Typography, Link, Alert,
@@ -15,12 +15,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // "首次使用"提示：只出现一次（localStorage 标记）
+  const [showFirstRun] = useState(() => !localStorage.getItem('zi2anki-first-run-seen'));
+
+  const dismissFirstRun = useCallback(() => {
+    localStorage.setItem('zi2anki-first-run-seen', '1');
+  }, []);
+
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await login(username, password);
+      dismissFirstRun();
       navigate(from, { replace: true });
     } catch {
       // error 已由 store 保存
@@ -49,13 +57,15 @@ export default function LoginPage() {
             </Typography>
           </Box>
 
-          <Alert severity="info" sx={{ mb: 2 }} icon={false}>
-            <Typography variant="body2">
-              <strong>🔐 首次使用？</strong><br />
-              系统已自动创建默认管理员账号，<br />
-              密码在<strong>启动终端</strong>中可见。
-            </Typography>
-          </Alert>
+          {showFirstRun && (
+            <Alert severity="info" sx={{ mb: 2 }} icon={false} onClose={dismissFirstRun}>
+              <Typography variant="body2">
+                <strong>🔐 首次使用？</strong><br />
+                系统已自动创建默认管理员账号，<br />
+                密码在<strong>启动终端</strong>中可见。
+              </Typography>
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={clearError}>
