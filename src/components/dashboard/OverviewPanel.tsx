@@ -57,7 +57,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   const dark = theme.palette.mode === 'dark';
   const isSidebar = variant === 'sidebar';
   const {
-    newCount, dueCount, activeDays, activityData, loading,
+    newCount, dueCount, activeDays, totalMinutes, activityData, loading,
   } = useDashboardStats();
   const decksLoading = useDeckStore((s) => s.loading);
   const [range, setRange] = useState<Range>('all');
@@ -72,11 +72,8 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
     return activityData.map((d) => (d.date < cutoffStr ? { ...d, cards_studied: 0, new_cards_learned: 0 } : d));
   }, [activityData, range]);
 
-  /** 累计：仅 "学时" 用 */
-  const hours = useMemo(() => {
-    const totalMin = (activityData as any[]).reduce((s, d) => s + (Number(d.minutes) || 0), 0);
-    return (totalMin / 60).toFixed(1);
-  }, [activityData]);
+  /** 累计学时小时数 */
+  const hours = useMemo(() => (totalMinutes / 60).toFixed(1), [totalMinutes]);
 
   const content = (
     <>
