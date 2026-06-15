@@ -146,7 +146,7 @@ analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
 
     // 查询这些天的统计
     const rows = db.prepare(
-      `SELECT date, cards_studied, new_cards_learned FROM daily_stats 
+      `SELECT date, cards_studied, new_cards_learned FROM daily_stats
        WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`
     ).all(req.user!.userId, dates[0], dates[dates.length - 1]) as {
       date: string; cards_studied: number; new_cards_learned: number;
@@ -167,5 +167,143 @@ analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
   } catch (err) {
     console.error('GET /analytics/daily-trend error:', err);
     res.status(500).json({ error: 'Failed to fetch daily trend' });
+  }
+});
+
+// GET /api/analytics/daily-extra —— 每日扩展统计（新学/复习 + 评分分布 + 学时）
+// Query: days（默认 11）/ from+to（覆盖 days）/ deckId（可选；缺省=全部牌组）
+// 字段：date, new_learned, reviewed, hard, medium, easy, minutes
+analyticsRouter.get('/analytics/daily-extra', (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const userId = req.user!.userId;
+    const deckId = (req.query.deckId as string | undefined) || '';
+
+    // 日期范围
+    let dates: string[];
+    if (req.query.from && req.query.to) {
+      const from = String(req.query.from);
+      const to = String(req.query.to);
+      const start = new Date(from);
+      const end = new Date(to);
+      dates = [];
+      const cur = new Date(start);
+      while (cur <= end) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+    } else {
+      const days = parseInt(req.query.days as string, 10) || 11;
+      dates = [];
+      const today = new Date();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${day}`);
+      }
+    }
+
+    const from = dates[0];
+    const to = dates[dates.length - 1];
+
+    // 1) new_learned / reviewed 来自 daily_stats（PK: date+user_id+deck_id）
+    //    - 无 deckId：跨牌组 SUM
+    //    - 有 deckId：按该牌组查
+    const dailyRows = deckId
+      ? (db.prepare(
+          `SELECT date, cards_studied, new_cards_learned
+           FROM daily_stats
+           WHERE user_id = ? AND date >= ? AND date <= ? AND deck_id = ?`
+        ).all(userId, from, to, deckId) as {
+          date: string; cards_studied: number; new_cards_learned: number;
+        }[])
+      : (db.prepare(
+          `SELECT date,
+                  SUM(cards_studied) as cards_studied,
+                  SUM(new_cards_learned) as new_cards_learned
+           FROM daily_stats
+           WHERE user_id = ? AND date >= ? AND date <= ?
+           GROUP BY date`
+        ).all(userId, from, to) as {
+          date: string; cards_studied: number; new_cards_learned: number;
+        }[]);
+
+    // 2) 评分按日分布（again/hard/good/easy）来自 study_sessions.started_at（本地日期）
+    // 同样支持 deckId 过滤
+    const sessionRows = db.prepare(
+      `SELECT started_at, ratings_again, ratings_hard, ratings_good, ratings_easy,
+              julianday(ended_at) - julianday(started_at) as dur_days
+       FROM study_sessions
+       WHERE user_id = ? AND started_at >= ? AND started_at <= ?
+         AND ended_at IS NOT NULL
+         ${deckId ? 'AND deck_id = ?' : ''}`
+    ).all(...(deckId
+      ? [userId, `${from} 00:00:00`, `${to} 23:59:59`, deckId]
+      : [userId, `${from} 00:00:00`, `${to} 23:59:59`])) as {
+      started_at: string;
+      ratings_again: number;
+      ratings_hard: number;
+      ratings_good: number;
+      ratings_easy: number;
+      dur_days: number | null;
+    }[];
+
+    // 本地日期 from ISO 时间戳（按 +8 时区切日）
+    function localDateKey(iso: string): string {
+      const d = new Date(iso);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    }
+
+    // 聚合
+    const dailyMap = new Map<string, { new_learned: number; reviewed: number; hard: number; medium: number; easy: number; minutes: number }>();
+    for (const date of dates) {
+      dailyMap.set(date, { new_learned: 0, reviewed: 0, hard: 0, medium: 0, easy: 0, minutes: 0 });
+    }
+    for (const r of dailyRows) {
+      const bucket = dailyMap.get(r.date);
+      if (!bucket) continue;
+      const reviewed = Math.max(0, r.cards_studied - r.new_cards_learned);
+      bucket.new_learned += r.new_cards_learned;
+      bucket.reviewed += reviewed;
+    }
+    for (const s of sessionRows) {
+      const key = localDateKey(s.started_at);
+      const bucket = dailyMap.get(key);
+      if (!bucket) continue;
+      // 参考图风格：困难/一般/简单 = again+hard / good / easy
+      bucket.hard += (s.ratings_again || 0) + (s.ratings_hard || 0);
+      bucket.medium += s.ratings_good || 0;
+      bucket.easy += s.ratings_easy || 0;
+      if (s.dur_days != null && s.dur_days > 0) {
+        bucket.minutes += s.dur_days * 24 * 60;
+      }
+    }
+
+    const filled = dates.map((date) => {
+      const b = dailyMap.get(date)!;
+      return {
+        date,
+        new_learned: b.new_learned,
+        reviewed: b.reviewed,
+        hard: b.hard,
+        medium: b.medium,
+        easy: b.easy,
+        minutes: Math.round(b.minutes),
+      };
+    });
+
+    res.json(filled);
+  } catch (err) {
+    console.error('GET /analytics/daily-extra error:', err);
+    res.status(500).json({ error: 'Failed to fetch daily extra' });
   }
 });

@@ -231,7 +231,7 @@ export function fetchDailyStats(date: string): Promise<DailyStats> {
 
 export function upsertDailyStats(
   date: string,
-  data: { cards_studied?: number; new_cards_learned?: number }
+  data: { deck_id?: string; cards_studied?: number; new_cards_learned?: number }
 ): Promise<DailyStats> {
   return request<DailyStats>(`/api/daily-stats/${date}`, {
     method: 'PUT',
@@ -298,6 +298,33 @@ export interface DailyTrendPoint {
 
 export function fetchDailyTrend(days?: number): Promise<DailyTrendPoint[]> {
   return request(`/api/analytics/daily-trend${days ? `?days=${days}` : ''}`);
+}
+
+/** 每日扩展统计（新学/复习/评分分布/学时），用于 AnalyticsPage 三图表 */
+export interface DailyExtraPoint {
+  date: string;
+  new_learned: number;
+  reviewed: number;
+  hard: number;
+  medium: number;
+  easy: number;
+  minutes: number;
+}
+
+export function fetchDailyExtra(
+  days?: number,
+  opts?: { from?: string; to?: string; deckId?: string }
+): Promise<DailyExtraPoint[]> {
+  const params = new URLSearchParams();
+  if (opts?.from && opts?.to) {
+    params.set('from', opts.from);
+    params.set('to', opts.to);
+  } else if (days) {
+    params.set('days', String(days));
+  }
+  if (opts?.deckId) params.set('deckId', opts.deckId);
+  const qs = params.toString();
+  return request(`/api/analytics/daily-extra${qs ? `?${qs}` : ''}`);
 }
 
 /** 累计学习总时长与总会话数 */

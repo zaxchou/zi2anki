@@ -10,6 +10,8 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -30,6 +32,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
  */
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isPc = useMediaQuery(theme.breakpoints.up('md'));
   const decks = useDeckStore((s) => s.decks);
   const loading = useDeckStore((s) => s.loading);
   const error = useDeckStore((s) => s.error);
@@ -96,8 +100,8 @@ const DashboardPage: React.FC = () => {
   return (
     <>
     <Box className="space-y-6 py-4">
-      {/* 概览面板（6 个数据卡 + 热力图 + 时间筛选） */}
-      <OverviewPanel />
+      {/* 概览面板：仅移动端（PC 端由侧栏 OverviewPanel 注入） */}
+      {!isPc && <OverviewPanel />}
 
       {/* 牌组列表：宽度撑满主区，卡片列数按容器宽度自动计算 */}
       <Box sx={{ width: '100%' }}>

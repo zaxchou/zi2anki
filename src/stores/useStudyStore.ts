@@ -192,9 +192,11 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       };
 
       // 更新每日统计（使用本地日期，不受 UTC 时区偏移影响）
+      // deck_id 必传：daily_stats PK 升级为 (date, user_id, deck_id)
       const today = todayLocal();
       const existingStats = await fetchDailyStats(today);
       await upsertDailyStats(today, {
+        deck_id: session.deck_id,
         cards_studied: (existingStats.cards_studied ?? 0) + 1,
         new_cards_learned:
           (existingStats.new_cards_learned ?? 0) + (wasNew ? 1 : 0),

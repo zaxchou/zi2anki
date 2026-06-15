@@ -190,7 +190,7 @@ decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
     // 同时清除今日统计（避免因旧记录导致新卡数为 0）
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    db.prepare('DELETE FROM daily_stats WHERE date = ?').run(dateStr);
+    db.prepare('DELETE FROM daily_stats WHERE date = ? AND deck_id = ?').run(dateStr, id);
 
     res.json({ success: true, reset_count: info.changes });
   } catch (err) {

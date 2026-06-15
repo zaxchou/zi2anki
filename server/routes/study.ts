@@ -165,9 +165,13 @@ studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
       return;
     }
     const db = getDb();
+    // 跨牌组聚合（用户级查询）
     const rows = db.prepare(
-      `SELECT date, cards_studied, new_cards_learned
-       FROM daily_stats WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date DESC`
+      `SELECT date,
+              SUM(cards_studied) as cards_studied,
+              SUM(new_cards_learned) as new_cards_learned
+       FROM daily_stats WHERE user_id = ? AND date >= ? AND date <= ?
+       GROUP BY date ORDER BY date DESC`
     ).all(req.user!.userId, from, to);
     res.json(rows);
   } catch (err) {
@@ -183,15 +187,13 @@ studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
     const db = getDb();
 
     const row = db.prepare(
-      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ?'
-    ).get(date, req.user!.userId) as { date: string; cards_studied: number; new_cards_learned: number } | undefined;
+      `SELECT
+         COALESCE(SUM(cards_studied), 0) as cards_studied,
+         COALESCE(SUM(new_cards_learned), 0) as new_cards_learned
+       FROM daily_stats WHERE date = ? AND user_id = ?`
+    ).get(date, req.user!.userId) as { cards_studied: number; new_cards_learned: number };
 
-    if (row) {
-      res.json(row);
-    } else {
-      // 返回空统计
-      res.json({ date, cards_studied: 0, new_cards_learned: 0 });
-    }
+    res.json({ date, cards_studied: row?.cards_studied ?? 0, new_cards_learned: row?.new_cards_learned ?? 0 });
   } catch (err) {
     console.error('GET /daily-stats/:date error:', err);
     res.status(500).json({ error: 'Failed to fetch daily stats' });
@@ -206,24 +208,25 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
 
     const db = getDb();
 
-    // upsert：兼容旧版 (date PK) 和新版 (date, user_id PK) 两种 schema
+    // upsert：按 (date, user_id, deck_id) 三元 PK
+    const deckId = (req.body.deck_id as string | undefined) || '';
     const existing = db.prepare(
-      'SELECT date FROM daily_stats WHERE date = ? AND user_id = ?'
-    ).get(date, req.user!.userId);
+      'SELECT date FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?'
+    ).get(date, req.user!.userId, deckId);
 
     if (existing) {
       db.prepare(
-        'UPDATE daily_stats SET cards_studied = ?, new_cards_learned = ? WHERE date = ? AND user_id = ?'
-      ).run(cards_studied ?? 0, new_cards_learned ?? 0, date, req.user!.userId);
+        'UPDATE daily_stats SET cards_studied = ?, new_cards_learned = ? WHERE date = ? AND user_id = ? AND deck_id = ?'
+      ).run(cards_studied ?? 0, new_cards_learned ?? 0, date, req.user!.userId, deckId);
     } else {
       db.prepare(
-        'INSERT INTO daily_stats (date, user_id, cards_studied, new_cards_learned) VALUES (?, ?, ?, ?)'
-      ).run(date, req.user!.userId, cards_studied ?? 0, new_cards_learned ?? 0);
+        'INSERT INTO daily_stats (date, user_id, deck_id, cards_studied, new_cards_learned) VALUES (?, ?, ?, ?, ?)'
+      ).run(date, req.user!.userId, deckId, cards_studied ?? 0, new_cards_learned ?? 0);
     }
 
     const row = db.prepare(
-      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ?'
-    ).get(date, req.user!.userId);
+      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?'
+    ).get(date, req.user!.userId, deckId);
 
     res.json(row);
   } catch (err) {

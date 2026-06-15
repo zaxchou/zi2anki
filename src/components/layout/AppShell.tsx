@@ -8,7 +8,6 @@ import TopBar from './TopBar';
 import BottomNav from './BottomNav';
 import SideMenu from './SideMenu';
 import SidebarStats from '@/components/dashboard/SidebarStats';
-import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 路由路径 → 页面标题映射 */
@@ -37,9 +36,6 @@ const AppShell: React.FC = () => {
   const isPc = useMediaQuery(theme.breakpoints.up('md'));
   const { user, logout } = useAuthStore();
 
-  /** 共享统计：PC 端在侧边栏展示 */
-  const stats = useDashboardStats();
-
   /** 根据当前路径自动匹配页面标题 */
   const title = useMemo((): string => {
     const pathname = location.pathname;
@@ -57,17 +53,10 @@ const AppShell: React.FC = () => {
     return '书法记忆';
   }, [location.pathname]);
 
-  /** 侧边栏子内容（统计 + 日历），仅 PC 端 */
+  /** 侧边栏子内容（学习概览：6 数据卡 + 日历 + 总结），仅 PC 端 */
   const sideMenuContent = useMemo(
-    () => (
-      <SidebarStats
-        dueCount={stats.dueCount}
-        newCardRemaining={stats.newCardRemaining}
-        streakDays={stats.streakDays}
-        activityData={stats.activityData}
-      />
-    ),
-    [stats.dueCount, stats.newCardRemaining, stats.streakDays, stats.activityData]
+    () => <SidebarStats />,
+    []
   );
 
   return (

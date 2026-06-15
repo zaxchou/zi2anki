@@ -1,77 +1,52 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
   Card,
   CardContent,
-  Grid,
   CircularProgress,
   Alert,
   ToggleButtonGroup,
   ToggleButton,
   useTheme,
+  useMediaQuery,
+  MenuItem,
+  TextField,
 } from '@mui/material';
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer,
+  AreaChart, Area, LabelList,
 } from 'recharts';
 import { useDeckStore } from '@/stores/useDeckStore';
-import {
-  fetchCardStatus, fetchDifficulty, fetchRatingsSummary, fetchDailyTrend,
-  type CardStatus, type Difficulty, type RatingsSummary, type DailyTrendPoint,
-} from '@/lib/api';
+import { fetchDailyExtra, type DailyExtraPoint } from '@/lib/api';
 
-/** 浅色主题配色 */
-const LIGHT = {
-  status: ['#1565c0', '#ed6c02', '#2e7d32', '#8bc34a'],
-  difficulty: ['#d32f2f', '#ed6c02', '#2e7d32', '#9e9e9e'],
-  rating: ['#d32f2f', '#ed6c02', '#2e7d32', '#1565c0'],
-  bar: { reviewed: '#5c4033', newCards: '#a1887f' },
-  grid: '#e0e0e0',
+/** 紧凑主题配色（参考图风格） */
+const COLORS = {
+  newLearned: '#2cbaa0',   // 青绿（新学）
+  reviewed: '#f4c542',     // 黄色（复习）
+  hard: '#f25c54',         // 红（困难 = 重来 + 困难）
+  medium: '#f4c542',       // 黄（一般 = 良好）
+  easy: '#3a7bd5',         // 蓝（简单 = 简单）
+  area: '#2cbaa0',
+  grid: '#eaecef',
 };
 
-/** 暗色主题配色 */
-const DARK = {
-  status: ['#42a5f5', '#ffa726', '#66bb6a', '#aed581'],
-  difficulty: ['#ef5350', '#ffa726', '#66bb6a', '#78909c'],
-  rating: ['#ef5350', '#ffa726', '#66bb6a', '#42a5f5'],
-  bar: { reviewed: '#8d6e63', newCards: '#bcaaa4' },
-  grid: '#424242',
+const COLORS_DARK = {
+  ...COLORS,
+  grid: '#3a3a3a',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  new: '新卡片', learning: '学习中', young: '复习中', mature: '已掌握',
-};
+type RangeKey = '7d' | '11d' | '30d' | '90d';
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  hard: '困难', medium: '普通', easy: '简单', unreviewed: '未复习',
-};
+const RANGE_OPTIONS: { key: RangeKey; label: string; days: number }[] = [
+  { key: '7d', label: '近 7 天', days: 7 },
+  { key: '11d', label: '近 11 天', days: 11 },
+  { key: '30d', label: '近 30 天', days: 30 },
+  { key: '90d', label: '近 90 天', days: 90 },
+];
 
-const RATING_LABELS: Record<string, string> = {
-  again: '重来', hard: '困难', good: '良好', easy: '简单',
-};
-
-/**
- * 饼图标签渲染函数（接收 textColor 参数，避免组件内 useTheme）
- */
-const renderPieLabel = (textColor: string) =>
-  ({ cx, cy, midAngle, outerRadius, name, value }: any) => {
-    const RADIAN = Math.PI / 180;
-    const radius = outerRadius + 24;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text x={x} y={y} fill={textColor} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
-        {name} {value}
-      </text>
-    );
-  };
-
-/**
- * 自定义 Tooltip（适配暗色/浅色主题）
- */
-const ChartTooltip = ({ active, payload }: any) => {
+/** 浅色/暗色 tooltip */
+const ChartTooltip = ({ active, payload, label, unit }: any) => {
   const theme = useTheme();
   if (!active || !payload?.length) return null;
   const dark = theme.palette.mode === 'dark';
@@ -81,61 +56,57 @@ const ChartTooltip = ({ active, payload }: any) => {
       color: dark ? '#e0e0e0' : '#333',
       px: 1.5, py: 0.75,
       borderRadius: 1.5,
-      border: 1,
-      borderColor: dark ? '#555' : '#ddd',
-      fontSize: 13,
-      boxShadow: 2,
+      border: 1, borderColor: dark ? '#555' : '#ddd',
+      fontSize: 12, boxShadow: 2,
     }}>
+      <Box sx={{ fontWeight: 600, mb: 0.25 }}>{label}</Box>
       {payload.map((p: any, i: number) => (
-        <Box key={i}>{p.name}: {p.value}</Box>
+        <Box key={i} sx={{ color: p.color || p.fill }}>
+          {p.name}: <b>{p.value}</b>{unit || ''}
+        </Box>
       ))}
     </Box>
   );
 };
 
-/**
- * 数据分析页面。
- * 参考 Anki 统计面板：卡片状态、难度分布、评分分布、复习趋势。
- * 所有图表配色随 MUI 主题切换（浅色/暗色）。
+/** 柱顶数字 Label（仅在值 > 0 时显示） */
+const BarTopLabel = (props: any) => {
+  const { x, y, width, value } = props;
+  if (!value || value <= 0) return null;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 4}
+      textAnchor="middle"
+      fontSize={10}
+      fill={props.fill || '#666'}
+      fontWeight={600}
+    >
+      {value}
+    </text>
+  );
+};
+
+/** AnalyticsPage：完全模仿参考图风格。
+ *  顶部：标题 + 日期范围 + 牌组下拉
+ *  主体：3 个垂直堆叠的 Card（双柱/三柱/面积折线）
  */
 const AnalyticsPage: React.FC = () => {
   const { decks, loadDecks } = useDeckStore();
-  const navigate = useNavigate();
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const COLORS = dark ? DARK : LIGHT;
-  const textColor = dark ? '#e0e0e0' : '#333';
+  const C = dark ? COLORS_DARK : COLORS;
+  const isPc = useMediaQuery(theme.breakpoints.up('md'));
+  const textColor = dark ? '#bdbdbd' : '#555';
 
-  const [selectedDeck, setSelectedDeck] = useState<string | null>(
-    () => localStorage.getItem('analytics-last-deck')
-  );
-  const [cardStatus, setCardStatus] = useState<CardStatus | null>(null);
-  const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
-  const [ratings, setRatings] = useState<RatingsSummary | null>(null);
-  const [trend, setTrend] = useState<DailyTrendPoint[]>([]);
+  const [selectedDeck, setSelectedDeck] = useState<string>(() => localStorage.getItem('analytics-last-deck') || '');
+  const [range, setRange] = useState<RangeKey>(() => (localStorage.getItem('analytics-last-range') as RangeKey) || '11d');
+  const [data, setData] = useState<DailyExtraPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  /** 点击饼图扇区 → 跳转到牌组管理页并预选难度筛选 */
-  const handlePieClick = useCallback(
-    (labelKey: string) => {
-      if (!selectedDeck) return;
-      // 状态扇区映射: 新卡片→new, 学习中→new, 复习中→medium, 已掌握→easy
-      // 难度扇区映射: 困难→hard, 普通→medium, 简单→easy, 未复习→new
-      // 评分扇区映射: 重来→hard, 困难→hard, 良好→easy, 简单→easy
-      const diffMap: Record<string, string> = {
-        '新卡片': 'new', '学习中': 'new', '复习中': 'medium', '已掌握': 'easy',
-        '困难': 'hard', '普通': 'medium', '简单': 'easy', '未复习': 'new',
-        '重来': 'hard', '良好': 'easy',
-      };
-      const diff = diffMap[labelKey] || '';
-      navigate(`/decks/${selectedDeck}/cards${diff ? `?difficulty=${diff}` : ''}`);
-    },
-    [selectedDeck, navigate]
-  );
-
-  // 页面挂载时加载牌组
+  // 加载牌组
   useEffect(() => {
     const init = async () => {
       await loadDecks();
@@ -144,7 +115,7 @@ const AnalyticsPage: React.FC = () => {
     init();
   }, [loadDecks]);
 
-  // 自动选中第一个牌组（如果没有选中任何牌组）
+  // 自动选第一个牌组
   useEffect(() => {
     if (ready && decks.length > 0 && !selectedDeck) {
       const firstId = decks[0].id;
@@ -153,50 +124,46 @@ const AnalyticsPage: React.FC = () => {
     }
   }, [ready, decks, selectedDeck]);
 
-  const handleDeckChange = (deckId: string) => {
-    setSelectedDeck(deckId);
-    localStorage.setItem('analytics-last-deck', deckId);
+  // 切换牌组
+  const handleDeckChange = (id: string) => {
+    setSelectedDeck(id);
+    localStorage.setItem('analytics-last-deck', id);
   };
 
-  // 加载统计数据
+  // 切换范围
+  const handleRangeChange = (k: RangeKey) => {
+    setRange(k);
+    localStorage.setItem('analytics-last-range', k);
+  };
+
+  // 加载每日扩展数据
   useEffect(() => {
     if (!selectedDeck) return;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [status, diff, rats, trendData] = await Promise.all([
-          fetchCardStatus(selectedDeck),
-          fetchDifficulty(selectedDeck),
-          fetchRatingsSummary(selectedDeck),
-          fetchDailyTrend(14),
-        ]);
-        setCardStatus(status);
-        setDifficulty(diff);
-        setRatings(rats);
-        setTrend(trendData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '加载失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [selectedDeck]);
+    const opt = RANGE_OPTIONS.find((r) => r.key === range);
+    if (!opt) return;
+    setLoading(true);
+    setError(null);
+    fetchDailyExtra(opt.days, { deckId: selectedDeck })
+      .then((d) => setData(d))
+      .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
+      .finally(() => setLoading(false));
+  }, [selectedDeck, range]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pieData = (data: any, labels: Record<string, string>) => {
-    if (!data) return [];
-    return Object.entries(data as Record<string, number>)
-      .filter(([, v]) => v > 0)
-      .map(([k, v]) => ({ name: labels[k] || k, value: v }));
-  };
+  /** 累计：仅 "学时" 用 */
+  const totalMinutes = useMemo(() => data.reduce((s, d) => s + (d.minutes || 0), 0), [data]);
+
+  /** 格式化 X 轴日期：MM/DD */
+  const fmtDate = useCallback((d: string) => d.slice(5), []);
+
+  /** 范围描述（用于顶部） */
+  const rangeDesc = useMemo(() => {
+    if (data.length < 2) return '';
+    return `${data[0].date} ~ ${data[data.length - 1].date}`;
+  }, [data]);
 
   if (!ready) {
     return (
-      <Box className="flex justify-center py-12">
-        <CircularProgress />
-      </Box>
+      <Box className="flex justify-center py-12"><CircularProgress /></Box>
     );
   }
 
@@ -208,175 +175,180 @@ const AnalyticsPage: React.FC = () => {
     );
   }
 
-  return (
-    <Box className="space-y-6 py-4">
-      <Box className="flex items-center justify-between">
-        <Typography variant="h5" className="font-kai">数据分析</Typography>
-      </Box>
+  const chartHeight = isPc ? 240 : 180;
 
-      {/* 牌组选择 */}
-      <ToggleButtonGroup
-        value={selectedDeck}
-        exclusive
-        onChange={(_, v) => v && handleDeckChange(v)}
-        size="small"
-        className="flex-wrap"
-      >
-        {decks.map((d) => (
-          <ToggleButton key={d.id} value={d.id}>{d.name}</ToggleButton>
-        ))}
-      </ToggleButtonGroup>
+  return (
+    <Box className="space-y-4 py-4">
+      {/* 顶部：标题 + 日期范围 + 牌组 */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <Box className="flex items-center justify-between flex-wrap gap-2">
+            <Box className="flex items-baseline gap-2">
+              <Typography
+                variant="subtitle1"
+                fontWeight={700}
+                className="font-kai"
+                sx={{ color: dark ? '#2cbaa0' : '#1ca085' }}
+              >
+                学习统计
+              </Typography>
+              {rangeDesc && (
+                <Typography variant="caption" color="text.secondary">
+                  {rangeDesc}
+                </Typography>
+              )}
+            </Box>
+            <Box className="flex items-center gap-2">
+              <TextField
+                select
+                size="small"
+                value={selectedDeck}
+                onChange={(e) => handleDeckChange(e.target.value)}
+                sx={{ minWidth: 120, '& .MuiInputBase-input': { fontSize: 13, py: 0.5 } }}
+              >
+                {decks.map((d) => (
+                  <MenuItem key={d.id} value={d.id} sx={{ fontSize: 13 }}>{d.name}</MenuItem>
+                ))}
+              </TextField>
+              <ToggleButtonGroup
+                value={range}
+                exclusive
+                size="small"
+                onChange={(_, v) => v && handleRangeChange(v as RangeKey)}
+                sx={{
+                  '& .MuiToggleButton-root': { fontSize: 12, px: 1.25, py: 0.25 },
+                }}
+              >
+                {RANGE_OPTIONS.map((o) => (
+                  <ToggleButton key={o.key} value={o.key}>{o.label}</ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
 
       {error && <Alert severity="error">{error}</Alert>}
 
       {loading ? (
-        <Box className="flex justify-center py-12">
-          <CircularProgress />
-        </Box>
+        <Box className="flex justify-center py-12"><CircularProgress /></Box>
       ) : (
-        <Grid container spacing={3}>
-          {/* 卡片状态分布 */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent>
-                <Typography variant="h6" className="font-kai mb-2">卡片状态</Typography>
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                      data={pieData(cardStatus, STATUS_LABELS)}
-                      cx="50%" cy="50%"
-                      innerRadius={50} outerRadius={90}
-                      dataKey="value" nameKey="name"
-                      label={renderPieLabel(textColor)}
-                      onClick={(data: any) => handlePieClick(data.name)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {pieData(cardStatus, STATUS_LABELS).map((_, i) => (
-                        <Cell key={i} fill={COLORS.status[i % COLORS.status.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <Box className="flex flex-wrap justify-center gap-3 mt-2">
-                  {pieData(cardStatus, STATUS_LABELS).map((d, i) => (
-                    <Box key={d.name} className="flex items-center gap-1 text-sm">
-                      <Box className="w-3 h-3 rounded-full" sx={{ bgcolor: COLORS.status[i] }} />
-                      <span style={{ color: textColor }}>{d.name}: {d.value}</span>
-                    </Box>
-                  ))}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+        <>
+          {/* 图 1：新学 / 复习 */}
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Legend items={[
+                { color: C.newLearned, label: '新学' },
+                { color: C.reviewed, label: '复习' },
+              ]} />
+              <ResponsiveContainer width="100%" height={chartHeight}>
+                <BarChart data={data} barGap={4} barCategoryGap="22%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.grid} />
+                  <XAxis
+                    dataKey="date" tickFormatter={fmtDate}
+                    fontSize={11} tick={{ fill: textColor }} stroke={C.grid}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis fontSize={11} tick={{ fill: textColor }} stroke={C.grid} width={28} />
+                  <RTooltip content={<ChartTooltip />} cursor={{ fill: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }} />
+                  <Bar dataKey="new_learned" name="新学" fill={C.newLearned} radius={[3, 3, 0, 0]} maxBarSize={14}>
+                    <LabelList dataKey="new_learned" content={(p: any) => <BarTopLabel {...p} fill={C.newLearned} />} />
+                  </Bar>
+                  <Bar dataKey="reviewed" name="复习" fill={C.reviewed} radius={[3, 3, 0, 0]} maxBarSize={14}>
+                    <LabelList dataKey="reviewed" content={(p: any) => <BarTopLabel {...p} fill={C.reviewed} />} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-          {/* 难度分布 */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent>
-                <Typography variant="h6" className="font-kai mb-2">难度分布</Typography>
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                      data={pieData(difficulty, DIFFICULTY_LABELS)}
-                      cx="50%" cy="50%"
-                      innerRadius={50} outerRadius={90}
-                      dataKey="value" nameKey="name"
-                      label={renderPieLabel(textColor)}
-                      onClick={(data: any) => handlePieClick(data.name)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {pieData(difficulty, DIFFICULTY_LABELS).map((_, i) => (
-                        <Cell key={i} fill={COLORS.difficulty[i % COLORS.difficulty.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <Box className="flex flex-wrap justify-center gap-3 mt-2">
-                  {pieData(difficulty, DIFFICULTY_LABELS).map((d, i) => (
-                    <Box key={d.name} className="flex items-center gap-1 text-sm">
-                      <Box className="w-3 h-3 rounded-full" sx={{ bgcolor: COLORS.difficulty[i] }} />
-                      <span style={{ color: textColor }}>{d.name}: {d.value}</span>
-                    </Box>
-                  ))}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+          {/* 图 2：困难 / 一般 / 简单 */}
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Legend items={[
+                { color: C.hard, label: '困难' },
+                { color: C.medium, label: '一般' },
+                { color: C.easy, label: '简单' },
+              ]} />
+              <ResponsiveContainer width="100%" height={chartHeight}>
+                <BarChart data={data} barGap={2} barCategoryGap="22%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.grid} />
+                  <XAxis
+                    dataKey="date" tickFormatter={fmtDate}
+                    fontSize={11} tick={{ fill: textColor }} stroke={C.grid}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis fontSize={11} tick={{ fill: textColor }} stroke={C.grid} width={28} />
+                  <RTooltip content={<ChartTooltip />} cursor={{ fill: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }} />
+                  <Bar dataKey="hard" name="困难" fill={C.hard} radius={[3, 3, 0, 0]} maxBarSize={10}>
+                    <LabelList dataKey="hard" content={(p: any) => <BarTopLabel {...p} fill={C.hard} />} />
+                  </Bar>
+                  <Bar dataKey="medium" name="一般" fill={C.medium} radius={[3, 3, 0, 0]} maxBarSize={10}>
+                    <LabelList dataKey="medium" content={(p: any) => <BarTopLabel {...p} fill={C.medium} />} />
+                  </Bar>
+                  <Bar dataKey="easy" name="简单" fill={C.easy} radius={[3, 3, 0, 0]} maxBarSize={10}>
+                    <LabelList dataKey="easy" content={(p: any) => <BarTopLabel {...p} fill={C.easy} />} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-          {/* 评分分布 */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent>
-                <Typography variant="h6" className="font-kai mb-2">评分分布</Typography>
-                {ratings && ratings.total > 0 ? (
-                  <>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie
-                          data={pieData(
-                            { again: ratings.again, hard: ratings.hard, good: ratings.good, easy: ratings.easy },
-                            RATING_LABELS
-                          )}
-                          cx="50%" cy="50%"
-                          innerRadius={50} outerRadius={90}
-                          dataKey="value" nameKey="name"
-                          label={renderPieLabel(textColor)}
-                          onClick={(data: any) => handlePieClick(data.name)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {pieData(
-                            { again: ratings.again, hard: ratings.hard, good: ratings.good, easy: ratings.easy },
-                            RATING_LABELS
-                          ).map((_, i) => (
-                            <Cell key={i} fill={COLORS.rating[i % COLORS.rating.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<ChartTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <Typography variant="body2" color="text.secondary" className="text-center mt-1">
-                      总计 {ratings.total} 次评分
-                    </Typography>
-                  </>
-                ) : (
-                  <Box className="flex items-center justify-center h-[260px]">
-                    <Typography color="text.secondary">暂无评分数据</Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* 每日复习趋势 */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent>
-                <Typography variant="h6" className="font-kai mb-2">每日复习</Typography>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={trend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(v: string) => v.slice(5)}
-                      fontSize={11}
-                      tick={{ fill: textColor }}
-                    />
-                    <YAxis fontSize={11} tick={{ fill: textColor }} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend formatter={(value: string) => <span style={{ color: textColor }}>{value}</span>} />
-                    <Bar dataKey="cards_studied" name="复习数" fill={COLORS.bar.reviewed} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="new_cards_learned" name="新卡数" fill={COLORS.bar.newCards} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+          {/* 图 3：学习时长（面积折线） */}
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box className="flex items-center justify-between mb-1">
+                <Typography variant="body2" fontWeight={600}>学习时长(分钟)</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  累计 {totalMinutes} 分钟
+                </Typography>
+              </Box>
+              <ResponsiveContainer width="100%" height={chartHeight}>
+                <AreaChart data={data}>
+                  <defs>
+                    <linearGradient id="minutesFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.area} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={C.area} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.grid} />
+                  <XAxis
+                    dataKey="date" tickFormatter={fmtDate}
+                    fontSize={11} tick={{ fill: textColor }} stroke={C.grid}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis fontSize={11} tick={{ fill: textColor }} stroke={C.grid} width={36} />
+                  <RTooltip content={<ChartTooltip unit=" 分" />} cursor={{ stroke: C.area, strokeWidth: 1, strokeDasharray: '3 3' }} />
+                  <Area
+                    type="monotone"
+                    dataKey="minutes"
+                    name="学时"
+                    stroke={C.area}
+                    strokeWidth={2.5}
+                    fill="url(#minutesFill)"
+                    dot={{ r: 3, fill: C.area, strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </>
       )}
     </Box>
   );
 };
+
+/** 顶部图例（圆点 + 文字） */
+const Legend: React.FC<{ items: { color: string; label: string }[] }> = ({ items }) => (
+  <Box className="flex items-center gap-3 mb-1">
+    {items.map((it) => (
+      <Box key={it.label} className="flex items-center gap-1">
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: it.color }} />
+        <Typography variant="body2" sx={{ fontSize: 12, fontWeight: 500 }}>{it.label}</Typography>
+      </Box>
+    ))}
+  </Box>
+);
 
 export default AnalyticsPage;

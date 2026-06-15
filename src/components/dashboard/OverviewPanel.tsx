@@ -10,21 +10,30 @@ interface StatCardProps {
   value: number | string;
   unit?: string;
   dark: boolean;
+  size?: 'sm' | 'md';
 }
-const StatCard: React.FC<StatCardProps> = ({ label, value, unit, dark }) => (
+const StatCard: React.FC<StatCardProps> = ({ label, value, unit, dark, size = 'md' }) => (
   <Box sx={{
-    border: '1px solid', borderColor: 'divider', borderRadius: 2,
-    p: 1.5, bgcolor: dark ? '#1a1a1a' : '#f5f5f5',
+    border: '1px solid', borderColor: 'divider', borderRadius: size === 'sm' ? 1.5 : 2,
+    p: size === 'sm' ? 1 : 1.5,
+    bgcolor: dark ? '#1a1a1a' : '#f5f5f5',
+    minWidth: 0,
   }}>
-    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ fontSize: size === 'sm' ? 10 : 11, lineHeight: 1.2 }}
+    >
       {label}
     </Typography>
-    <Box sx={{ display: 'flex', alignItems: 'baseline', mt: 0.5, gap: 0.5 }}>
-      <Typography variant="h6" fontWeight={600} sx={{ fontSize: 20 }}>
+    <Box sx={{ display: 'flex', alignItems: 'baseline', mt: size === 'sm' ? 0.25 : 0.5, gap: 0.5 }}>
+      <Typography
+        sx={{ fontWeight: 600, fontSize: size === 'sm' ? 16 : 20, lineHeight: 1.1 }}
+      >
         {value}
       </Typography>
       {unit && (
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: size === 'sm' ? 10 : 12 }}>
           {unit}
         </Typography>
       )}
@@ -32,15 +41,22 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, unit, dark }) => (
   </Box>
 );
 
+export interface OverviewPanelProps {
+  /** 'page' = 完整版（带 Card 外壳、PC/移动端顶部）；'sidebar' = 紧凑版（嵌入左侧栏，无 Card 外壳） */
+  variant?: 'page' | 'sidebar';
+}
+
 /**
  * 概览面板：复刻参考图的"标题 + 时间筛选 + 6 个数据卡 + 热力图 + 总结"布局。
- * 用于 DashboardPage 顶部（移动端 + 暂无 PC 端）。
+ *  - variant='page'：完整版（Card 外壳、6 张 2×3 卡），用于 Dashboard 顶部移动端
+ *  - variant='sidebar'：紧凑版（无 Card 外壳、6 张 3×2 卡更小），用于 PC 端左侧栏
  */
-const OverviewPanel: React.FC = () => {
+const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  const isSidebar = variant === 'sidebar';
   const {
-    newCount, dueCount, streakDays, totalStudied, activeDays, totalMinutes, activityData, loading,
+    dueCount, streakDays, totalMinutes, activityData, loading,
   } = useDashboardStats();
   const [range, setRange] = useState<Range>('all');
 
@@ -56,44 +72,72 @@ const OverviewPanel: React.FC = () => {
 
   const hours = useMemo(() => (totalMinutes / 60).toFixed(1), [totalMinutes]);
 
+  const content = (
+    <>
+      {/* 顶部：标题 + 时间筛选 */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={isSidebar ? 1 : 2}>
+        <Typography
+          variant={isSidebar ? 'overline' : 'h6'}
+          fontWeight={600}
+          color={isSidebar ? 'text.secondary' : 'text.primary'}
+          sx={{ fontSize: isSidebar ? 11 : undefined, lineHeight: isSidebar ? '2' : undefined }}
+        >
+          {isSidebar ? '学习概览' : '概览'}
+        </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={range}
+          onChange={(_, v) => v && setRange(v)}
+          sx={{
+            '& .MuiToggleButton-root': {
+              px: isSidebar ? 0.75 : 1.5,
+              fontSize: isSidebar ? 10 : 12,
+            },
+          }}
+        >
+          <ToggleButton value="all">All</ToggleButton>
+          <ToggleButton value="30d">30d</ToggleButton>
+          <ToggleButton value="7d">7d</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {/* 3 个核心数据卡（极简：待复习 / 连续 / 学时） */}
+      <Box
+        display="grid"
+        gridTemplateColumns="1fr 1fr 1fr"
+        gap={isSidebar ? 0.75 : 1.5}
+        mb={isSidebar ? 1.25 : 2}
+      >
+        <StatCard label="待复习" value={loading ? '-' : dueCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+        <StatCard label="连续" value={loading ? '-' : streakDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+        <StatCard label="学时" value={loading ? '-' : hours} unit="h" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+      </Box>
+
+      {/* 热力图 */}
+      <Box mb={isSidebar ? 0.75 : 1.5}>
+        <ActivityCalendar data={filteredActivity} weeks={isSidebar ? 13 : 13} compact={isSidebar} />
+      </Box>
+
+      {/* 总结文案（用学时收尾，数据已在卡里展示，去掉重复的累计） */}
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ fontSize: isSidebar ? 11 : 13, lineHeight: 1.4 }}
+      >
+        累计学时 {hours} h
+      </Typography>
+    </>
+  );
+
+  if (isSidebar) {
+    return <Box sx={{ pt: 0.5 }}>{content}</Box>;
+  }
+
   return (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
-        {/* 顶部：标题 + 时间筛选 */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" fontWeight={600}>概览</Typography>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={range}
-            onChange={(_, v) => v && setRange(v)}
-            sx={{ '& .MuiToggleButton-root': { px: 1.5, fontSize: 12 } }}
-          >
-            <ToggleButton value="all">All</ToggleButton>
-            <ToggleButton value="30d">30d</ToggleButton>
-            <ToggleButton value="7d">7d</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        {/* 6 个数据卡 — 2 行 × 3 列 */}
-        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={1.5} mb={2}>
-          <StatCard label="待学习" value={loading ? '-' : newCount} unit="张" dark={dark} />
-          <StatCard label="待复习" value={loading ? '-' : dueCount} unit="张" dark={dark} />
-          <StatCard label="连续" value={loading ? '-' : streakDays} unit="天" dark={dark} />
-          <StatCard label="已学" value={loading ? '-' : totalStudied} unit="张" dark={dark} />
-          <StatCard label="学习" value={loading ? '-' : activeDays} unit="天" dark={dark} />
-          <StatCard label="学时" value={loading ? '-' : hours} unit="h" dark={dark} />
-        </Box>
-
-        {/* 热力图 */}
-        <Box mb={1.5}>
-          <ActivityCalendar data={filteredActivity} weeks={13} />
-        </Box>
-
-        {/* 总结文案 */}
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
-          你已坚持 {streakDays} 天，共学 {totalStudied} 张卡片，累计 {hours} 小时
-        </Typography>
+        {content}
       </CardContent>
     </Card>
   );

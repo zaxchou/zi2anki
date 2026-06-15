@@ -74,9 +74,10 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS daily_stats (
       date TEXT NOT NULL,
       user_id TEXT NOT NULL,
+      deck_id TEXT NOT NULL DEFAULT '',
       cards_studied INTEGER DEFAULT 0,
       new_cards_learned INTEGER DEFAULT 0,
-      PRIMARY KEY (date, user_id)
+      PRIMARY KEY (date, user_id, deck_id)
     );
 
     CREATE TABLE IF NOT EXISTS users (
@@ -99,6 +100,33 @@ export function getDb(): Database.Database {
   try { db.exec('ALTER TABLE cards ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
   try { db.exec('ALTER TABLE study_sessions ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
   try { db.exec('ALTER TABLE daily_stats ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
+
+  // 迁移：daily_stats 增加 deck_id 列（用于按牌组聚合）并把 PK 升级为三元组
+  // 旧 PK 是 (date, user_id)，需要先删旧 PK、加 deck_id 默认 ''、重设 PK
+  try { db.exec("UPDATE daily_stats SET user_id = '' WHERE user_id IS NULL"); } catch {}
+  try {
+    const hasDeckCol = db.prepare("PRAGMA table_info(daily_stats)").all().some((c: any) => c.name === 'deck_id');
+    if (!hasDeckCol) {
+      db.exec("ALTER TABLE daily_stats ADD COLUMN deck_id TEXT NOT NULL DEFAULT ''");
+      // 旧 PK 是 (date, user_id)，需要重建表来改 PK
+      db.exec(`
+        CREATE TABLE daily_stats_new (
+          date TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          deck_id TEXT NOT NULL DEFAULT '',
+          cards_studied INTEGER DEFAULT 0,
+          new_cards_learned INTEGER DEFAULT 0,
+          PRIMARY KEY (date, user_id, deck_id)
+        );
+        INSERT INTO daily_stats_new (date, user_id, deck_id, cards_studied, new_cards_learned)
+          SELECT date, COALESCE(user_id, ''), '', cards_studied, new_cards_learned FROM daily_stats;
+        DROP TABLE daily_stats;
+        ALTER TABLE daily_stats_new RENAME TO daily_stats;
+      `);
+    }
+  } catch (e) {
+    console.warn('[db] daily_stats deck_id 迁移失败（可忽略）:', e);
+  }
 
   // ⚠️ 必须先创建管理员，再执行数据迁移（已有数据需要 user_id = admin.id）
   const userCount = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;

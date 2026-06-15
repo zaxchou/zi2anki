@@ -128,13 +128,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
               pb: 1.5,
             }}
           >
-            <Typography
-              variant="overline"
-              color="text.secondary"
-              sx={{ px: 1, display: 'block', lineHeight: '2', fontSize: 11 }}
-            >
-              学习概览
-            </Typography>
             {children}
           </Box>
         ) : null}
