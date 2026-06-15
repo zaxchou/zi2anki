@@ -352,3 +352,11 @@ export async function importApkgFile(file: File): Promise<ImportResult> {
   const data = await res.json();
   return data as ImportResult;
 }
+
+/** 修改密码 */
+export function changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean }> {
+  return request('/api/auth/password', {
+    method: 'PUT',
+    body: JSON.stringify({ oldPassword, newPassword }),
+  });
+}

@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { getDb } from '../db.js';
-import { JWT_SECRET } from '../middleware/auth.js';
+import { JWT_SECRET, authMiddleware } from '../middleware/auth.js';
 
 export const authRouter = Router();
 
@@ -82,5 +82,50 @@ authRouter.post('/login', (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /auth/login error:', err);
     res.status(500).json({ error: '登录失败' });
+  }
+});
+
+// PUT /api/auth/password — 修改密码（需鉴权）
+authRouter.put('/password', authMiddleware, (req: Request, res: Response) => {
+  try {
+    const { oldPassword, newPassword } = req.body ?? {};
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: '未认证' });
+      return;
+    }
+    if (!oldPassword || !newPassword) {
+      res.status(400).json({ error: '请填写旧密码和新密码' });
+      return;
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6 || newPassword.length > 64) {
+      res.status(400).json({ error: '新密码需要 6-64 个字符' });
+      return;
+    }
+    if (oldPassword === newPassword) {
+      res.status(400).json({ error: '新密码不能与旧密码相同' });
+      return;
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash: string } | undefined;
+    if (!user) {
+      res.status(404).json({ error: '用户不存在' });
+      return;
+    }
+
+    if (!bcrypt.compareSync(oldPassword, user.password_hash)) {
+      res.status(401).json({ error: '旧密码错误' });
+      return;
+    }
+
+    const newHash = bcrypt.hashSync(newPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, userId);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /auth/password error:', err);
+    res.status(500).json({ error: '修改密码失败' });
   }
 });

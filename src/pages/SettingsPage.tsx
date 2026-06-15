@@ -17,15 +17,21 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
+import LogoutIcon from '@mui/icons-material/Logout';
+import LockIcon from '@mui/icons-material/Lock';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { fetchDecks, exportDeck, exportAllDecks, importApkgFile } from '@/lib/api';
+import { fetchDecks, exportDeck, exportAllDecks, importApkgFile, changePassword } from '@/lib/api';
 import { useAuthStore } from '@/stores/useAuthStore';
-import LogoutIcon from '@mui/icons-material/Logout';
 import type { Deck } from '@/types';
 
 const SettingsPage: React.FC = () => {
@@ -33,6 +39,14 @@ const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+
+  // 修改密码
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState('');
 
   // APKG 导出
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -144,6 +158,31 @@ const SettingsPage: React.FC = () => {
                 onClick={() => { logout(); navigate('/login'); }}
               >
                 退出登录
+              </Button>
+            </ListItemSecondaryAction>
+          </ListItem>
+
+          <Divider component="li" />
+
+          <ListItem className="py-4">
+            <ListItemText
+              primary="修改密码"
+              secondary="修改当前账号的登录密码"
+              primaryTypographyProps={{ variant: 'subtitle1' as const }}
+            />
+            <ListItemSecondaryAction>
+              <Button
+                variant="outlined"
+                startIcon={<LockIcon />}
+                onClick={() => {
+                  setOldPwd('');
+                  setNewPwd('');
+                  setConfirmPwd('');
+                  setPwdError('');
+                  setPwdDialogOpen(true);
+                }}
+              >
+                修改
               </Button>
             </ListItemSecondaryAction>
           </ListItem>
@@ -282,6 +321,71 @@ const SettingsPage: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* 修改密码对话框 */}
+      <Dialog open={pwdDialogOpen} onClose={() => setPwdDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>修改密码</DialogTitle>
+        <DialogContent>
+          {pwdError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPwdError('')}>{pwdError}</Alert>}
+          <TextField
+            fullWidth
+            margin="dense"
+            label="旧密码"
+            type="password"
+            value={oldPwd}
+            onChange={(e) => setOldPwd(e.target.value)}
+            autoComplete="current-password"
+            disabled={pwdLoading}
+          />
+          <TextField
+            fullWidth
+            margin="dense"
+            label="新密码"
+            type="password"
+            value={newPwd}
+            onChange={(e) => setNewPwd(e.target.value)}
+            helperText="6-64 个字符"
+            autoComplete="new-password"
+            disabled={pwdLoading}
+          />
+          <TextField
+            fullWidth
+            margin="dense"
+            label="确认新密码"
+            type="password"
+            value={confirmPwd}
+            onChange={(e) => setConfirmPwd(e.target.value)}
+            autoComplete="new-password"
+            disabled={pwdLoading}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPwdDialogOpen(false)} disabled={pwdLoading}>取消</Button>
+          <Button
+            variant="contained"
+            disabled={pwdLoading || !oldPwd || !newPwd || !confirmPwd}
+            onClick={async () => {
+              if (newPwd !== confirmPwd) {
+                setPwdError('两次输入的新密码不一致');
+                return;
+              }
+              setPwdLoading(true);
+              setPwdError('');
+              try {
+                await changePassword(oldPwd, newPwd);
+                setPwdDialogOpen(false);
+                setSnackbar({ open: true, message: '密码修改成功', severity: 'success' });
+              } catch (err) {
+                setPwdError(err instanceof Error ? err.message : '修改失败');
+              } finally {
+                setPwdLoading(false);
+              }
+            }}
+          >
+            {pwdLoading ? <CircularProgress size={20} color="inherit" /> : '确认修改'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
