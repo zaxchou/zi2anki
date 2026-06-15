@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Box, Typography, Card, CardContent, ToggleButton, ToggleButtonGroup, useTheme } from '@mui/material';
 import ActivityCalendar, { ActivityDay } from './ActivityCalendar';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useDeckStore } from '@/stores/useDeckStore';
 
 type Range = 'all' | '30d' | '7d';
 
@@ -58,6 +59,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   const {
     newCount, dueCount, activeDays, activityData, loading,
   } = useDashboardStats();
+  const decksLoading = useDeckStore((s) => s.loading);
   const [range, setRange] = useState<Range>('all');
 
   // 根据 range 过滤 activityData：更早的 days 置 0
@@ -113,7 +115,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
         gap={isSidebar ? 0.75 : 1.5}
         mb={isSidebar ? 1.25 : 2}
       >
-        <StatCard label="待学习" value={loading ? '-' : newCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+        <StatCard label="待学习" value={loading || decksLoading ? '-' : newCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
         <StatCard label="待复习" value={loading ? '-' : dueCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
         <StatCard label="学习" value={loading ? '-' : activeDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
       </Box>
