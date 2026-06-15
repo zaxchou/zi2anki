@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Link,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -140,6 +141,33 @@ const SettingsPage: React.FC = () => {
   return (
     <Box className="space-y-4 py-4">
       <Typography variant="h5" className="font-kai">设置</Typography>
+
+      {user?.role === 'admin' && (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>
+          <Typography variant="body2">
+            你正在使用默认管理员账号。建议{' '}
+            <Link
+              component="button"
+              underline="hover"
+              onClick={() => {
+                setOldPwd('');
+                setNewPwd('');
+                setConfirmPwd('');
+                setPwdError('');
+                setPwdDialogOpen(true);
+              }}
+              sx={{ cursor: 'pointer' }}
+            >
+              修改密码
+            </Link>
+            {' '}或{' '}
+            <Link component={RouterLink} to="/register" underline="hover">
+              注册个人账号
+            </Link>
+            。
+          </Typography>
+        </Alert>
+      )}
 
       {/* 账号管理 */}
       <Card variant="outlined" sx={{ borderRadius: 2 }}>

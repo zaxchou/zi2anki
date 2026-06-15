@@ -49,6 +49,14 @@ export default function LoginPage() {
             </Typography>
           </Box>
 
+          <Alert severity="info" sx={{ mb: 2 }} icon={false}>
+            <Typography variant="body2">
+              <strong>🔐 首次使用？</strong><br />
+              系统已自动创建默认管理员账号，<br />
+              密码在<strong>启动终端</strong>中可见。
+            </Typography>
+          </Alert>
+
           {error && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={clearError}>
               {error}
