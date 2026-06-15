@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useStudyStore } from '@/stores/useStudyStore';
-import { fetchDecks } from '@/lib/api';
+import { fetchDecks, endStudySession as endStudySessionApi } from '@/lib/api';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
 import RatingButtons from '@/components/study/RatingButtons';
@@ -74,21 +74,55 @@ const StudyPage: React.FC = () => {
     };
   }, [deckId, startSession, reset]);
 
-  // 学习计时器：每秒钟更新一次 elapsed（从 session.started_at 算起）
+  // 学习计时器 + 学时持久化（每10秒 + 页面关闭保底）
   useEffect(() => {
-    if (phase !== 'studying' || !session?.started_at) {
+    if (phase !== 'studying' || !session?.started_at || !session?.id) {
       setElapsed(0);
       return;
     }
+    const startedAt = session.started_at;
+    const sid = session.id;
+
     const tick = () => {
-      const start = new Date(session.started_at).getTime();
+      const start = new Date(startedAt).getTime();
       const now = Date.now();
       setElapsed(Math.max(0, Math.floor((now - start) / 1000)));
     };
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [phase, session?.started_at]);
+    const timerId = setInterval(tick, 1000);
+
+    // 每10秒持久化 ended_at，页面关闭最多丢10秒
+    const persistId = setInterval(async () => {
+      try {
+        await endStudySessionApi(sid, { ended_at: new Date().toISOString() });
+      } catch { /* 静默 */ }
+    }, 10000);
+    endStudySessionApi(sid, { ended_at: new Date().toISOString() }).catch(() => {});
+
+    // 页面关闭/刷新保底 —— fetch keepalive 保证请求完成
+    const onUnload = () => {
+      try {
+        const raw = localStorage.getItem('auth-storage');
+        if (!raw) return;
+        const token = JSON.parse(raw)?.state?.token;
+        if (token) {
+          fetch(`/api/study-sessions/${sid}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ ended_at: new Date().toISOString() }),
+            keepalive: true,
+          });
+        }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      clearInterval(timerId);
+      clearInterval(persistId);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [phase, session?.started_at, session?.id]);
 
   /** 格式化秒为 MM:SS */
   const fmtTime = (s: number) => {
