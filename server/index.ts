@@ -8,6 +8,8 @@ import { decksRouter } from './routes/decks.js';
 import { cardsRouter } from './routes/cards.js';
 import { studyRouter } from './routes/study.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { exportRouter } from './routes/export.js';
+import { importRouter } from './routes/import.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,6 +28,8 @@ app.use('/api', decksRouter);
 app.use('/api', cardsRouter);
 app.use('/api', studyRouter);
 app.use('/api', analyticsRouter);
+app.use('/api', exportRouter);
+app.use('/api', importRouter);
 
 // 生产模式：托管前端构建产物
 const distDir = path.join(__dirname, '..', 'dist');

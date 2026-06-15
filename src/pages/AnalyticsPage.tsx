@@ -144,6 +144,15 @@ const AnalyticsPage: React.FC = () => {
     init();
   }, [loadDecks]);
 
+  // 自动选中第一个牌组（如果没有选中任何牌组）
+  useEffect(() => {
+    if (ready && decks.length > 0 && !selectedDeck) {
+      const firstId = decks[0].id;
+      setSelectedDeck(firstId);
+      localStorage.setItem('analytics-last-deck', firstId);
+    }
+  }, [ready, decks, selectedDeck]);
+
   const handleDeckChange = (deckId: string) => {
     setSelectedDeck(deckId);
     localStorage.setItem('analytics-last-deck', deckId);

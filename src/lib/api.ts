@@ -273,3 +273,43 @@ export interface DailyTrendPoint {
 export function fetchDailyTrend(days?: number): Promise<DailyTrendPoint[]> {
   return request(`/api/analytics/daily-trend${days ? `?days=${days}` : ''}`);
 }
+
+// ===== APKG 导入/导出 API =====
+
+/** 导入结果类型 */
+export interface ImportResult {
+  success: boolean;
+  decks: Array<{ id: string; name: string; card_count: number }>;
+  errors: Array<{ type: 'parse' | 'media' | 'db'; message: string }>;
+}
+
+/** 导出牌组为 APKG（触发浏览器下载） */
+export function exportDeck(deckId: string, deckName: string): void {
+  const safeName = deckName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+  const a = document.createElement('a');
+  a.href = `${API_BASE}/api/export/${encodeURIComponent(deckId)}`;
+  a.download = `${safeName}.apkg`;
+  a.click();
+}
+
+/** 导出全部牌组为 APKG */
+export function exportAllDecks(): void {
+  const a = document.createElement('a');
+  a.href = `${API_BASE}/api/export`;
+  a.download = 'all_decks.apkg';
+  a.click();
+}
+
+/** 导入 APKG 文件 */
+export async function importApkgFile(file: File): Promise<ImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/api/import`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await res.json();
+  return data as ImportResult;
+}

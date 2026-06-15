@@ -9,3 +9,4 @@ uploads/*
 .env.local
 .DS_Store
 Thumbs.db
+.workbuddy/
