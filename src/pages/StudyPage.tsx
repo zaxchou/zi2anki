@@ -65,7 +65,13 @@ const StudyPage: React.FC = () => {
     };
     init();
 
-    return () => { reset(); };
+    return () => {
+      const state = useStudyStore.getState();
+      if (state.session && state.phase === 'studying') {
+        state.endSession().catch(() => {});
+      }
+      reset();
+    };
   }, [deckId, startSession, reset]);
 
   // 学习计时器：每秒钟更新一次 elapsed（从 session.started_at 算起）
@@ -116,11 +122,15 @@ const StudyPage: React.FC = () => {
   /** 确认退出：先结束会话（保留已评分的卡） → 回到来源页 */
   const handleConfirmExit = useCallback(async () => {
     setConfirmExit(false);
-    if (phase === 'studying') {
-      await endSession().catch(() => {/* 静默失败 */});
+    if (phase === 'studying' && session) {
+      try {
+        await endSession();
+      } catch (err) {
+        console.error('[StudyPage] endSession 失败:', err);
+      }
     }
     navigate(-1);
-  }, [phase, endSession, navigate]);
+  }, [phase, session, endSession, navigate]);
 
   // 加载状态
   if (phase === 'loading' || loading) {
