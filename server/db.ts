@@ -102,13 +102,14 @@ export function getDb(): Database.Database {
 
   // ⚠️ 必须先创建管理员，再执行数据迁移（已有数据需要 user_id = admin.id）
   const userCount = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
-  if (userCount === 0) {
+    if (userCount === 0) {
     const hash = bcrypt.hashSync('admin123', 10);
     const adminId = crypto.randomUUID();
     const now = new Date().toISOString();
     db.prepare(
       'INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
     ).run(adminId, 'admin', hash, 'admin', now);
+    console.log('🔐 已创建默认管理员账号 — 用户名: admin, 密码: admin123（请尽快修改）');
   }
 
   // 迁移：已有数据的 user_id 统一归管理员
