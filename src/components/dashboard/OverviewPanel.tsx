@@ -14,9 +14,9 @@ interface StatCardProps {
 }
 const StatCard: React.FC<StatCardProps> = ({ label, value, unit, dark, size = 'md' }) => (
   <Box sx={{
-    border: '1px solid', borderColor: 'divider', borderRadius: size === 'sm' ? 1.5 : 2,
-    p: size === 'sm' ? 1 : 1.5,
-    bgcolor: dark ? '#1a1a1a' : '#f5f5f5',
+    border: '1px solid', borderColor: 'divider', borderRadius: 1.5,
+    p: size === 'sm' ? 1 : 1.25,
+    bgcolor: dark ? '#1a1a1a' : '#fafafa',
     minWidth: 0,
   }}>
     <Typography
@@ -56,7 +56,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   const dark = theme.palette.mode === 'dark';
   const isSidebar = variant === 'sidebar';
   const {
-    dueCount, streakDays, totalMinutes, activityData, loading,
+    newCount, dueCount, activeDays, activityData, loading,
   } = useDashboardStats();
   const [range, setRange] = useState<Range>('all');
 
@@ -70,7 +70,11 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
     return activityData.map((d) => (d.date < cutoffStr ? { ...d, cards_studied: 0, new_cards_learned: 0 } : d));
   }, [activityData, range]);
 
-  const hours = useMemo(() => (totalMinutes / 60).toFixed(1), [totalMinutes]);
+  /** 累计：仅 "学时" 用 */
+  const hours = useMemo(() => {
+    const totalMin = (activityData as any[]).reduce((s, d) => s + (Number(d.minutes) || 0), 0);
+    return (totalMin / 60).toFixed(1);
+  }, [activityData]);
 
   const content = (
     <>
@@ -102,16 +106,16 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* 3 个核心数据卡（极简：待复习 / 连续 / 学时） */}
+      {/* 3 个核心数据卡：待学习 / 待复习 / 学习天数 */}
       <Box
         display="grid"
         gridTemplateColumns="1fr 1fr 1fr"
         gap={isSidebar ? 0.75 : 1.5}
         mb={isSidebar ? 1.25 : 2}
       >
+        <StatCard label="待学习" value={loading ? '-' : newCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
         <StatCard label="待复习" value={loading ? '-' : dueCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
-        <StatCard label="连续" value={loading ? '-' : streakDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
-        <StatCard label="学时" value={loading ? '-' : hours} unit="h" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+        <StatCard label="学习" value={loading ? '-' : activeDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
       </Box>
 
       {/* 热力图 */}
@@ -119,7 +123,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
         <ActivityCalendar data={filteredActivity} weeks={isSidebar ? 13 : 13} compact={isSidebar} />
       </Box>
 
-      {/* 总结文案（用学时收尾，数据已在卡里展示，去掉重复的累计） */}
+      {/* 总结文案 */}
       <Typography
         variant="body2"
         color="text.secondary"
@@ -135,8 +139,8 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   }
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
-      <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
+    <Card variant="outlined" sx={{ borderRadius: 1.5 }}>
+      <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
         {content}
       </CardContent>
     </Card>

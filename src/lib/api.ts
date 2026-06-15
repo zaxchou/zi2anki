@@ -225,8 +225,9 @@ export function endStudySession(
 
 // ===== 每日统计 API =====
 
-export function fetchDailyStats(date: string): Promise<DailyStats> {
-  return request<DailyStats>(`/api/daily-stats/${date}`);
+export function fetchDailyStats(date: string, deckId?: string): Promise<DailyStats> {
+  const params = deckId ? `?deck_id=${encodeURIComponent(deckId)}` : '';
+  return request<DailyStats>(`/api/daily-stats/${date}${params}`);
 }
 
 export function upsertDailyStats(

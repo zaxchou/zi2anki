@@ -181,17 +181,28 @@ studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
 });
 
 // GET /api/daily-stats/:date —— 获取指定日期的统计
+// 可选 query: ?deck_id=xxx（查具体牌组）；缺省则 SUM 跨牌组
 studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
   try {
     const { date } = req.params;
     const db = getDb();
+    const deckId = (req.query.deck_id as string | undefined) || '';
 
-    const row = db.prepare(
-      `SELECT
-         COALESCE(SUM(cards_studied), 0) as cards_studied,
-         COALESCE(SUM(new_cards_learned), 0) as new_cards_learned
-       FROM daily_stats WHERE date = ? AND user_id = ?`
-    ).get(date, req.user!.userId) as { cards_studied: number; new_cards_learned: number };
+    let row: { cards_studied: number; new_cards_learned: number };
+    if (deckId) {
+      row = db.prepare(
+        `SELECT cards_studied, new_cards_learned
+         FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?`
+      ).get(date, req.user!.userId, deckId) as any;
+    } else {
+      // 查全部牌组 SUM（旧行为，用于 useDashboardStats）
+      row = db.prepare(
+        `SELECT
+           COALESCE(SUM(cards_studied), 0) as cards_studied,
+           COALESCE(SUM(new_cards_learned), 0) as new_cards_learned
+         FROM daily_stats WHERE date = ? AND user_id = ?`
+      ).get(date, req.user!.userId) as any;
+    }
 
     res.json({ date, cards_studied: row?.cards_studied ?? 0, new_cards_learned: row?.new_cards_learned ?? 0 });
   } catch (err) {

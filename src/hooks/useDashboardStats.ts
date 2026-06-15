@@ -10,7 +10,7 @@ export interface DailyStatRow {
 }
 
 export interface DashboardStats {
-  newCount: number;          // 累计待学习（new_count 总和）
+  newCount: number;          // 今日可学新卡（按牌组每日上限 - 今日已学 计算）
   dueCount: number;          // 今日待复习
   newCardRemaining: number;  // 今日剩余新卡（每日上限 - 今日已学新卡）
   streakDays: number;        // 连续打卡
@@ -96,9 +96,10 @@ export const useDashboardStats = (): DashboardStats => {
     return () => { cancelled = true; };
   }, [decks]);
 
-  // 累计 new_count（待学习卡片总数）
+  // 今日可学新卡：每个牌组 new_available_today 总和
+  // （后端已按 daily_new_card_limit - 今日已学 算好，min 到 new_count）
   const newCount = useMemo(
-    () => decks.reduce((sum, d) => sum + (d.new_count ?? 0), 0),
+    () => decks.reduce((sum, d) => sum + ((d as any).new_available_today ?? d.new_count ?? 0), 0),
     [decks]
   );
 

@@ -11,6 +11,12 @@ function nowISO(): string {
   return new Date().toISOString();
 }
 
+/** 本地日期 YYYY-MM-DD（参考 useDashboardStats 写法） */
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** 生成 UUID */
 function uuid(): string {
   return crypto.randomUUID();
@@ -20,6 +26,7 @@ function uuid(): string {
 decksRouter.get('/decks', (req: Request, res: Response) => {
   try {
     const db = getDb();
+    const today = todayLocal();
     const rows = db.prepare(
       `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
         COALESCE((SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.interval = 0), 0) as new_count
@@ -32,7 +39,20 @@ decksRouter.get('/decks', (req: Request, res: Response) => {
       created_at: string;
       updated_at: string;
     }>;
-    res.json(rows);
+
+    // 今日可学新卡 = Σ min(牌组 new_count, daily_new_card_limit - 今日已学)
+    const result = rows.map((d) => {
+      const ds = db.prepare(
+        `SELECT new_cards_learned FROM daily_stats
+         WHERE user_id = ? AND date = ? AND deck_id = ?`
+      ).get(req.user!.userId, today, d.id) as { new_cards_learned: number } | undefined;
+      const learnedToday = ds?.new_cards_learned ?? 0;
+      const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
+      const newAvailableToday = Math.min(d.new_count, remainingByLimit);
+      return { ...d, new_available_today: newAvailableToday };
+    });
+
+    res.json(result);
   } catch (err) {
     console.error('GET /decks error:', err);
     res.status(500).json({ error: 'Failed to fetch decks' });

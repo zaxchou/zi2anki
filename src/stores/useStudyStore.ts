@@ -64,10 +64,10 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       const newCardLimit = dailyNewCardLimit ?? DEFAULT_DAILY_NEW_CARD_LIMIT;
       const reviewLimit = dailyReviewLimit ?? 200;
 
-      // 并行加载到期卡片和每日统计
+      // 并行加载到期卡片和每日统计（用本牌组 deckId 查，避免跨牌组污染）
       const [dueCards, todayStats] = await Promise.all([
         fetchDueCards(deckId, reviewLimit),
-        fetchDailyStats(todayLocal()),
+        fetchDailyStats(todayLocal(), deckId),
       ]);
 
       // 计算今天还能学多少新卡
@@ -192,9 +192,9 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       };
 
       // 更新每日统计（使用本地日期，不受 UTC 时区偏移影响）
-      // deck_id 必传：daily_stats PK 升级为 (date, user_id, deck_id)
+      // 传 deck_id：查本牌组的当日累计，避免跨牌组数据污染
       const today = todayLocal();
-      const existingStats = await fetchDailyStats(today);
+      const existingStats = await fetchDailyStats(today, session.deck_id);
       await upsertDailyStats(today, {
         deck_id: session.deck_id,
         cards_studied: (existingStats.cards_studied ?? 0) + 1,
