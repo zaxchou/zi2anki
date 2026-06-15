@@ -10,6 +10,7 @@ import {
   DialogContentText,
   DialogActions,
   Stack,
+  Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useStudyStore } from '@/stores/useStudyStore';
@@ -46,6 +47,8 @@ const StudyPage: React.FC = () => {
 
   const [flipped, setFlipped] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  // 学习计时（秒）：从 session.started_at 到现在的秒数
+  const [elapsed, setElapsed] = useState(0);
 
   // 加载牌组信息 → 获取牌组专属上限 → 启动学习
   useEffect(() => {
@@ -65,7 +68,28 @@ const StudyPage: React.FC = () => {
     return () => { reset(); };
   }, [deckId, startSession, reset]);
 
-  /** 翻转卡片 */
+  // 学习计时器：每秒钟更新一次 elapsed（从 session.started_at 算起）
+  useEffect(() => {
+    if (phase !== 'studying' || !session?.started_at) {
+      setElapsed(0);
+      return;
+    }
+    const tick = () => {
+      const start = new Date(session.started_at).getTime();
+      const now = Date.now();
+      setElapsed(Math.max(0, Math.floor((now - start) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [phase, session?.started_at]);
+
+  /** 格式化秒为 MM:SS */
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  };
   const handleFlip = useCallback(() => {
     setFlipped((prev) => !prev);
   }, []);
@@ -133,11 +157,12 @@ const StudyPage: React.FC = () => {
     const currentCard = queue[currentIndex];
     return (
       <Box className="flex flex-col items-center gap-6 py-4 relative">
-        {/* 顶部返回按钮：整个区域可点击 */}
+        {/* 顶部：左-返回 + 右-计时 */}
         <Stack
           direction="row"
           alignItems="center"
-          sx={{ position: 'absolute', left: 0, top: 0 }}
+          justifyContent="space-between"
+          sx={{ position: 'absolute', left: 0, right: 0, top: 0 }}
         >
           <Button
             onClick={handleRequestExit}
@@ -147,6 +172,13 @@ const StudyPage: React.FC = () => {
           >
             返回
           </Button>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ px: 1, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}
+          >
+            {fmtTime(elapsed)}
+          </Typography>
         </Stack>
 
         {/* 进度条 */}
