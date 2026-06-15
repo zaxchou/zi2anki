@@ -300,6 +300,15 @@ export function fetchDailyTrend(days?: number): Promise<DailyTrendPoint[]> {
   return request(`/api/analytics/daily-trend${days ? `?days=${days}` : ''}`);
 }
 
+/** 累计学习总时长与总会话数 */
+export interface StudyTotal {
+  total_sessions: number;
+  total_minutes: number;
+}
+export function fetchStudyTotal(): Promise<StudyTotal> {
+  return request('/api/study-sessions/total');
+}
+
 // ===== APKG 导入/导出 API =====
 
 /** 导入结果类型 */

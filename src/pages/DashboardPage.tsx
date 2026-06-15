@@ -10,8 +10,6 @@ import {
   Alert,
   LinearProgress,
   Chip,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -20,10 +18,9 @@ import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { resetDeckProgress } from '@/lib/api';
-import StatsOverview from '@/components/dashboard/StatsOverview';
+import OverviewPanel from '@/components/dashboard/OverviewPanel';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 /**
  * 仪表盘页面。
@@ -37,10 +34,6 @@ const DashboardPage: React.FC = () => {
   const loading = useDeckStore((s) => s.loading);
   const error = useDeckStore((s) => s.error);
   const loadDecks = useDeckStore((s) => s.loadDecks);
-  const theme = useTheme();
-  const isPc = useMediaQuery(theme.breakpoints.up('md'));
-
-  const { dueCount, newCardRemaining, streakDays, activityData } = useDashboardStats();
 
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -103,15 +96,8 @@ const DashboardPage: React.FC = () => {
   return (
     <>
     <Box className="space-y-6 py-4">
-      {/* 统计 + 签到日历：PC 端由侧栏展示，此处仅在移动端渲染 */}
-      {!isPc && (
-        <StatsOverview
-          dueCount={dueCount}
-          newCardRemaining={newCardRemaining}
-          streakDays={streakDays}
-          activityData={activityData}
-        />
-      )}
+      {/* 概览面板（6 个数据卡 + 热力图 + 时间筛选） */}
+      <OverviewPanel />
 
       {/* 牌组列表：宽度撑满主区，卡片列数按容器宽度自动计算 */}
       <Box sx={{ width: '100%' }}>

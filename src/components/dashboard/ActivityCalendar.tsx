@@ -5,7 +5,7 @@ export interface ActivityDay { date: string; cards_studied: number; new_cards_le
 export interface ActivityCalendarProps { data: ActivityDay[]; weeks?: number; /** 紧凑模式：去掉月份/星期/图例文字 */ compact?: boolean; }
 
 function getLevel(c: number) { if (c === 0) return 0; if (c < 5) return 1; if (c < 15) return 2; if (c < 30) return 3; return 4; }
-function getColor(lv: number, d: boolean) { return d ? ['#2d2d2d','#1e4a3a','#2d6e4f','#3d9163','#5bbf8a'][lv] : ['#ebedf0','#c6e4d8','#8fcfa9','#5bbf8a','#3d9163'][lv]; }
+function getColor(lv: number, d: boolean) { return d ? ['#2d2d2d','#1e3a5f','#2c5dab','#4a7fd6','#7ba9f0'][lv] : ['#ebedf0','#c6dbef','#7ba9f0','#4a7fd6','#2c5dab'][lv]; }
 function fmt(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 
 const DAY = ['一','','三','','五','','日'];
@@ -64,14 +64,14 @@ const ActivityCalendar: React.FC<ActivityCalendarProps> = ({ data, weeks = 13, c
         )}
 
         {/* 格子 */}
-        <Box sx={{ display: 'flex', gap: compact ? '2px' : '3px', flex: 1 }}>
+        <Box sx={{ display: 'flex', gap: '4px', flex: 1 }}>
           {grid.map((col, w) => (
-            <Box key={w} sx={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+            <Box key={w} sx={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
               {col.map((cell, d) => (
                 <Box
                   key={d}
                   sx={{
-                    width: '100%', aspectRatio: '1', borderRadius: '3px',
+                    width: '100%', aspectRatio: '1', borderRadius: '4px',
                     bgcolor: getColor(cell.l, dark),
                     outline: cell.t ? '2px solid' : 'none', outlineColor: 'primary.main',
                     cursor: 'pointer', transition: 'transform .1s',

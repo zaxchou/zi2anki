@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { DEFAULT_DAILY_NEW_CARD_LIMIT } from '@/lib/constants';
-import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, todayLocal } from '@/lib/api';
+import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, fetchStudyTotal, todayLocal } from '@/lib/api';
 
 export interface DailyStatRow {
   date: string;
@@ -10,10 +10,14 @@ export interface DailyStatRow {
 }
 
 export interface DashboardStats {
-  dueCount: number;
-  newCardRemaining: number;
-  streakDays: number;
-  activityData: DailyStatRow[];
+  newCount: number;          // 累计待学习（new_count 总和）
+  dueCount: number;          // 今日待复习
+  newCardRemaining: number;  // 今日剩余新卡（每日上限 - 今日已学新卡）
+  streakDays: number;        // 连续打卡
+  totalStudied: number;      // 累计已学卡片
+  activeDays: number;        // 累计学习天数
+  totalMinutes: number;      // 累计学习分钟
+  activityData: DailyStatRow[]; // 完整 13 周
   loading: boolean;
 }
 
@@ -47,6 +51,9 @@ export const useDashboardStats = (): DashboardStats => {
   const [dueCount, setDueCount] = useState(0);
   const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
   const [streakDays, setStreakDays] = useState(0);
+  const [totalStudied, setTotalStudied] = useState(0);
+  const [activeDays, setActiveDays] = useState(0);
+  const [totalMinutes, setTotalMinutes] = useState(0);
   const [activityData, setActivityData] = useState<DailyStatRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,19 +68,22 @@ export const useDashboardStats = (): DashboardStats => {
         const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
         const allFrom = '2020-01-01';
 
-        const [dueCounts, todayStats, statsRange, allStats] = await Promise.all([
+        const [dueCounts, todayStats, statsRange, allStats, studyTotal] = await Promise.all([
           fetchDueCounts(),
           fetchDailyStats(today),
           fetchDailyStatsRange(thirtyDaysAgo, today),
           fetchDailyStatsRange(allFrom, today),
+          fetchStudyTotal(),
         ]);
 
         if (cancelled) return;
 
-        const rawDue = dueCounts.reduce((sum, d) => sum + d.due_count, 0);
-        setDueCount(rawDue);
+        setDueCount(dueCounts.reduce((sum, d) => sum + d.due_count, 0));
         setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
         setStreakDays(calculateStreak(allStats));
+        setTotalStudied(allStats.reduce((s, d) => s + d.cards_studied, 0));
+        setActiveDays(allStats.filter((d) => d.cards_studied > 0).length);
+        setTotalMinutes(Math.round(studyTotal.total_minutes));
         setActivityData(statsRange);
       } catch (err) {
         console.error('[useDashboardStats] 加载统计失败:', err);
@@ -86,8 +96,14 @@ export const useDashboardStats = (): DashboardStats => {
     return () => { cancelled = true; };
   }, [decks]);
 
+  // 累计 new_count（待学习卡片总数）
+  const newCount = useMemo(
+    () => decks.reduce((sum, d) => sum + (d.new_count ?? 0), 0),
+    [decks]
+  );
+
   return useMemo(
-    () => ({ dueCount, newCardRemaining, streakDays, activityData, loading }),
-    [dueCount, newCardRemaining, streakDays, activityData, loading]
+    () => ({ newCount, dueCount, newCardRemaining, streakDays, totalStudied, activeDays, totalMinutes, activityData, loading }),
+    [newCount, dueCount, newCardRemaining, streakDays, totalStudied, activeDays, totalMinutes, activityData, loading]
   );
 };

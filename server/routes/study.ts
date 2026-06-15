@@ -249,3 +249,20 @@ studyRouter.get('/due-counts', (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch due counts' });
   }
 });
+
+// GET /api/study-sessions/total —— 累计学习总时长与总会话数
+studyRouter.get('/study-sessions/total', (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const row = db.prepare(
+      `SELECT COUNT(*) as total_sessions,
+              COALESCE(SUM((julianday(ended_at) - julianday(started_at)) * 24 * 60), 0) as total_minutes
+       FROM study_sessions
+       WHERE user_id = ? AND ended_at IS NOT NULL`
+    ).get(req.user!.userId) as { total_sessions: number; total_minutes: number };
+    res.json(row);
+  } catch (err) {
+    console.error('GET /study-sessions/total error:', err);
+    res.status(500).json({ error: 'Failed to fetch study total' });
+  }
+});
