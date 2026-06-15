@@ -4,6 +4,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getDb } from './db.js';
+import { authRouter } from './routes/auth.js';
+import { authMiddleware } from './middleware/auth.js';
 import { decksRouter } from './routes/decks.js';
 import { cardsRouter } from './routes/cards.js';
 import { studyRouter } from './routes/study.js';
@@ -23,7 +25,13 @@ app.use(express.json({ limit: '50mb' }));
 // 静态文件服务 —— uploads 目录（项目根目录）
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// 挂载路由
+// 挂载 auth 路由（不需要鉴权）
+app.use('/api/auth', authRouter);
+
+// JWT 鉴权中间件（之后的所有 /api/* 都需要鉴权）
+app.use('/api', authMiddleware);
+
+// 挂载业务路由（已经在中间件之后）
 app.use('/api', decksRouter);
 app.use('/api', cardsRouter);
 app.use('/api', studyRouter);

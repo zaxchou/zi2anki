@@ -31,8 +31,8 @@ exportRouter.get('/export/:deckId', (req: Request, res: Response) => {
     const { deckId } = req.params;
     const db = getDb();
 
-    // 1. 获取牌组
-    const deck = db.prepare('SELECT * FROM decks WHERE id = ?').get(deckId) as Record<string, unknown> | undefined;
+    // 1. 获取牌组（仅当前用户的）
+    const deck = db.prepare('SELECT * FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId) as Record<string, unknown> | undefined;
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -322,7 +322,7 @@ exportRouter.get('/export/:deckId', (req: Request, res: Response) => {
 exportRouter.get('/export', (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const decks = db.prepare('SELECT id, name FROM decks ORDER BY created_at ASC').all() as Array<Record<string, unknown>>;
+    const decks = db.prepare('SELECT id, name FROM decks WHERE user_id = ? ORDER BY created_at ASC').all(req.user!.userId) as Array<Record<string, unknown>>;
 
     if (decks.length === 0) {
       res.status(400).json({ error: 'No decks to export' });

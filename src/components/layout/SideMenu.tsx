@@ -10,13 +10,16 @@ import {
   Box,
   Divider,
   Typography,
+  Button,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 导航项定义 */
 export interface NavItem {
@@ -45,6 +48,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
   const location = useLocation();
   const theme = useTheme();
   const isPc = useMediaQuery(theme.breakpoints.up('md'));
+  const { user, logout } = useAuthStore();
 
   if (!isPc) return null;
 
@@ -135,10 +139,35 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
           </Box>
         ) : null}
 
-        <Box sx={{ p: 1.5, textAlign: 'center', borderTop: 1, borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-            Zi2Anki · v1.0
-          </Typography>
+        <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
+          {/* 用户信息 */}
+          {user && (
+            <Box sx={{ mb: 1, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 600 }}>
+                {user.username}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                {user.role === 'admin' ? '管理员' : '用户'}
+              </Typography>
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+            {user && (
+              <Button
+                size="small"
+                variant="text"
+                color="inherit"
+                startIcon={<LogoutIcon sx={{ fontSize: 14 }} />}
+                onClick={() => { logout(); navigate('/login'); }}
+                sx={{ fontSize: 11, textTransform: 'none', minWidth: 0, px: 1 }}
+              >
+                退出
+              </Button>
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+              Zi2Anki · v1.0
+            </Typography>
+          </Box>
         </Box>
       </Box>
     </Drawer>

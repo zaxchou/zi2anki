@@ -66,6 +66,19 @@ export interface SM2Output {
   next_review: string; // ISO 8601
 }
 
+/** 用户信息 */
+export interface User {
+  id: string;
+  username: string;
+  role: string;
+}
+
+/** 认证响应 */
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 /** 用户设置 */
 export interface UserSettings {
   dailyNewCardLimit: number; // 默认 20

@@ -1,11 +1,15 @@
 import React, { useMemo } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { Box, useMediaQuery, useTheme } from '@mui/material';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Box, useMediaQuery, useTheme, Typography, IconButton, Tooltip,
+} from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
 import TopBar from './TopBar';
 import BottomNav from './BottomNav';
 import SideMenu from './SideMenu';
 import SidebarStats from '@/components/dashboard/SidebarStats';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 路由路径 → 页面标题映射 */
 const ROUTE_TITLE_MAP: Record<string, string> = {
@@ -28,8 +32,10 @@ const SIDE_MENU_WIDTH = 280;
  */
 const AppShell: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isPc = useMediaQuery(theme.breakpoints.up('md'));
+  const { user, logout } = useAuthStore();
 
   /** 共享统计：PC 端在侧边栏展示 */
   const stats = useDashboardStats();
@@ -67,7 +73,23 @@ const AppShell: React.FC = () => {
   return (
     <Box className="flex flex-col min-h-screen">
       <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-        <TopBar title={title} />
+        <TopBar title={title}>
+          {user && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 600 }}>
+                {user.username}
+              </Typography>
+              <Tooltip title="退出登录">
+                <IconButton
+                  size="small"
+                  onClick={() => { logout(); navigate('/login'); }}
+                >
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
+        </TopBar>
       </Box>
       <Box sx={{ display: 'flex', flex: 1, position: 'relative' }}>
         {isPc && <SideMenu width={SIDE_MENU_WIDTH}>{sideMenuContent}</SideMenu>}

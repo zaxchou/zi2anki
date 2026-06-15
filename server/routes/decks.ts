@@ -16,15 +16,15 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-// GET /api/decks —— 获取所有牌组
-decksRouter.get('/decks', (_req: Request, res: Response) => {
+// GET /api/decks —— 获取当前用户所有牌组
+decksRouter.get('/decks', (req: Request, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare(
       `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
         COALESCE((SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.interval = 0), 0) as new_count
-        FROM decks d ORDER BY d.created_at DESC`
-    ).all() as Array<{
+        FROM decks d WHERE d.user_id = ? ORDER BY d.created_at DESC`
+    ).all(req.user!.userId) as Array<{
       id: string;
       name: string;
       card_count: number;
@@ -53,8 +53,8 @@ decksRouter.post('/decks', (req: Request, res: Response) => {
     const now = nowISO();
 
     db.prepare(
-      'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at) VALUES (?, ?, 0, 20, 200, ?, ?)'
-    ).run(id, name.trim(), now, now);
+      'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id) VALUES (?, ?, 0, 20, 200, ?, ?, ?)'
+    ).run(id, name.trim(), now, now, req.user!.userId);
 
     const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.status(201).json(deck);
@@ -76,14 +76,14 @@ decksRouter.put('/decks/:id', (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     const now = nowISO();
-    db.prepare('UPDATE decks SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now, id);
+    db.prepare('UPDATE decks SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?').run(name.trim(), now, id, req.user!.userId);
 
     const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.json(deck);
@@ -99,7 +99,7 @@ decksRouter.delete('/decks/:id', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -128,7 +128,7 @@ decksRouter.delete('/decks/:id', (req: Request, res: Response) => {
       }
 
       // 删除牌组（CASCADE 会删除 cards 和 study_sessions）
-      db.prepare('DELETE FROM decks WHERE id = ?').run(id);
+      db.prepare('DELETE FROM decks WHERE id = ? AND user_id = ?').run(id, req.user!.userId);
     });
 
     deleteDeck();
@@ -151,14 +151,14 @@ decksRouter.put('/decks/:id/card-count', (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     const now = nowISO();
-    db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count, now, id);
+    db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ? AND user_id = ?').run(count, now, id, req.user!.userId);
 
     const deck = db.prepare('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = ?').get(id);
     res.json(deck);
@@ -174,7 +174,7 @@ decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -206,17 +206,17 @@ decksRouter.put('/decks/:id/limits', (req: Request, res: Response) => {
     const { daily_new_card_limit, daily_review_limit } = req.body;
     const db = getDb();
 
-    const existing = db.prepare('SELECT id FROM decks WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
 
     const now = nowISO();
     if (typeof daily_new_card_limit === 'number') {
-      db.prepare('UPDATE decks SET daily_new_card_limit = ?, updated_at = ? WHERE id = ?')
-        .run(Math.max(1, Math.round(daily_new_card_limit)), now, id);
+      db.prepare('UPDATE decks SET daily_new_card_limit = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+        .run(Math.max(1, Math.round(daily_new_card_limit)), now, id, req.user!.userId);
     }
     if (typeof daily_review_limit === 'number') {
-      db.prepare('UPDATE decks SET daily_review_limit = ?, updated_at = ? WHERE id = ?')
-        .run(Math.max(1, Math.round(daily_review_limit)), now, id);
+      db.prepare('UPDATE decks SET daily_review_limit = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+        .run(Math.max(1, Math.round(daily_review_limit)), now, id, req.user!.userId);
     }
 
     const deck = db.prepare(

@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -70,9 +72,19 @@ export function getDb(): Database.Database {
     );
 
     CREATE TABLE IF NOT EXISTS daily_stats (
-      date TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      user_id TEXT NOT NULL,
       cards_studied INTEGER DEFAULT 0,
-      new_cards_learned INTEGER DEFAULT 0
+      new_cards_learned INTEGER DEFAULT 0,
+      PRIMARY KEY (date, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      created_at TEXT NOT NULL
     );
   `);
 
@@ -81,6 +93,31 @@ export function getDb(): Database.Database {
   // 迁移：为已有数据库添加牌组独立上限
   try { db.exec('ALTER TABLE decks ADD COLUMN daily_new_card_limit INTEGER DEFAULT 20'); } catch {}
   try { db.exec('ALTER TABLE decks ADD COLUMN daily_review_limit INTEGER DEFAULT 200'); } catch {}
+
+  // 迁移：为已有数据库添加 user_id 列
+  try { db.exec('ALTER TABLE decks ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
+  try { db.exec('ALTER TABLE cards ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
+  try { db.exec('ALTER TABLE study_sessions ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
+  try { db.exec('ALTER TABLE daily_stats ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
+
+  // ⚠️ 必须先创建管理员，再执行数据迁移（已有数据需要 user_id = admin.id）
+  const userCount = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
+  if (userCount === 0) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    const adminId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    db.prepare(
+      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(adminId, 'admin', hash, 'admin', now);
+  }
+
+  // 迁移：已有数据的 user_id 统一归管理员
+  const adminCheck = db.prepare("SELECT id FROM users WHERE username = 'admin'").get() as { id: string } | undefined;
+  if (adminCheck) {
+    for (const table of ['decks', 'cards', 'study_sessions', 'daily_stats']) {
+      db.prepare(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`).run(adminCheck.id);
+    }
+  }
 
   return db;
 }

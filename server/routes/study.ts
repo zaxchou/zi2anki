@@ -53,8 +53,8 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
 
     const db = getDb();
 
-    // 验证牌组存在
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deck_id);
+    // 验证牌组存在且属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deck_id, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -65,9 +65,9 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
 
     db.prepare(
       `INSERT INTO study_sessions (id, deck_id, started_at, ended_at, cards_studied,
-                                   ratings_again, ratings_hard, ratings_good, ratings_easy)
-       VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0)`
-    ).run(id, deck_id, startedAt);
+                                   ratings_again, ratings_hard, ratings_good, ratings_easy, user_id)
+       VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, ?)`
+    ).run(id, deck_id, startedAt, req.user!.userId);
 
     const row = db.prepare('SELECT * FROM study_sessions WHERE id = ?').get(id) as {
       id: string;
@@ -94,7 +94,7 @@ studyRouter.put('/study-sessions/:id', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const existing = db.prepare('SELECT id FROM study_sessions WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id FROM study_sessions WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
     if (!existing) {
       res.status(404).json({ error: 'Study session not found' });
       return;
@@ -167,8 +167,8 @@ studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
     const db = getDb();
     const rows = db.prepare(
       `SELECT date, cards_studied, new_cards_learned
-       FROM daily_stats WHERE date >= ? AND date <= ? ORDER BY date DESC`
-    ).all(from, to);
+       FROM daily_stats WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(req.user!.userId, from, to);
     res.json(rows);
   } catch (err) {
     console.error('GET /daily-stats/range error:', err);
@@ -183,8 +183,8 @@ studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
     const db = getDb();
 
     const row = db.prepare(
-      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ?'
-    ).get(date) as { date: string; cards_studied: number; new_cards_learned: number } | undefined;
+      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ?'
+    ).get(date, req.user!.userId) as { date: string; cards_studied: number; new_cards_learned: number } | undefined;
 
     if (row) {
       res.json(row);
@@ -206,17 +206,24 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
 
     const db = getDb();
 
-    db.prepare(
-      `INSERT INTO daily_stats (date, cards_studied, new_cards_learned)
-       VALUES (?, ?, ?)
-       ON CONFLICT(date) DO UPDATE SET
-         cards_studied = excluded.cards_studied,
-         new_cards_learned = excluded.new_cards_learned`
-    ).run(date, cards_studied ?? 0, new_cards_learned ?? 0);
+    // upsert：兼容旧版 (date PK) 和新版 (date, user_id PK) 两种 schema
+    const existing = db.prepare(
+      'SELECT date FROM daily_stats WHERE date = ? AND user_id = ?'
+    ).get(date, req.user!.userId);
+
+    if (existing) {
+      db.prepare(
+        'UPDATE daily_stats SET cards_studied = ?, new_cards_learned = ? WHERE date = ? AND user_id = ?'
+      ).run(cards_studied ?? 0, new_cards_learned ?? 0, date, req.user!.userId);
+    } else {
+      db.prepare(
+        'INSERT INTO daily_stats (date, user_id, cards_studied, new_cards_learned) VALUES (?, ?, ?, ?)'
+      ).run(date, req.user!.userId, cards_studied ?? 0, new_cards_learned ?? 0);
+    }
 
     const row = db.prepare(
-      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ?'
-    ).get(date);
+      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ?'
+    ).get(date, req.user!.userId);
 
     res.json(row);
   } catch (err) {
@@ -226,15 +233,16 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
 });
 
 // GET /api/due-counts —— 获取所有牌组的到期卡片计数
-studyRouter.get('/due-counts', (_req: Request, res: Response) => {
+studyRouter.get('/due-counts', (req: Request, res: Response) => {
   try {
     const db = getDb();
     const now = nowISO();
     const rows = db.prepare(
       `SELECT d.id, d.name, COUNT(c.id) as due_count
        FROM decks d LEFT JOIN cards c ON c.deck_id = d.id AND c.next_review <= ? AND c.interval > 0
+       WHERE d.user_id = ?
        GROUP BY d.id, d.name ORDER BY d.created_at DESC`
-    ).all(now) as { id: string; name: string; due_count: number }[];
+    ).all(now, req.user!.userId) as { id: string; name: string; due_count: number }[];
     res.json(rows);
   } catch (err) {
     console.error('GET /due-counts error:', err);

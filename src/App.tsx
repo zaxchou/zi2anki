@@ -10,6 +10,9 @@ import CardManagePage from '@/pages/CardManagePage';
 import SettingsPage from '@/pages/SettingsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 function App() {
   const darkMode = useSettingsStore((s) => s.darkMode);
@@ -68,15 +71,19 @@ function App() {
       <CssBaseline />
       <BrowserRouter>
         <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/study/:deckId" element={<StudyPage />} />
-            <Route path="/decks" element={<DecksPage />} />
-            <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="*" element={<NotFoundPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/study/:deckId" element={<StudyPage />} />
+              <Route path="/decks" element={<DecksPage />} />
+              <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>

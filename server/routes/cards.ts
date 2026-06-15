@@ -79,8 +79,8 @@ cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
     const { deckId } = req.params;
     const db = getDb();
 
-    // 验证牌组存在
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    // 验证牌组存在且属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -112,8 +112,8 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
 
     const db = getDb();
 
-    // 验证牌组存在
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    // 验证牌组存在且属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -168,11 +168,11 @@ cardsRouter.post(
   batchUpload.array('images', 500),
   (req: Request, res: Response) => {
     try {
-      const { deckId } = req.params;
+      const { deckId } = req.params as { deckId: string };
       const db = getDb();
 
-      // 验证牌组存在
-      const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+      // 验证牌组存在且属于当前用户
+      const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
       if (!deck) {
         // 清理已上传的文件
         const files = req.files as Express.Multer.File[] | undefined;
@@ -269,7 +269,7 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response
     }
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -316,8 +316,8 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
 
     const db = getDb();
     const existing = db.prepare(
-      'SELECT id, image_url FROM cards WHERE id = ?'
-    ).get(id) as { id: string; image_url: string } | undefined;
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = ? AND d.user_id = ?'
+    ).get(id, req.user!.userId) as { id: string; image_url: string; deck_id: string } | undefined;
 
     if (!existing) {
       res.status(404).json({ error: 'Card not found' });
@@ -421,7 +421,9 @@ cardsRouter.delete('/cards/:id', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const card = db.prepare('SELECT id, image_url, deck_id FROM cards WHERE id = ?').get(id) as {
+    const card = db.prepare(
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = ? AND d.user_id = ?'
+    ).get(id, req.user!.userId) as {
       id: string;
       image_url: string;
       deck_id: string;
@@ -460,7 +462,7 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -494,7 +496,7 @@ cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;

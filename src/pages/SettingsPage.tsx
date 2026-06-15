@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -23,10 +24,14 @@ import UploadIcon from '@mui/icons-material/Upload';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { fetchDecks, exportDeck, exportAllDecks, importApkgFile } from '@/lib/api';
+import { useAuthStore } from '@/stores/useAuthStore';
+import LogoutIcon from '@mui/icons-material/Logout';
 import type { Deck } from '@/types';
 
 const SettingsPage: React.FC = () => {
   const { darkMode, setDarkMode, resetToDefaults } = useSettingsStore();
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   // APKG 导出
@@ -122,6 +127,29 @@ const SettingsPage: React.FC = () => {
     <Box className="space-y-4 py-4">
       <Typography variant="h5" className="font-kai">设置</Typography>
 
+      {/* 账号管理 */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <List disablePadding>
+          <ListItem className="py-4">
+            <ListItemText
+              primary="账号信息"
+              secondary={user?.username ? `用户名：${user.username}${user.role === 'admin' ? '（管理员）' : ''}` : ''}
+              primaryTypographyProps={{ variant: 'subtitle1' as const }}
+            />
+            <ListItemSecondaryAction>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<LogoutIcon />}
+                onClick={() => { logout(); navigate('/login'); }}
+              >
+                退出登录
+              </Button>
+            </ListItemSecondaryAction>
+          </ListItem>
+        </List>
+      </Card>
+
       {/* 外观设置 */}
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <List disablePadding>
@@ -170,13 +198,14 @@ const SettingsPage: React.FC = () => {
       {/* APKG 导入/导出 */}
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <List disablePadding>
-          <ListItem className="py-4">
+          <ListItem className="py-4 flex-col items-start gap-2">
             <ListItemText
               primary="导出牌组"
               secondary="将牌组导出为 .apkg 格式，可在 Anki 桌面版中导入"
               primaryTypographyProps={{ variant: 'subtitle1' as const }}
+              sx={{ width: '100%' }}
             />
-            <ListItemSecondaryAction className="flex items-center gap-2">
+            <Box className="flex items-center gap-2 self-stretch justify-end">
               <Select
                 size="small"
                 value={selectedDeckId}
@@ -195,18 +224,19 @@ const SettingsPage: React.FC = () => {
               >
                 导出
               </Button>
-            </ListItemSecondaryAction>
+            </Box>
           </ListItem>
 
           <Divider component="li" />
 
-          <ListItem className="py-4">
+          <ListItem className="py-4 flex-col items-start gap-2">
             <ListItemText
               primary="导入牌组"
               secondary="从 .apkg 文件导入卡片，同名牌组合并"
               primaryTypographyProps={{ variant: 'subtitle1' as const }}
+              sx={{ width: '100%' }}
             />
-            <ListItemSecondaryAction>
+            <Box className="self-stretch flex justify-end">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -222,7 +252,7 @@ const SettingsPage: React.FC = () => {
               >
                 {importing ? '导入中…' : '选择文件'}
               </Button>
-            </ListItemSecondaryAction>
+            </Box>
           </ListItem>
         </List>
       </Card>

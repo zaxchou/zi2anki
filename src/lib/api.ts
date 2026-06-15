@@ -1,6 +1,7 @@
 // ===== Express API 客户端 =====
 
 import type { Card, Deck, StudySession, DailyStats } from '@/types';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 const API_BASE = '';
 
@@ -25,10 +26,24 @@ export function getImageUrl(imageUrl: string): string {
 // ===== 通用 fetch 封装 =====
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  // 自动携带认证 token
+  const { token, logout } = useAuthStore.getState();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...options?.headers as Record<string, string> };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers,
     ...options,
   });
+
+  if (res.status === 401) {
+    logout();
+    window.location.href = '/login';
+    throw new Error('认证已过期，请重新登录');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const msg = (body as { error?: string }).error || res.statusText;
@@ -115,10 +130,21 @@ export function batchImportCards(
   for (const file of files) {
     formData.append('images', file);
   }
+  const token = useAuthStore.getState().token;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   return fetch(`${API_BASE}/api/decks/${deckId}/cards/batch`, {
     method: 'POST',
     body: formData,
+    headers,
   }).then((res) => {
+    if (res.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+      throw new Error('认证已过期，请重新登录');
+    }
     if (!res.ok) {
       return res.json().then((body) => {
         throw new Error((body as { error?: string }).error || res.statusText);
@@ -305,10 +331,23 @@ export async function importApkgFile(file: File): Promise<ImportResult> {
   const formData = new FormData();
   formData.append('file', file);
 
+  const token = useAuthStore.getState().token;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}/api/import`, {
     method: 'POST',
     body: formData,
+    headers,
   });
+
+  if (res.status === 401) {
+    useAuthStore.getState().logout();
+    window.location.href = '/login';
+    throw new Error('认证已过期，请重新登录');
+  }
 
   const data = await res.json();
   return data as ImportResult;

@@ -9,6 +9,13 @@ analyticsRouter.get('/analytics/:deckId/card-status', (req: Request, res: Respon
     const { deckId } = req.params;
     const db = getDb();
 
+    // 验证牌组属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    if (!deck) {
+      res.status(404).json({ error: 'Deck not found' });
+      return;
+    }
+
     // New: interval = 0
     const newCount = db.prepare(
       'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval = 0'
@@ -48,6 +55,13 @@ analyticsRouter.get('/analytics/:deckId/difficulty', (req: Request, res: Respons
     const { deckId } = req.params;
     const db = getDb();
 
+    // 验证牌组属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    if (!deck) {
+      res.status(404).json({ error: 'Deck not found' });
+      return;
+    }
+
     // Hard: ease <= 1.8
     const hard = db.prepare(
       'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval > 0 AND ease <= 1.8'
@@ -85,6 +99,13 @@ analyticsRouter.get('/analytics/:deckId/ratings', (req: Request, res: Response) 
   try {
     const { deckId } = req.params;
     const db = getDb();
+
+    // 验证牌组属于当前用户
+    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    if (!deck) {
+      res.status(404).json({ error: 'Deck not found' });
+      return;
+    }
 
     const row = db.prepare(
       `SELECT 
@@ -126,8 +147,8 @@ analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
     // 查询这些天的统计
     const rows = db.prepare(
       `SELECT date, cards_studied, new_cards_learned FROM daily_stats 
-       WHERE date >= ? AND date <= ? ORDER BY date ASC`
-    ).all(dates[0], dates[dates.length - 1]) as {
+       WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`
+    ).all(req.user!.userId, dates[0], dates[dates.length - 1]) as {
       date: string; cards_studied: number; new_cards_learned: number;
     }[];
 

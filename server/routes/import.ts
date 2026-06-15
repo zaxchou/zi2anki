@@ -409,7 +409,7 @@ importRouter.post('/import', (req: Request, res: Response) => {
           // 查找或创建牌组
           let deckId = deckIdCache.get(pc.deckName);
           if (!deckId) {
-            const existing = appDb.prepare('SELECT id FROM decks WHERE name = ?').get(pc.deckName) as
+            const existing = appDb.prepare('SELECT id FROM decks WHERE name = ? AND user_id = ?').get(pc.deckName, req.user!.userId) as
               { id: string } | undefined;
             if (existing) {
               deckId = existing.id;
@@ -417,8 +417,8 @@ importRouter.post('/import', (req: Request, res: Response) => {
               deckId = uuid();
               const now = nowISO();
               appDb.prepare(
-                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at) VALUES (?, ?, 0, 20, 200, ?, ?)'
-              ).run(deckId, pc.deckName, now, now);
+                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id) VALUES (?, ?, 0, 20, 200, ?, ?, ?)'
+              ).run(deckId, pc.deckName, now, now, req.user!.userId);
             }
             deckIdCache.set(pc.deckName, deckId);
           }
