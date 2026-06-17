@@ -53,9 +53,12 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
 
     const db = getDb();
 
-    // 验证牌组存在且属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deck_id, req.user!.userId);
-    if (!deck) {
+    // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
+    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deck_id, req.user!.userId);
+    const isSubscribed = db.prepare(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
+    ).get(req.user!.userId, deck_id);
+    if (!isOwner && !isSubscribed) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }

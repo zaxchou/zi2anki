@@ -79,9 +79,12 @@ cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
     const { deckId } = req.params;
     const db = getDb();
 
-    // 验证牌组存在且属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
-    if (!deck) {
+    // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
+    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const isSubscribed = db.prepare(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
+    ).get(req.user!.userId, deckId);
+    if (!isOwner && !isSubscribed) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
@@ -315,14 +318,29 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     const { id } = req.params;
 
     const db = getDb();
+    const userId = req.user!.userId;
     const existing = db.prepare(
-      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = ? AND d.user_id = ?'
-    ).get(id, req.user!.userId) as { id: string; image_url: string; deck_id: string } | undefined;
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = ?'
+    ).get(id) as { id: string; image_url: string; deck_id: string } | undefined;
 
     if (!existing) {
       res.status(404).json({ error: 'Card not found' });
       return;
     }
+
+    // 验证权限：所有者（admin）可修改所有字段，订阅用户仅可更新 SM-2 进度
+    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(existing.deck_id, userId);
+    const isSubscribed = db.prepare(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
+    ).get(userId, existing.deck_id);
+
+    if (!isOwner && !isSubscribed) {
+      res.status(404).json({ error: 'Card not found' });
+      return;
+    }
+
+    // 订阅用户仅可更新 SM-2 进度字段，不能修改卡片内容
+    const isSubscribedOnly = !isOwner && isSubscribed;
 
     const {
       front_text,
@@ -341,18 +359,19 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     const updates: string[] = [];
     const values: unknown[] = [];
 
-    if (front_text !== undefined) {
+    // 订阅用户不能修改卡片内容
+    if (front_text !== undefined && !isSubscribedOnly) {
       updates.push('front_text = ?');
       values.push(front_text);
     }
 
-    if (back_text !== undefined) {
+    if (back_text !== undefined && !isSubscribedOnly) {
       updates.push('back_text = ?');
       values.push(back_text);
     }
 
     // 处理图片更新
-    if (image_url !== undefined) {
+    if (image_url !== undefined && !isSubscribedOnly) {
       if (typeof image_url === 'string' && image_url.trim() !== '') {
         if (isBase64DataUrl(image_url)) {
           // 删除旧图片
