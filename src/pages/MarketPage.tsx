@@ -430,16 +430,15 @@ const MarketPage: React.FC = () => {
                 </CardContent>
 
                 <CardActions sx={{ px: 2, pb: 2, pt: 0, gap: 1 }}>
-                  {/* admin：编辑按钮 */}
+                  {/* admin：编辑图标按钮 */}
                   {isAdmin && (
-                    <Button
-                      size="small" variant="text" color="inherit"
-                      startIcon={<EditIcon fontSize="small" />}
+                    <IconButton
+                      size="small" color="inherit"
                       onClick={() => setEditDeck(deck)}
-                      sx={{ textTransform: 'none', minWidth: 'auto' }}
+                      aria-label="编辑字帖"
                     >
-                      编辑
-                    </Button>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
                   )}
                   {/* 订阅/退订按钮 */}
                   <Button

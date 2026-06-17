@@ -30,6 +30,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
     "recharts": "^3.8.1",
+    "sharp": "^0.35.1",
     "tsx": "^4.22.4",
     "zustand": "^4.5.0"
   },

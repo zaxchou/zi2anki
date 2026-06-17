@@ -4,6 +4,8 @@ import { requireAdmin } from '../middleware/auth.js';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import fs from 'node:fs';
+import sharp from 'sharp';
 
 export const marketplaceRouter = Router();
 
@@ -401,7 +403,7 @@ marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, asy
   }
 });
 
-// POST /api/marketplace/decks/:deckId/cover —— Admin 上传封面图
+// POST /api/marketplace/decks/:deckId/cover —— Admin 上传封面图（自动生成缩略图）
 marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, coverUpload.single('cover'), async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
@@ -409,6 +411,17 @@ marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, coverUp
       res.status(400).json({ error: '请选择图片文件' });
       return;
     }
+
+    // 用 sharp 生成缩略图（最大宽度 400px，质量 80），覆盖原文件
+    const filePath = path.join(getUploadsDir(), req.file.filename);
+    await sharp(filePath)
+      .resize(400, undefined, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toFile(filePath + '.thumb');
+
+    // 用缩略图替换原图
+    fs.unlinkSync(filePath);
+    fs.renameSync(filePath + '.thumb', filePath);
 
     const db = getDb();
     const imagePath = `/uploads/${req.file.filename}`;
