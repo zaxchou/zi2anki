@@ -503,12 +503,23 @@ export function fetchJiziMatch(text: string): Promise<JiziMatchResponse> {
 export function uploadMarketCover(deckId: string, file: File): Promise<{ success: true; cover_image: string }> {
   const formData = new FormData();
   formData.append('cover', file);
+  const token = useAuthStore.getState().token;
+  // 使用 Headers 构造函数，避免干扰浏览器对 FormData 的 Content-Type 自动检测
+  const hdrs = new Headers();
+  if (token) hdrs.set('Authorization', `Bearer ${token}`);
   return fetch(`/api/marketplace/decks/${deckId}/cover`, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${useAuthStore.getState().token}` },
+    headers: hdrs,
     body: formData,
   }).then((res) => {
-    if (!res.ok) throw new Error('上传失败');
+    if (!res.ok) {
+      return res.json().then((b) => {
+        throw new Error((b as any).error || '上传失败');
+      }).catch((e) => {
+        if (e.message !== '上传失败') throw new Error(`上传失败 (HTTP ${res.status})`);
+        throw e;
+      });
+    }
     return res.json();
   });
 }

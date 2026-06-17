@@ -74,6 +74,8 @@ const EditDeckDialog: React.FC<{
   const [form, setForm] = useState({ calligrapher: '', dynasty: '', style: '', description: '', featured: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (deck) {
@@ -104,11 +106,17 @@ const EditDeckDialog: React.FC<{
 
   const handleCoverUpload = async (file: File) => {
     if (!deck) return;
+    setUploading(true);
+    setError(null);
     try {
       await uploadMarketCover(deck.deck_id, file);
       onSaved();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000); // 2 秒后自动消失
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -117,6 +125,7 @@ const EditDeckDialog: React.FC<{
       <DialogTitle>编辑字帖信息</DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>封面图上传成功</Alert>}
         {deck && (
           <Box className="space-y-3" sx={{ mt: 1 }}>
             {/* 封面预览 + 换图 */}
@@ -134,8 +143,8 @@ const EditDeckDialog: React.FC<{
                 )}
               </Box>
               <Box component="label" sx={{ cursor: 'pointer', fontSize: 13, color: 'primary.main' }}>
-                上传封面图
-                <input type="file" accept="image/*" hidden onChange={(e) => {
+                {uploading ? '上传中...' : '上传封面图'}
+                <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleCoverUpload(f);
                 }} />

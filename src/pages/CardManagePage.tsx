@@ -59,6 +59,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import PublishDialog from '@/components/market/PublishDialog';
 
+const PAGE_SIZE = 20;
+
 /** 表单文件选择接受类型字符串 */
 const ACCEPT_TYPES = ALLOWED_IMAGE_TYPES.join(',');
 
@@ -88,6 +90,8 @@ const CardManagePage: React.FC = () => {
   // 数据状态
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +126,12 @@ const CardManagePage: React.FC = () => {
 
     return list;
   }, [cards, difficultyFilter, searchKeyword]);
+
+  /** 当前页卡片 */
+  const pagedCards = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredCards.slice(start, start + PAGE_SIZE);
+  }, [filteredCards, page]);
 
   // 添加卡片对话框
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -205,6 +215,8 @@ const CardManagePage: React.FC = () => {
 
       setDeck(deckData);
       setCards(cardsData);
+      setPage(1); // reset to page 1 when loading new deck
+      setTotalPages(Math.ceil(cardsData.length / PAGE_SIZE) || 1);
       setEditingNewLimit(deckData.daily_new_card_limit ?? 20);
       setEditingReviewLimit(deckData.daily_review_limit ?? 200);
     } catch (err) {
@@ -815,10 +827,10 @@ const CardManagePage: React.FC = () => {
       ) : (
         <MuiCard variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
-            {filteredCards.map((card, index) => (
+            {pagedCards.map((card, index) => (
               <ListItem
                 key={card.id}
-                divider={index < filteredCards.length - 1}
+                divider={index < pagedCards.length - 1}
                 className="px-4 py-3"
               >
                 <ListItemAvatar
@@ -874,6 +886,15 @@ const CardManagePage: React.FC = () => {
             ))}
           </List>
         </MuiCard>
+      )}
+
+      {/* 分页 */}
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1, mt: 2 }}>
+          <Button size="small" variant="outlined" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>上一页</Button>
+          <Typography variant="body2" color="text.secondary">{page} / {totalPages}</Typography>
+          <Button size="small" variant="outlined" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>下一页</Button>
+        </Box>
       )}
 
       {/* 卡片预览弹窗 */}
