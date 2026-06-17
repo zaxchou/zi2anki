@@ -18,6 +18,8 @@ const ROUTE_TITLE_MAP: Record<string, string> = {
   '/analytics': '数据分析',
   '/settings': '设置',
   '/study': '学习',
+  '/market': '市场',
+  '/jizi': '集字',
 };
 
 /** PC 端侧边栏宽度（px） */

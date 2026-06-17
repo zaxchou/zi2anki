@@ -14,6 +14,7 @@ import { analyticsRouter } from './routes/analytics.js';
 import { exportRouter } from './routes/export.js';
 import { importRouter } from './routes/import.js';
 import { marketplaceRouter } from './routes/marketplace.js';
+import { jiziRouter } from './routes/jizi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +49,7 @@ app.use('/api', analyticsRouter);
 app.use('/api', exportRouter);
 app.use('/api', importRouter);
 app.use('/api', marketplaceRouter);
+app.use('/api', jiziRouter);
 
 // 生产模式：托管前端构建产物
 const distDir = path.join(__dirname, '..', 'dist');
