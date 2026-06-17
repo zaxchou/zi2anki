@@ -20,10 +20,10 @@ function nowISO(): string {
   return new Date().toISOString();
 }
 
-// multer：内存存储，限制 200MB
+// multer：内存存储，限制 500MB
 const importUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 },
+  limits: { fileSize: 500 * 1024 * 1024 },
 }).single('file');
 
 /** Anki 字段模型解析结果 */

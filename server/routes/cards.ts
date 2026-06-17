@@ -70,7 +70,7 @@ const batchUpload = multer({
       cb(null, uniqueName);
     },
   }),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
 });
 
 // GET /api/decks/:deckId/cards —— 获取牌组下所有卡片
