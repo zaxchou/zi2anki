@@ -31,12 +31,14 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
     const today = todayLocal();
     const { rows } = await db.query(
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
+        md.cover_image,
         COALESCE((
           SELECT COUNT(*) FROM cards c
             LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
             WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
         ), 0) AS new_count
         FROM decks d
+        LEFT JOIN marketplace_decks md ON md.deck_id = d.id
         LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = $2
         WHERE d.user_id = $3 OR us.user_id = $4
         ORDER BY d.created_at DESC`,
@@ -49,6 +51,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
       daily_new_card_limit: number;
       daily_review_limit: number;
       new_count: number;
+      cover_image: string | null;
       created_at: string;
       updated_at: string;
     }>;
@@ -64,7 +67,20 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
       const learnedToday = ds?.new_cards_learned ?? 0;
       const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
       const newAvailableToday = Math.min(d.new_count, remainingByLimit);
-      return { ...d, new_available_today: newAvailableToday };
+
+      // 封面图：如果有 market cover_image 则用，否则取牌组第一张卡片的缩略图
+      let coverImage = d.cover_image || '';
+      if (!coverImage) {
+        const imgResult = await db.query(
+          `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
+          [d.id]
+        );
+        if (imgResult.rows.length > 0) {
+          coverImage = imgResult.rows[0].image_url;
+        }
+      }
+
+      return { ...d, new_available_today: newAvailableToday, cover_image: coverImage };
     }));
 
     res.json(result);

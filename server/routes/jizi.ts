@@ -3,7 +3,7 @@ import { getDb } from '../db.js';
 
 export const jiziRouter = Router();
 
-/** 清洗 front_text：去括号后缀、下划线数字、尾部纯数字 */
+/** 清洗 front_text：去括号后缀、下划线数字、尾部纯数字，返回核心汉字 */
 function cleanFrontText(raw: string): string {
   if (!raw) return '';
   let s = raw.trim();
@@ -12,12 +12,6 @@ function cleanFrontText(raw: string): string {
   s = s.replace(/(\p{Script=Han})\d{1,3}$/u, '$1');
   s = s.replace(/\s+/g, '');
   return s;
-}
-
-/** 拆分清洗后的文本为单字数组（去重，只保留汉字） */
-function splitToChars(cleaned: string): string[] {
-  const chars = Array.from(cleaned).filter((c) => /\p{Script=Han}/u.test(c));
-  return Array.from(new Set(chars));
 }
 
 interface CharHit {
@@ -91,23 +85,25 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     for (const r of rows) {
       const cleaned = cleanFrontText(r.front_text);
       if (!cleaned) continue;
-      for (const ch of splitToChars(cleaned)) {
-        let arr = map.get(ch);
-        if (!arr) {
-          arr = [];
-          map.set(ch, arr);
-        }
-        arr.push({
-          card_id: r.id,
-          image_url: r.image_url,
-          deck_id: r.deck_id,
-          deck_name: r.deck_name,
-          style: r.style || '',
-          calligrapher: r.calligrapher || '',
-          front_text_raw: r.front_text,
-          sort_key: new Date(r.created_at).getTime(),
-        });
+      // 只使用单字卡片（字组如"江月"的图片包含多个字，用于集字会错误）
+      const singleChars = Array.from(cleaned).filter((c) => /\p{Script=Han}/u.test(c));
+      if (singleChars.length !== 1) continue;
+      const ch = singleChars[0];
+      let arr = map.get(ch);
+      if (!arr) {
+        arr = [];
+        map.set(ch, arr);
       }
+      arr.push({
+        card_id: r.id,
+        image_url: r.image_url,
+        deck_id: r.deck_id,
+        deck_name: r.deck_name,
+        style: r.style || '',
+        calligrapher: r.calligrapher || '',
+        front_text_raw: r.front_text,
+        sort_key: new Date(r.created_at).getTime(),
+      });
     }
 
     const results: JiziMatchResult[] = chars.map((ch) => ({
