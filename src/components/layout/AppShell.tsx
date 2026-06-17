@@ -19,7 +19,6 @@ const ROUTE_TITLE_MAP: Record<string, string> = {
   '/settings': '设置',
   '/study': '学习',
   '/market': '市场',
-  '/admin/marketplace': '字帖管理',
   '/jizi': '集字',
 };
 

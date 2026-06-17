@@ -10,7 +10,6 @@ import CardManagePage from '@/pages/CardManagePage';
 import SettingsPage from '@/pages/SettingsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import MarketPage from '@/pages/MarketPage';
-import MarketAdminPage from '@/pages/MarketAdminPage';
 import JiziPage from '@/pages/JiziPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import LoginPage from '@/pages/LoginPage';
@@ -84,7 +83,6 @@ function App() {
               <Route path="/decks" element={<DecksPage />} />
               <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
               <Route path="/market" element={<MarketPage />} />
-              <Route path="/admin/marketplace" element={<MarketAdminPage />} />
               <Route path="/jizi" element={<JiziPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
