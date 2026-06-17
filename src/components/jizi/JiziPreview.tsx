@@ -7,8 +7,7 @@ export interface JiziPreviewProps {
   results: JiziMatchResult[];
   selections: number[];
   layout: JiziLayout;
-  onSelect: (index: number) => void;
-  onLongPress: (index: number) => void;
+  onOpenPicker: (index: number) => void;
 }
 
 /** 预览区 —— 按方向+列字数渲染网格 */
@@ -16,8 +15,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   results,
   selections,
   layout,
-  onSelect,
-  onLongPress,
+  onOpenPicker,
 }) => {
   const { direction, fontSize, colCount, charGap, lineGap, background } = layout;
 
@@ -96,8 +94,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
                   hits={result.hits}
                   selectedIndex={selections[globalIndex] ?? 0}
                   fontSize={fontSize}
-                  onSelect={() => onSelect(globalIndex)}
-                  onLongPress={() => onLongPress(globalIndex)}
+                  onOpenPicker={() => onOpenPicker(globalIndex)}
                 />
               </Box>
             );

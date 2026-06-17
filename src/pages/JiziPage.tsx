@@ -62,20 +62,8 @@ const JiziPage: React.FC = () => {
     };
   }, [text]);
 
-  /** 单击切换 */
-  const handleSelect = useCallback((index: number) => {
-    setSelections((prev) => {
-      const next = [...prev];
-      const hits = results[index]?.hits ?? [];
-      if (hits.length > 0) {
-        next[index] = ((next[index] ?? 0) + 1) % hits.length;
-      }
-      return next;
-    });
-  }, [results]);
-
-  /** 长按弹窗 */
-  const handleLongPress = useCallback((index: number) => {
+  /** 打开选择弹窗 */
+  const handleOpenPicker = useCallback((index: number) => {
     setSwitcherIndex(index);
     setSwitcherOpen(true);
   }, []);
@@ -159,8 +147,7 @@ const JiziPage: React.FC = () => {
               results={results}
               selections={selections}
               layout={layout}
-              onSelect={handleSelect}
-              onLongPress={handleLongPress}
+              onOpenPicker={handleOpenPicker}
             />
           </Box>
 
@@ -175,7 +162,7 @@ const JiziPage: React.FC = () => {
           {hasResults && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               共 {results.length} 字 · {results.filter((r) => r.hits.length > 0).length} 字有匹配
-              · 单击切换写法 · 长按查看全部
+              · 点击文字可切换写法
             </Typography>
           )}
         </Grid>

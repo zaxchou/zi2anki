@@ -56,7 +56,22 @@ marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) 
     sql += ' ORDER BY md.featured DESC, md.sort_order ASC, md.published_at DESC';
 
     const { rows } = await db.query(sql, params);
-    res.json(rows);
+    const result = rows as Array<Record<string, unknown>>;
+
+    // 封面回退：如果 market 未设封面，取牌组第一张有图的卡片
+    for (const r of result) {
+      if (!r.cover_image) {
+        const imgResult = await db.query(
+          `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
+          [r.deck_id as string]
+        );
+        if (imgResult.rows.length > 0) {
+          r.cover_image = imgResult.rows[0].image_url;
+        }
+      }
+    }
+
+    res.json(result);
   } catch (err) {
     console.error('GET /marketplace/decks error:', err);
     res.status(500).json({ error: 'Failed to fetch marketplace decks' });
@@ -80,11 +95,22 @@ marketplaceRouter.get('/marketplace/decks/:deckId', async (req: Request, res: Re
        WHERE md.deck_id = $2`,
       [userId, deckId]
     );
-    const row = rows[0];
+    let row = rows[0] as Record<string, unknown> | undefined;
 
     if (!row) {
       res.status(404).json({ error: 'Marketplace deck not found' });
       return;
+    }
+
+    // 封面回退
+    if (!row.cover_image) {
+      const imgResult = await db.query(
+        `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
+        [deckId]
+      );
+      if (imgResult.rows.length > 0) {
+        row.cover_image = imgResult.rows[0].image_url;
+      }
     }
 
     res.json(row);

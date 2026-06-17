@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { getImageUrl } from '@/lib/api';
 import type { CharHit } from '@/types/jizi';
@@ -8,58 +8,18 @@ export interface JiziCellProps {
   hits: CharHit[];
   selectedIndex: number;
   fontSize: number;
-  onSelect: () => void;      // 单击：循环切换
-  onLongPress: () => void;   // 长按：弹窗选择
+  onOpenPicker: () => void;  // 点击直接打开选择弹窗
 }
 
-/** 单字单元 —— 显示图片或空方框，单击切换，长按弹窗 */
+/** 单字单元 —— 显示图片或空方框，点击弹窗选择写法 */
 const JiziCell: React.FC<JiziCellProps> = ({
   char,
   hits,
   selectedIndex,
   fontSize,
-  onSelect,
-  onLongPress,
+  onOpenPicker,
 }) => {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressed = useRef(false);
-
   const current = hits.length > 0 ? hits[selectedIndex % hits.length] : null;
-
-  const handleMouseDown = () => {
-    longPressed.current = false;
-    timerRef.current = setTimeout(() => {
-      longPressed.current = true;
-      onLongPress();
-    }, 500);
-  };
-
-  const handleMouseUp = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (!longPressed.current && hits.length > 0) {
-      onSelect();
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault(); // 防止触摸事件后触发模拟鼠标事件
-    handleMouseDown();
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.preventDefault();
-    handleMouseUp();
-  };
 
   return (
     <Box
@@ -79,11 +39,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
         WebkitUserSelect: 'none',
         WebkitTouchCallout: 'none',
       }}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onClick={() => { if (hits.length > 0) onOpenPicker(); }}
     >
       {current ? (
         <Box
