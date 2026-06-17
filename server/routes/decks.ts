@@ -39,7 +39,7 @@ decksRouter.get('/decks', (req: Request, res: Response) => {
         LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
         WHERE d.user_id = ? OR us.user_id = ?
         ORDER BY d.created_at DESC`
-    ).all(userId, userId, userId) as Array<{
+    ).all(userId, userId, userId, userId) as Array<{
       id: string;
       name: string;
       card_count: number;
