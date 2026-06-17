@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,10 +22,17 @@ const PORT = process.env.PORT || 3001;
 
 // 中间件
 app.use(cors());
+app.use(compression()); // gzip 压缩所有 JSON 响应
 app.use(express.json({ limit: '50mb' }));
 
 // 静态文件服务 —— uploads 目录（项目根目录）
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+// 启用浏览器缓存：图片不可变，缓存 7 天，immutable 标记
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
+  maxAge: '7d',
+  immutable: true,
+  etag: true,
+  lastModified: true,
+}));
 
 // 挂载 auth 路由（不需要鉴权）
 app.use('/api/auth', authRouter);

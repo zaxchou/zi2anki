@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useStudyStore } from '@/stores/useStudyStore';
-import { fetchDecks, endStudySession as endStudySessionApi } from '@/lib/api';
+import { fetchDecks, endStudySession as endStudySessionApi, getImageUrl } from '@/lib/api';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
 import RatingButtons from '@/components/study/RatingButtons';
@@ -130,6 +130,19 @@ const StudyPage: React.FC = () => {
     const sec = s % 60;
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
+
+  /** 预加载当前卡片之后 3 张的图片，避免翻牌时白屏等待 */
+  useEffect(() => {
+    const PRELOAD_COUNT = 3;
+    for (let i = 1; i <= PRELOAD_COUNT; i++) {
+      const nextCard = queue[currentIndex + i];
+      if (nextCard?.image_url) {
+        const img = new Image();
+        img.src = getImageUrl(nextCard.image_url);
+      }
+    }
+  }, [queue, currentIndex]);
+
   const handleFlip = useCallback(() => {
     setFlipped((prev) => !prev);
   }, []);

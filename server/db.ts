@@ -211,6 +211,21 @@ export function getDb(): Database.Database {
     console.warn('[db] 自动订阅用户牌组失败（可忽略）:', e);
   }
 
+  // 性能索引（在建表和迁移之后执行，IF NOT EXISTS 保证幂等）
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
+    CREATE INDEX IF NOT EXISTS idx_cards_created ON cards(created_at);
+    CREATE INDEX IF NOT EXISTS idx_ucp_user_due ON user_card_progress(user_id, next_review, interval);
+    CREATE INDEX IF NOT EXISTS idx_ucp_user_card ON user_card_progress(card_id);
+    CREATE INDEX IF NOT EXISTS idx_daily_stats_user_date ON daily_stats(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_started ON study_sessions(user_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_sessions_deck ON study_sessions(deck_id);
+    CREATE INDEX IF NOT EXISTS idx_subs_user ON user_subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_subs_deck ON user_subscriptions(deck_id);
+    CREATE INDEX IF NOT EXISTS idx_market_featured ON marketplace_decks(featured, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_decks_user ON decks(user_id);
+  `);
+
   return db;
 }
 
