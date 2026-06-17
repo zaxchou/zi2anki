@@ -39,6 +39,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SchoolIcon from '@mui/icons-material/School';
 import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
 import {
@@ -707,6 +708,13 @@ const CardManagePage: React.FC = () => {
               <SearchIcon color="action" />
             </InputAdornment>
           ),
+          endAdornment: searchKeyword ? (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={() => setSearchKeyword('')} edge="end">
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ) : null,
         }}
         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
       />
