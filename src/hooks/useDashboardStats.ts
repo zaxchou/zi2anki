@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { DEFAULT_DAILY_NEW_CARD_LIMIT } from '@/lib/constants';
 import { fetchDueCounts, fetchDailyStats, fetchDailyStatsRange, fetchStudyTotal, todayLocal } from '@/lib/api';
+import { useCachedFetch } from './useCachedFetch';
 
 export interface DailyStatRow {
   date: string;
@@ -42,69 +43,65 @@ function calculateStreak(stats: DailyStatRow[]): number {
   return streak;
 }
 
+/** 聚合加载所有 Dashboard 统计（带 30s 缓存） */
+function useDashboardData() {
+  return useCachedFetch(
+    'dashboard-stats',
+    async () => {
+      const today = todayLocal();
+      const d30 = new Date();
+      d30.setDate(d30.getDate() - 30);
+      const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
+      const allFrom = '2020-01-01';
+
+      const [dueCounts, todayStats, statsRange, allStats, studyTotal] = await Promise.all([
+        fetchDueCounts(),
+        fetchDailyStats(today),
+        fetchDailyStatsRange(thirtyDaysAgo, today),
+        fetchDailyStatsRange(allFrom, today),
+        fetchStudyTotal(),
+      ]);
+
+      return {
+        dueCount: dueCounts.reduce((sum, d) => sum + d.due_count, 0),
+        newCardRemaining: Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)),
+        streakDays: calculateStreak(allStats),
+        totalStudied: allStats.reduce((s, d) => s + d.cards_studied, 0),
+        activeDays: allStats.filter((d) => d.cards_studied > 0).length,
+        totalMinutes: Math.round(studyTotal.total_minutes),
+        activityData: statsRange,
+      };
+    },
+    { ttl: 30_000 }
+  );
+}
+
 /**
  * 共享仪表盘统计 hook。
  * 用于 Sidebar / Dashboard 等需要展示统计数据的组件，避免各自重复加载。
+ * 内置 30 秒内存缓存，多个组件共享同一份数据。
  */
 export const useDashboardStats = (): DashboardStats => {
   const decks = useDeckStore((s) => s.decks);
-  const [dueCount, setDueCount] = useState(0);
-  const [newCardRemaining, setNewCardRemaining] = useState(DEFAULT_DAILY_NEW_CARD_LIMIT);
-  const [streakDays, setStreakDays] = useState(0);
-  const [totalStudied, setTotalStudied] = useState(0);
-  const [activeDays, setActiveDays] = useState(0);
-  const [totalMinutes, setTotalMinutes] = useState(0);
-  const [activityData, setActivityData] = useState<DailyStatRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading } = useDashboardData();
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadStats = async () => {
-      setLoading(true);
-      try {
-        const today = todayLocal();
-        const d30 = new Date();
-        d30.setDate(d30.getDate() - 30);
-        const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
-        const allFrom = '2020-01-01';
-
-        const [dueCounts, todayStats, statsRange, allStats, studyTotal] = await Promise.all([
-          fetchDueCounts(),
-          fetchDailyStats(today),
-          fetchDailyStatsRange(thirtyDaysAgo, today),
-          fetchDailyStatsRange(allFrom, today),
-          fetchStudyTotal(),
-        ]);
-
-        if (cancelled) return;
-
-        setDueCount(dueCounts.reduce((sum, d) => sum + d.due_count, 0));
-        setNewCardRemaining(Math.max(0, DEFAULT_DAILY_NEW_CARD_LIMIT - (todayStats?.new_cards_learned ?? 0)));
-        setStreakDays(calculateStreak(allStats));
-        setTotalStudied(allStats.reduce((s, d) => s + d.cards_studied, 0));
-        setActiveDays(allStats.filter((d) => d.cards_studied > 0).length);
-        setTotalMinutes(Math.round(studyTotal.total_minutes));
-        setActivityData(statsRange);
-      } catch (err) {
-        console.error('[useDashboardStats] 加载统计失败:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    loadStats();
-    return () => { cancelled = true; };
-  }, [decks]);
-
-  // 今日可学新卡：每个牌组 new_available_today 总和
-  // （后端已按 daily_new_card_limit - 今日已学 算好，min 到 new_count）
   const newCount = useMemo(
     () => decks.reduce((sum, d) => sum + ((d as any).new_available_today ?? d.new_count ?? 0), 0),
     [decks]
   );
 
   return useMemo(
-    () => ({ newCount, dueCount, newCardRemaining, streakDays, totalStudied, activeDays, totalMinutes, activityData, loading }),
-    [newCount, dueCount, newCardRemaining, streakDays, totalStudied, activeDays, totalMinutes, activityData, loading]
+    () => ({
+      newCount,
+      dueCount: data?.dueCount ?? 0,
+      newCardRemaining: data?.newCardRemaining ?? DEFAULT_DAILY_NEW_CARD_LIMIT,
+      streakDays: data?.streakDays ?? 0,
+      totalStudied: data?.totalStudied ?? 0,
+      activeDays: data?.activeDays ?? 0,
+      totalMinutes: data?.totalMinutes ?? 0,
+      activityData: data?.activityData ?? [],
+      loading: loading && !data,
+    }),
+    [newCount, data, loading]
   );
 };

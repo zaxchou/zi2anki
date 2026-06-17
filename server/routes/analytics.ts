@@ -234,36 +234,32 @@ analyticsRouter.get('/analytics/daily-extra', (req: Request, res: Response) => {
           date: string; cards_studied: number; new_cards_learned: number;
         }[]);
 
-    // 2) 评分按日分布（again/hard/good/easy）来自 study_sessions.started_at（本地日期）
-    // 同样支持 deckId 过滤
-    const sessionRows = db.prepare(
-      `SELECT started_at, ratings_again, ratings_hard, ratings_good, ratings_easy,
-              julianday(ended_at) - julianday(started_at) as dur_days
+    // 2) 评分按日分布 + 学时 —— 全部在 SQL 端聚合（避免 N+1）
+    //    用 date(started_at, 'localtime') 提取本地日期键
+    const sessionAgg = db.prepare(
+      `SELECT date(started_at, 'localtime') as date_key,
+              SUM(ratings_again + ratings_hard) as hard,
+              SUM(ratings_good) as medium,
+              SUM(ratings_easy) as easy,
+              SUM(CASE WHEN ended_at IS NOT NULL
+                       THEN (julianday(ended_at) - julianday(started_at)) * 24 * 60
+                       ELSE 0 END) as minutes
        FROM study_sessions
        WHERE user_id = ? AND started_at >= ? AND started_at <= ?
          AND ended_at IS NOT NULL
-         ${deckId ? 'AND deck_id = ?' : ''}`
+         ${deckId ? 'AND deck_id = ?' : ''}
+       GROUP BY date_key`
     ).all(...(deckId
       ? [userId, `${from} 00:00:00`, `${to} 23:59:59`, deckId]
       : [userId, `${from} 00:00:00`, `${to} 23:59:59`])) as {
-      started_at: string;
-      ratings_again: number;
-      ratings_hard: number;
-      ratings_good: number;
-      ratings_easy: number;
-      dur_days: number | null;
+      date_key: string;
+      hard: number | null;
+      medium: number | null;
+      easy: number | null;
+      minutes: number | null;
     }[];
 
-    // 本地日期 from ISO 时间戳（按 +8 时区切日）
-    function localDateKey(iso: string): string {
-      const d = new Date(iso);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${dd}`;
-    }
-
-    // 聚合
+    // 聚合：daily_stats + session 聚合结果合并到 dailyMap
     const dailyMap = new Map<string, { new_learned: number; reviewed: number; hard: number; medium: number; easy: number; minutes: number }>();
     for (const date of dates) {
       dailyMap.set(date, { new_learned: 0, reviewed: 0, hard: 0, medium: 0, easy: 0, minutes: 0 });
@@ -275,17 +271,13 @@ analyticsRouter.get('/analytics/daily-extra', (req: Request, res: Response) => {
       bucket.new_learned += r.new_cards_learned;
       bucket.reviewed += reviewed;
     }
-    for (const s of sessionRows) {
-      const key = localDateKey(s.started_at);
-      const bucket = dailyMap.get(key);
+    for (const s of sessionAgg) {
+      const bucket = dailyMap.get(s.date_key);
       if (!bucket) continue;
-      // 参考图风格：困难/一般/简单 = again+hard / good / easy
-      bucket.hard += (s.ratings_again || 0) + (s.ratings_hard || 0);
-      bucket.medium += s.ratings_good || 0;
-      bucket.easy += s.ratings_easy || 0;
-      if (s.dur_days != null && s.dur_days > 0) {
-        bucket.minutes += s.dur_days * 24 * 60;
-      }
+      bucket.hard += s.hard || 0;
+      bucket.medium += s.medium || 0;
+      bucket.easy += s.easy || 0;
+      bucket.minutes += s.minutes || 0;
     }
 
     const filled = dates.map((date) => {

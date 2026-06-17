@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db.js';
+import { cached } from '../lib/cache.js';
 import crypto from 'node:crypto';
 
 export const studyRouter = Router();
@@ -249,21 +250,25 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/due-counts —— 获取所有牌组的到期卡片计数
+// GET /api/due-counts —— 获取所有牌组的到期卡片计数（30s 内存缓存）
 studyRouter.get('/due-counts', (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const userId = req.user!.userId;
     const now = nowISO();
-    const rows = db.prepare(
-      `SELECT d.id, d.name, COUNT(c.id) as due_count
-       FROM decks d
-       LEFT JOIN cards c ON c.deck_id = d.id
-       LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = ?
-       LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
-       WHERE (d.user_id = ? OR us.user_id = ?)
-         AND ucp.interval > 0 AND ucp.next_review <= ?
-       GROUP BY d.id, d.name ORDER BY d.created_at DESC`
-    ).all(req.user!.userId, req.user!.userId, req.user!.userId, now) as { id: string; name: string; due_count: number }[];
+    const cacheKey = `due-counts:${userId}`;
+    const rows = cached(cacheKey, 30_000, () => {
+      const db = getDb();
+      return db.prepare(
+        `SELECT d.id, d.name, COUNT(c.id) as due_count
+         FROM decks d
+         LEFT JOIN cards c ON c.deck_id = d.id
+         LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = ?
+         LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
+         WHERE (d.user_id = ? OR us.user_id = ?)
+           AND ucp.interval > 0 AND ucp.next_review <= ?
+         GROUP BY d.id, d.name ORDER BY d.created_at DESC`
+      ).all(userId, userId, userId, now) as { id: string; name: string; due_count: number }[];
+    });
     res.json(rows);
   } catch (err) {
     console.error('GET /due-counts error:', err);
