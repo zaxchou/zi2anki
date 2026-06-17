@@ -25,6 +25,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   CardMedia,
+  InputAdornment,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -37,6 +38,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SchoolIcon from '@mui/icons-material/School';
+import SearchIcon from '@mui/icons-material/Search';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
 import {
@@ -88,17 +90,32 @@ const CardManagePage: React.FC = () => {
     () => searchParams.get('difficulty') || null
   );
 
-  /** 难度筛选逻辑：根据 ease/interval 分类 */
+  // 卡片搜索关键词
+  const [searchKeyword, setSearchKeyword] = useState('');
+
+  /** 难度 + 关键词筛选逻辑 */
   const filteredCards = useMemo(() => {
-    if (!difficultyFilter) return cards;
-    return cards.filter((c) => {
-      if (difficultyFilter === 'new') return c.interval === 0;
-      if (difficultyFilter === 'hard') return c.interval > 0 && c.ease < 2.0;
-      if (difficultyFilter === 'medium') return c.interval > 0 && c.ease >= 2.0 && c.ease < 2.5;
-      if (difficultyFilter === 'easy') return c.interval > 0 && c.ease >= 2.5;
-      return true;
-    });
-  }, [cards, difficultyFilter]);
+    let list = cards;
+
+    // 关键词过滤（front_text 包含搜索词，大小写不敏感）
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.trim().toLowerCase();
+      list = list.filter((c) => c.front_text.toLowerCase().includes(kw));
+    }
+
+    // 难度过滤
+    if (difficultyFilter) {
+      list = list.filter((c) => {
+        if (difficultyFilter === 'new') return c.interval === 0;
+        if (difficultyFilter === 'hard') return c.interval > 0 && c.ease < 2.0;
+        if (difficultyFilter === 'medium') return c.interval > 0 && c.ease >= 2.0 && c.ease < 2.5;
+        if (difficultyFilter === 'easy') return c.interval > 0 && c.ease >= 2.5;
+        return true;
+      });
+    }
+
+    return list;
+  }, [cards, difficultyFilter, searchKeyword]);
 
   // 添加卡片对话框
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -676,6 +693,24 @@ const CardManagePage: React.FC = () => {
         )}
       </Box>
 
+      {/* 卡片搜索框 */}
+      <TextField
+        fullWidth
+        size="small"
+        variant="outlined"
+        placeholder="搜索卡片..."
+        value={searchKeyword}
+        onChange={(e) => setSearchKeyword(e.target.value)}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon color="action" />
+            </InputAdornment>
+          ),
+        }}
+        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+      />
+
       {/* 学习上限设置 */}
       <Accordion
         expanded={deckLimitsOpen}
@@ -735,11 +770,19 @@ const CardManagePage: React.FC = () => {
 
       {/* 卡片列表或空状态 */}
       {filteredCards.length === 0 ? (
-        <EmptyState
-          icon={<ImageIcon />}
-          title="还没有卡片"
-          description="点击上方按钮添加书法记忆卡片"
-        />
+        searchKeyword.trim() ? (
+          <EmptyState
+            icon={<SearchIcon />}
+            title="没有找到匹配的卡片"
+            description={`没有包含「${searchKeyword.trim()}」的卡片，试试其他关键词`}
+          />
+        ) : (
+          <EmptyState
+            icon={<ImageIcon />}
+            title="还没有卡片"
+            description="点击上方按钮添加书法记忆卡片"
+          />
+        )
       ) : (
         <MuiCard variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
