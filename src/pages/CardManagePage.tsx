@@ -40,7 +40,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SchoolIcon from '@mui/icons-material/School';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import StoreIcon from '@mui/icons-material/Store';
 import { useDeckStore } from '@/stores/useDeckStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
 import {
   fetchCards,
@@ -52,9 +54,10 @@ import {
   updateCard,
   updateDeckLimits,
 } from '@/lib/api';
-import type { Card, Deck } from '@/types';
+import type { Card, Deck, MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
+import PublishDialog from '@/components/market/PublishDialog';
 
 /** 表单文件选择接受类型字符串 */
 const ACCEPT_TYPES = ALLOWED_IMAGE_TYPES.join(',');
@@ -79,6 +82,8 @@ const CardManagePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { updateCardCount, loadDecks } = useDeckStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
 
   // 数据状态
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -169,6 +174,10 @@ const CardManagePage: React.FC = () => {
   // 预览卡片
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 发布到市场弹窗
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishedDeck, setPublishedDeck] = useState<MarketplaceDeck | null>(null);
 
   // 加载牌组和卡片数据
   const loadData = useCallback(async () => {
@@ -654,6 +663,16 @@ const CardManagePage: React.FC = () => {
           />
         )}
         <Box sx={{ flex: 1 }} />
+        {deck && isAdmin && (
+          <Button
+            variant="outlined"
+            startIcon={<StoreIcon />}
+            onClick={() => setPublishDialogOpen(true)}
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            {publishedDeck ? '编辑市场信息' : '发布到市场'}
+          </Button>
+        )}
         {deck && (
           <Button
             variant="contained"
@@ -748,33 +767,35 @@ const CardManagePage: React.FC = () => {
         </AccordionDetails>
       </Accordion>
 
-      {/* 添加 / 批量导入按钮 */}
-      <Box className="flex gap-2">
-        <Button
-          variant="contained"
-          fullWidth
-          startIcon={<AddIcon />}
-          onClick={handleOpenAddDialog}
-        >
-          添加卡片
-        </Button>
-        <Button
-          variant="outlined"
-          fullWidth
-          startIcon={<FolderOpenIcon />}
-          onClick={handleOpenBatchDialog}
-        >
-          批量导入
-        </Button>
-        <Button
-          variant="outlined"
-          fullWidth
-          startIcon={<EditIcon />}
-          onClick={() => setTextBatchOpen(true)}
-        >
-          文字导入
-        </Button>
-      </Box>
+      {/* 添加 / 批量导入按钮（仅管理员可见） */}
+      {isAdmin && (
+        <Box className="flex gap-2">
+          <Button
+            variant="contained"
+            fullWidth
+            startIcon={<AddIcon />}
+            onClick={handleOpenAddDialog}
+          >
+            添加卡片
+          </Button>
+          <Button
+            variant="outlined"
+            fullWidth
+            startIcon={<FolderOpenIcon />}
+            onClick={handleOpenBatchDialog}
+          >
+            批量导入
+          </Button>
+          <Button
+            variant="outlined"
+            fullWidth
+            startIcon={<EditIcon />}
+            onClick={() => setTextBatchOpen(true)}
+          >
+            文字导入
+          </Button>
+        </Box>
+      )}
 
       {/* 卡片列表或空状态 */}
       {filteredCards.length === 0 ? (
@@ -828,22 +849,26 @@ const CardManagePage: React.FC = () => {
                   secondary={`创建于 ${new Date(card.created_at).toLocaleDateString('zh-CN')}`}
                 />
                 <ListItemSecondaryAction>
-                  <IconButton
-                    edge="end"
-                    onClick={() => handleOpenEdit(card)}
-                    size="small"
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    edge="end"
-                    aria-label={`删除卡片 ${card.front_text}`}
-                    onClick={() => handleOpenDelete(card)}
-                    size="small"
-                    color="error"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {isAdmin && (
+                    <>
+                      <IconButton
+                        edge="end"
+                        onClick={() => handleOpenEdit(card)}
+                        size="small"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        aria-label={`删除卡片 ${card.front_text}`}
+                        onClick={() => handleOpenDelete(card)}
+                        size="small"
+                        color="error"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
                 </ListItemSecondaryAction>
               </ListItem>
             ))}
@@ -1363,6 +1388,20 @@ const CardManagePage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 发布到市场弹窗（仅管理员） */}
+      {isAdmin && deck && (
+        <PublishDialog
+          open={publishDialogOpen}
+          deckId={deck.id}
+          deckName={deck.name}
+          onClose={() => setPublishDialogOpen(false)}
+          onPublished={(d) => {
+            setPublishedDeck(d);
+            setPublishDialogOpen(false);
+          }}
+        />
+      )}
     </Box>
   );
 };

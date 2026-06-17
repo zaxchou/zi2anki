@@ -5,6 +5,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
+import StoreIcon from '@mui/icons-material/Store';
 
 /** 导航项定义 */
 interface NavItem {
@@ -21,6 +22,11 @@ const navItems: NavItem[] = [
     icon: <DashboardIcon />,
     label: 'Zi2Anki',
     value: '/dashboard',
+  },
+  {
+    icon: <StoreIcon />,
+    label: '市场',
+    value: '/market',
   },
   {
     icon: <PhotoLibraryIcon />,

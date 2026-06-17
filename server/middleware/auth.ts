@@ -30,5 +30,14 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 }
 
+/** 需要管理员权限的中间件（必须在 authMiddleware 之后使用） */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || req.user.role !== 'admin') {
+    res.status(403).json({ error: '需要管理员权限' });
+    return;
+  }
+  next();
+}
+
 /** 导出 JWT_SECRET 供 auth router 使用 */
 export { JWT_SECRET };

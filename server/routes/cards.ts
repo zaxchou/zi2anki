@@ -337,7 +337,7 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
 
     const now = nowISO();
 
-    // 构建动态更新
+    // 构建动态更新（仅更新 cards 表的内容字段，SM-2 进度改写到 user_card_progress）
     const updates: string[] = [];
     const values: unknown[] = [];
 
@@ -374,27 +374,6 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
       }
     }
 
-    if (ease !== undefined) {
-      updates.push('ease = ?');
-      values.push(ease);
-    }
-    if (interval !== undefined) {
-      updates.push('interval = ?');
-      values.push(interval);
-    }
-    if (repetitions !== undefined) {
-      updates.push('repetitions = ?');
-      values.push(repetitions);
-    }
-    if (next_review !== undefined) {
-      updates.push('next_review = ?');
-      values.push(next_review);
-    }
-    if (last_review !== undefined) {
-      updates.push('last_review = ?');
-      values.push(last_review);
-    }
-
     if (updates.length > 0) {
       updates.push('updated_at = ?');
       values.push(now);
@@ -402,11 +381,47 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
       db.prepare(`UPDATE cards SET ${updates.join(', ')} WHERE id = ?`).run(...values);
     }
 
+    // SM-2 进度字段：UPSERT 到 user_card_progress（不再写入 cards 表）
+    const hasSM2Fields =
+      ease !== undefined ||
+      interval !== undefined ||
+      repetitions !== undefined ||
+      next_review !== undefined ||
+      last_review !== undefined;
+
+    if (hasSM2Fields) {
+      db.prepare(
+        `INSERT INTO user_card_progress (user_id, card_id, ease, interval, repetitions, next_review, last_review)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, card_id) DO UPDATE SET
+           ease = COALESCE(excluded.ease, user_card_progress.ease),
+           interval = COALESCE(excluded.interval, user_card_progress.interval),
+           repetitions = COALESCE(excluded.repetitions, user_card_progress.repetitions),
+           next_review = COALESCE(excluded.next_review, user_card_progress.next_review),
+           last_review = COALESCE(excluded.last_review, user_card_progress.last_review)`
+      ).run(
+        req.user!.userId,
+        id,
+        ease ?? null,
+        interval ?? null,
+        repetitions ?? null,
+        next_review ?? null,
+        last_review ?? null
+      );
+    }
+
     const card = db.prepare(
-      `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-              next_review, last_review, created_at, updated_at
-       FROM cards WHERE id = ?`
-    ).get(id);
+      `SELECT c.id, c.deck_id, c.front_text, c.back_text, c.image_url,
+              COALESCE(ucp.ease, 2.5) AS ease,
+              COALESCE(ucp.interval, 0) AS interval,
+              COALESCE(ucp.repetitions, 0) AS repetitions,
+              COALESCE(ucp.next_review, c.next_review) AS next_review,
+              ucp.last_review AS last_review,
+              c.created_at, c.updated_at
+       FROM cards c
+       LEFT JOIN user_card_progress ucp ON ucp.user_id = ? AND ucp.card_id = c.id
+       WHERE c.id = ?`
+    ).get(req.user!.userId, id);
 
     res.json(card);
   } catch (err) {
@@ -462,19 +477,32 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
-    if (!deck) {
-      res.status(404).json({ error: 'Deck not found' });
+    const userId = req.user!.userId;
+
+    // 验证牌组存在且当前用户已订阅（或 admin 直接放行）
+    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, userId);
+    const isSubscribed = db.prepare(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
+    ).get(userId, deckId);
+    if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
+      res.status(404).json({ error: 'Deck not found or not subscribed' });
       return;
     }
 
     const now = nowISO();
-    let sql = `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                      next_review, last_review, created_at, updated_at
-               FROM cards
-               WHERE deck_id = ? AND next_review <= ? AND interval > 0
-               ORDER BY next_review ASC`;
-    const params: unknown[] = [deckId, now];
+    let sql = `SELECT c.id, c.deck_id, c.front_text, c.back_text, c.image_url,
+                      COALESCE(ucp.ease, 2.5) AS ease,
+                      ucp.interval AS interval,
+                      ucp.repetitions AS repetitions,
+                      ucp.next_review AS next_review,
+                      ucp.last_review AS last_review,
+                      c.created_at, c.updated_at
+               FROM cards c
+               INNER JOIN user_card_progress ucp
+                  ON ucp.user_id = ? AND ucp.card_id = c.id
+               WHERE c.deck_id = ? AND ucp.interval > 0 AND ucp.next_review <= ?
+               ORDER BY ucp.next_review ASC`;
+    const params: unknown[] = [userId, deckId, now];
 
     if (limit && limit > 0) {
       sql += ' LIMIT ?';
@@ -496,18 +524,31 @@ cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
-    if (!deck) {
-      res.status(404).json({ error: 'Deck not found' });
+    const userId = req.user!.userId;
+
+    // 验证牌组存在且当前用户已订阅（或 admin 直接放行）
+    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, userId);
+    const isSubscribed = db.prepare(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
+    ).get(userId, deckId);
+    if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
+      res.status(404).json({ error: 'Deck not found or not subscribed' });
       return;
     }
 
-    let sql = `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                      next_review, last_review, created_at, updated_at
-               FROM cards
-               WHERE deck_id = ? AND interval = 0
-               ORDER BY created_at ASC`;
-    const params: unknown[] = [deckId];
+    let sql = `SELECT c.id, c.deck_id, c.front_text, c.back_text, c.image_url,
+                      COALESCE(ucp.ease, 2.5) AS ease,
+                      COALESCE(ucp.interval, 0) AS interval,
+                      COALESCE(ucp.repetitions, 0) AS repetitions,
+                      COALESCE(ucp.next_review, c.next_review) AS next_review,
+                      ucp.last_review AS last_review,
+                      c.created_at, c.updated_at
+               FROM cards c
+               LEFT JOIN user_card_progress ucp
+                  ON ucp.user_id = ? AND ucp.card_id = c.id
+               WHERE c.deck_id = ? AND (ucp.card_id IS NULL OR ucp.interval = 0)
+               ORDER BY c.created_at ASC`;
+    const params: unknown[] = [userId, deckId];
 
     if (limit && limit > 0) {
       sql += ' LIMIT ?';

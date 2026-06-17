@@ -87,6 +87,37 @@ export function getDb(): Database.Database {
       role TEXT DEFAULT 'user',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS marketplace_decks (
+      deck_id TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+      calligrapher TEXT DEFAULT '',
+      dynasty TEXT DEFAULT '',
+      style TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      cover_image TEXT DEFAULT '',
+      featured INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      published_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_card_progress (
+      user_id TEXT NOT NULL,
+      card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+      ease REAL DEFAULT 2.5,
+      interval INTEGER DEFAULT 0,
+      repetitions INTEGER DEFAULT 0,
+      next_review TEXT NOT NULL,
+      last_review TEXT,
+      PRIMARY KEY (user_id, card_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_subscriptions (
+      user_id TEXT NOT NULL,
+      deck_id TEXT NOT NULL,
+      subscribed_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, deck_id)
+    );
   `);
 
   // 迁移：为已有数据库添加 back_text 列
@@ -146,6 +177,38 @@ export function getDb(): Database.Database {
     for (const table of ['decks', 'cards', 'study_sessions', 'daily_stats']) {
       db.prepare(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`).run(adminCheck.id);
     }
+  }
+
+  // 迁移：把所有现有 decks 自动发布到 marketplace_decks（元数据留空）
+  try {
+    const now = new Date().toISOString();
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO marketplace_decks
+        (deck_id, calligrapher, dynasty, style, description, cover_image, featured, sort_order, published_at, created_at)
+       VALUES (?, '', '', '', '', '', 0, 0, ?, ?)`
+    );
+    const decks = db.prepare('SELECT id, created_at FROM decks').all() as Array<{ id: string; created_at: string }>;
+    for (const d of decks) {
+      ins.run(d.id, now, d.created_at || now);
+    }
+  } catch (e) {
+    console.warn('[db] 自动发布 decks 到 marketplace_decks 失败（可忽略）:', e);
+  }
+
+  // 迁移：为所有用户自动订阅他们已有 user_id 的牌组
+  try {
+    const now = new Date().toISOString();
+    const subStmt = db.prepare(
+      'INSERT OR IGNORE INTO user_subscriptions (user_id, deck_id, subscribed_at) VALUES (?, ?, ?)'
+    );
+    const ownedDecks = db.prepare(
+      'SELECT DISTINCT user_id, id FROM decks WHERE user_id IS NOT NULL'
+    ).all() as Array<{ user_id: string; id: string }>;
+    for (const d of ownedDecks) {
+      subStmt.run(d.user_id, d.id, now);
+    }
+  } catch (e) {
+    console.warn('[db] 自动订阅用户牌组失败（可忽略）:', e);
   }
 
   return db;

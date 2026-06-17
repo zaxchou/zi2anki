@@ -22,19 +22,29 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-// GET /api/decks —— 获取当前用户所有牌组
+// GET /api/decks —— 获取当前用户所有牌组（已订阅的市场牌组 + 自己创建的牌组）
 decksRouter.get('/decks', (req: Request, res: Response) => {
   try {
     const db = getDb();
+    const userId = req.user!.userId;
     const today = todayLocal();
     const rows = db.prepare(
-      `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
-        COALESCE((SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.interval = 0), 0) as new_count
-        FROM decks d WHERE d.user_id = ? ORDER BY d.created_at DESC`
-    ).all(req.user!.userId) as Array<{
+      `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
+        COALESCE((
+          SELECT COUNT(*) FROM cards c
+            LEFT JOIN user_card_progress ucp ON ucp.user_id = ? AND ucp.card_id = c.id
+            WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
+        ), 0) AS new_count
+        FROM decks d
+        LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
+        WHERE d.user_id = ? OR us.user_id = ?
+        ORDER BY d.created_at DESC`
+    ).all(userId, userId, userId) as Array<{
       id: string;
       name: string;
       card_count: number;
+      daily_new_card_limit: number;
+      daily_review_limit: number;
       new_count: number;
       created_at: string;
       updated_at: string;
@@ -45,7 +55,7 @@ decksRouter.get('/decks', (req: Request, res: Response) => {
       const ds = db.prepare(
         `SELECT new_cards_learned FROM daily_stats
          WHERE user_id = ? AND date = ? AND deck_id = ?`
-      ).get(req.user!.userId, today, d.id) as { new_cards_learned: number } | undefined;
+      ).get(userId, today, d.id) as { new_cards_learned: number } | undefined;
       const learnedToday = ds?.new_cards_learned ?? 0;
       const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
       const newAvailableToday = Math.min(d.new_count, remainingByLimit);
@@ -201,7 +211,15 @@ decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
     }
 
     const now = nowISO();
+    // 重置当前用户在该牌组所有卡片上的 SM-2 进度（user_card_progress）
     const info = db.prepare(
+      `DELETE FROM user_card_progress
+       WHERE user_id = ?
+         AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)`
+    ).run(req.user!.userId, id);
+
+    // 同时重置 cards 表的 SM-2 字段（向后兼容，旧字段保留）
+    db.prepare(
       `UPDATE cards SET ease = 2.5, interval = 0, repetitions = 0,
                         next_review = ?, last_review = NULL, updated_at = ?
        WHERE deck_id = ?`
@@ -210,7 +228,7 @@ decksRouter.put('/decks/:id/reset-progress', (req: Request, res: Response) => {
     // 同时清除今日统计（避免因旧记录导致新卡数为 0）
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    db.prepare('DELETE FROM daily_stats WHERE date = ? AND deck_id = ?').run(dateStr, id);
+    db.prepare('DELETE FROM daily_stats WHERE user_id = ? AND date = ? AND deck_id = ?').run(req.user!.userId, dateStr, id);
 
     res.json({ success: true, reset_count: info.changes });
   } catch (err) {

@@ -1,6 +1,6 @@
 // ===== Express API 客户端 =====
 
-import type { Card, Deck, StudySession, DailyStats } from '@/types';
+import type { Card, Deck, StudySession, DailyStats, MarketplaceDeck, PublishDeckData } from '@/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const API_BASE = '';
@@ -395,5 +395,71 @@ export function changePassword(oldPassword: string, newPassword: string): Promis
   return request('/api/auth/password', {
     method: 'PUT',
     body: JSON.stringify({ oldPassword, newPassword }),
+  });
+}
+
+// ===== 市场 API =====
+
+/** 浏览市场牌组（可按书体/书家/关键词筛选） */
+export function fetchMarketplaceDecks(params?: {
+  style?: string;
+  calligrapher?: string;
+  search?: string;
+}): Promise<MarketplaceDeck[]> {
+  const qs = new URLSearchParams();
+  if (params?.style) qs.set('style', params.style);
+  if (params?.calligrapher) qs.set('calligrapher', params.calligrapher);
+  if (params?.search) qs.set('search', params.search);
+  const q = qs.toString();
+  return request<MarketplaceDeck[]>(`/api/marketplace/decks${q ? `?${q}` : ''}`);
+}
+
+/** 获取单个市场牌组详情 */
+export function fetchMarketplaceDeck(deckId: string): Promise<MarketplaceDeck> {
+  return request<MarketplaceDeck>(`/api/marketplace/decks/${deckId}`);
+}
+
+/** 订阅牌组 */
+export function subscribeDeck(deckId: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/api/marketplace/decks/${deckId}/subscribe`, {
+    method: 'POST',
+  });
+}
+
+/** 退订牌组 */
+export function unsubscribeDeck(deckId: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/api/marketplace/decks/${deckId}/subscribe`, {
+    method: 'DELETE',
+  });
+}
+
+/** 获取当前用户已订阅的市场牌组 */
+export function fetchSubscriptions(): Promise<MarketplaceDeck[]> {
+  return request<MarketplaceDeck[]>('/api/marketplace/subscriptions');
+}
+
+/** Admin：发布牌组到市场 */
+export function publishDeck(deckId: string, data: PublishDeckData): Promise<MarketplaceDeck> {
+  return request<MarketplaceDeck>(`/api/marketplace/decks/${deckId}/publish`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Admin：更新市场牌组元数据 */
+export function updateMarketplaceDeck(
+  deckId: string,
+  data: Partial<PublishDeckData>
+): Promise<MarketplaceDeck> {
+  return request<MarketplaceDeck>(`/api/marketplace/decks/${deckId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Admin：下架市场牌组 */
+export function unpublishDeck(deckId: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/api/marketplace/decks/${deckId}/publish`, {
+    method: 'DELETE',
   });
 }

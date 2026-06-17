@@ -9,6 +9,7 @@ import DecksPage from '@/pages/DecksPage';
 import CardManagePage from '@/pages/CardManagePage';
 import SettingsPage from '@/pages/SettingsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
+import MarketPage from '@/pages/MarketPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
@@ -80,6 +81,7 @@ function App() {
               <Route path="/study/:deckId" element={<StudyPage />} />
               <Route path="/decks" element={<DecksPage />} />
               <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
+              <Route path="/market" element={<MarketPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="*" element={<NotFoundPage />} />

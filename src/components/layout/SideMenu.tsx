@@ -19,6 +19,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
+import StoreIcon from '@mui/icons-material/Store';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 导航项定义 */
@@ -33,6 +34,7 @@ export interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: <DashboardIcon />, label: '仪表盘', value: '/dashboard' },
+  { icon: <StoreIcon />, label: '市场', value: '/market' },
   { icon: <PhotoLibraryIcon />, label: '牌组', value: '/decks' },
   { icon: <BarChartIcon />, label: '统计', value: '/analytics' },
   { icon: <SettingsIcon />, label: '设置', value: '/settings' },

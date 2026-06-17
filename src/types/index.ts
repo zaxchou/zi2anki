@@ -86,3 +86,28 @@ export interface UserSettings {
   darkMode: 'system' | 'light' | 'dark';
   lastSyncAt: string | null;
 }
+
+/** 市场牌组 */
+export interface MarketplaceDeck {
+  deck_id: string;
+  name: string;
+  calligrapher: string;
+  dynasty: string;
+  style: string; // 楷/行/草/隶/篆
+  description: string;
+  cover_image: string;
+  featured: number; // 0 or 1
+  card_count: number;
+  is_subscribed: boolean;
+  published_at: string | null;
+}
+
+/** 发布到市场的元数据 */
+export interface PublishDeckData {
+  calligrapher: string;
+  dynasty: string;
+  style: string;
+  description: string;
+  cover_image: string;
+  featured: boolean;
+}

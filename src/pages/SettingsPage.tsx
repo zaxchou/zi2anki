@@ -262,67 +262,69 @@ const SettingsPage: React.FC = () => {
         </List>
       </Card>
 
-      {/* APKG 导入/导出 */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <List disablePadding>
-          <ListItem className="py-4 flex-col items-start gap-2">
-            <ListItemText
-              primary="导出牌组"
-              secondary="将牌组导出为 .apkg 格式，可在 Anki 桌面版中导入"
-              primaryTypographyProps={{ variant: 'subtitle1' as const }}
-              sx={{ width: '100%' }}
-            />
-            <Box className="flex items-center gap-2 self-stretch justify-end">
-              <Select
-                size="small"
-                value={selectedDeckId}
-                onChange={(e) => setSelectedDeckId(e.target.value)}
-                sx={{ minWidth: 140 }}
-              >
-                <MenuItem value="all">全部牌组</MenuItem>
-                {decks.map((d) => (
-                  <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                ))}
-              </Select>
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={handleExport}
-              >
-                导出
-              </Button>
-            </Box>
-          </ListItem>
-
-          <Divider component="li" />
-
-          <ListItem className="py-4 flex-col items-start gap-2">
-            <ListItemText
-              primary="导入牌组"
-              secondary="从 .apkg 文件导入卡片，同名牌组合并"
-              primaryTypographyProps={{ variant: 'subtitle1' as const }}
-              sx={{ width: '100%' }}
-            />
-            <Box className="self-stretch flex justify-end">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".apkg"
-                hidden
-                onChange={handleFileChange}
+      {/* APKG 导入/导出（仅管理员可见） */}
+      {user?.role === 'admin' && (
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <List disablePadding>
+            <ListItem className="py-4 flex-col items-start gap-2">
+              <ListItemText
+                primary="导出牌组"
+                secondary="将牌组导出为 .apkg 格式，可在 Anki 桌面版中导入"
+                primaryTypographyProps={{ variant: 'subtitle1' as const }}
+                sx={{ width: '100%' }}
               />
-              <Button
-                variant="outlined"
-                disabled={importing}
-                startIcon={importing ? <CircularProgress size={18} /> : <UploadIcon />}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {importing ? '导入中…' : '选择文件'}
-              </Button>
-            </Box>
-          </ListItem>
-        </List>
-      </Card>
+              <Box className="flex items-center gap-2 self-stretch justify-end">
+                <Select
+                  size="small"
+                  value={selectedDeckId}
+                  onChange={(e) => setSelectedDeckId(e.target.value)}
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="all">全部牌组</MenuItem>
+                  {decks.map((d) => (
+                    <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                  ))}
+                </Select>
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={handleExport}
+                >
+                  导出
+                </Button>
+              </Box>
+            </ListItem>
+
+            <Divider component="li" />
+
+            <ListItem className="py-4 flex-col items-start gap-2">
+              <ListItemText
+                primary="导入牌组"
+                secondary="从 .apkg 文件导入卡片，同名牌组合并"
+                primaryTypographyProps={{ variant: 'subtitle1' as const }}
+                sx={{ width: '100%' }}
+              />
+              <Box className="self-stretch flex justify-end">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".apkg"
+                  hidden
+                  onChange={handleFileChange}
+                />
+                <Button
+                  variant="outlined"
+                  disabled={importing}
+                  startIcon={importing ? <CircularProgress size={18} /> : <UploadIcon />}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {importing ? '导入中…' : '选择文件'}
+                </Button>
+              </Box>
+            </ListItem>
+          </List>
+        </Card>
+      )}
 
       <Typography variant="body2" color="text.secondary" className="text-center">
         新卡和复习上限请在「牌组管理」中为每个牌组单独设置
