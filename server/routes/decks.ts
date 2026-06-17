@@ -272,6 +272,73 @@ decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response)
   }
 });
 
+// DELETE /api/decks/:id —— 删除牌组（级联删除卡片和图片文件，仅 owner）
+decksRouter.delete('/decks/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    const userId = req.user!.userId;
+
+    const existing = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    )).rows[0];
+
+    if (!existing) {
+      res.status(404).json({ error: 'Deck not found or not owned by you' });
+      return;
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 删除图片文件
+      const cards = (await client.query(
+        'SELECT image_url FROM cards WHERE deck_id = $1',
+        [id]
+      )).rows as Array<{ image_url: string }>;
+
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const { getUploadsDir } = await import('../db.js');
+      const uploadsDir = getUploadsDir();
+      for (const card of cards) {
+        if (card.image_url) {
+          const filename = card.image_url.replace('/uploads/', '');
+          const filePath = path.join(uploadsDir, filename);
+          try { fs.unlinkSync(filePath); } catch { /* 文件可能已不存在 */ }
+        }
+      }
+
+      // 级联删除（外键 ON DELETE CASCADE 会自动处理 cards/study_sessions）
+      await client.query('DELETE FROM daily_stats WHERE deck_id = $1', [id]);
+      await client.query('DELETE FROM marketplace_decks WHERE deck_id = $1', [id]);
+      await client.query('DELETE FROM user_subscriptions WHERE deck_id = $1', [id]);
+      // 先清 user_card_progress（外键约束）
+      await client.query(
+        'DELETE FROM user_card_progress WHERE card_id IN (SELECT id FROM cards WHERE deck_id = $1)',
+        [id]
+      );
+      await client.query('DELETE FROM study_sessions WHERE deck_id = $1', [id]);
+      await client.query('DELETE FROM cards WHERE deck_id = $1', [id]);
+      await client.query('DELETE FROM decks WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /decks/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete deck' });
+  }
+});
+
 // PUT /api/decks/:id/limits —— 更新牌组学习上限
 decksRouter.put('/decks/:id/limits', async (req: Request, res: Response) => {
   try {
