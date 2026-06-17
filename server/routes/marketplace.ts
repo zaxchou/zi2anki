@@ -20,14 +20,8 @@ const coverUpload = multer({
       cb(null, uniqueName);
     },
   }),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
-  fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('仅支持图片文件'));
-    }
-  },
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  // 不限制 MIME 类型 —— sharp 会做最终的格式检测
 });
 
 /** 生成 ISO 8601 时间戳 */
@@ -404,7 +398,18 @@ marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, asy
 });
 
 // POST /api/marketplace/decks/:deckId/cover —— Admin 上传封面图（自动生成缩略图）
-marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, coverUpload.single('cover'), async (req: Request, res: Response) => {
+marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, (req: Request, res: Response, next: Function) => {
+  // 手动调用 multer 以捕获错误
+  coverUpload.single('cover')(req, res, (uploadErr: any) => {
+    if (uploadErr) {
+      if (uploadErr.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: '图片大小不能超过 50MB' });
+      }
+      return res.status(400).json({ error: uploadErr.message || '上传失败' });
+    }
+    next();
+  });
+}, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     if (!req.file) {
