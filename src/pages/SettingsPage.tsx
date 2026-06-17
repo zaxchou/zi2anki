@@ -17,6 +17,7 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  LinearProgress,
   TextField,
   Dialog,
   DialogTitle,
@@ -55,7 +56,8 @@ const SettingsPage: React.FC = () => {
 
   // APKG 导入
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const importingRef = useRef(false);
 
   // 通知
   const [snackbar, setSnackbar] = useState<{
@@ -106,9 +108,13 @@ const SettingsPage: React.FC = () => {
       return;
     }
 
-    setImporting(true);
+    setImportProgress(0);
+    importingRef.current = true;
     try {
-      const result = await importApkgFile(file);
+      const result = await importApkgFile(file, (pct) => {
+        setImportProgress(pct);
+      });
+      importingRef.current = false;
       if (result.success) {
         const totalCards = result.decks.reduce((s, d) => s + d.card_count, 0);
         const deckNames = result.decks.map((d) => d.name).join('、');
@@ -127,13 +133,14 @@ const SettingsPage: React.FC = () => {
         setSnackbar({ open: true, message: `导入失败：${errMsg}`, severity: 'error' });
       }
     } catch (err) {
+      importingRef.current = false;
       setSnackbar({
         open: true,
         message: `导入出错：${err instanceof Error ? err.message : String(err)}`,
         severity: 'error',
       });
     } finally {
-      setImporting(false);
+      setImportProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -314,13 +321,20 @@ const SettingsPage: React.FC = () => {
                 />
                 <Button
                   variant="outlined"
-                  disabled={importing}
-                  startIcon={importing ? <CircularProgress size={18} /> : <UploadIcon />}
+                  disabled={importProgress > 0}
+                  startIcon={importProgress > 0 ? <CircularProgress size={18} /> : <UploadIcon />}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  {importing ? '导入中…' : '选择文件'}
+                  {importProgress > 0 ? `上传中 ${importProgress}%` : '选择文件'}
                 </Button>
               </Box>
+              {importProgress > 0 && (
+                <LinearProgress
+                  variant="determinate"
+                  value={importProgress}
+                  sx={{ mt: 1, borderRadius: 1, height: 6 }}
+                />
+              )}
             </ListItem>
           </List>
         </Card>

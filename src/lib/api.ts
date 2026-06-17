@@ -364,30 +364,53 @@ export function exportAllDecks(): void {
 }
 
 /** 导入 APKG 文件 */
-export async function importApkgFile(file: File): Promise<ImportResult> {
+/** 导入 APKG 文件（支持进度回调） */
+export async function importApkgFile(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<ImportResult> {
   const formData = new FormData();
   formData.append('file', file);
 
   const token = useAuthStore.getState().token;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
-  const res = await fetch(`${API_BASE}/api/import`, {
-    method: 'POST',
-    body: formData,
-    headers,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        reject(new Error('认证已过期'));
+        return;
+      }
+      const contentType = xhr.getResponseHeader('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('解析响应失败'));
+        }
+      } else {
+        reject(new Error(`上传失败 (HTTP ${xhr.status})`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('网络错误'));
+    xhr.onabort = () => reject(new Error('上传已取消'));
+
+    xhr.open('POST', `${API_BASE}/api/import`);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    xhr.send(formData);
   });
-
-  if (res.status === 401) {
-    useAuthStore.getState().logout();
-    window.location.href = '/login';
-    throw new Error('认证已过期，请重新登录');
-  }
-
-  const data = await res.json();
-  return data as ImportResult;
 }
 
 /** 修改密码 */
