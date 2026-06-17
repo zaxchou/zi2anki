@@ -2,6 +2,10 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let pool: pkg.Pool | null = null;
 let initPromise: Promise<void> | null = null;
@@ -145,6 +149,10 @@ async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_decks_user ON decks(user_id);
   `);
 
+  // 数据字典迁移：如果本地新增了列，这里用 IF NOT EXISTS 同步到线上
+  // 规则：只同步结构（DDL），不同步数据（DML）。数据永远以线上为准。
+  await migrateSchema(db);
+
   // 创建默认管理员
   const { rows: users } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
   if (users[0].cnt === 0) {
@@ -190,12 +198,21 @@ async function initDb(): Promise<void> {
   console.log('[db] 数据库初始化完成');
 }
 
-/** 上传目录的绝对路径（项目根目录下的 uploads/） */
-export function getUploadsDir(): string {
-  const __dirname = new URL('.', import.meta.url).pathname;
-  return pathJoin(__dirname, '..', 'uploads');
+/**
+ * 数据字典迁移。
+ * 本地改了表结构（新增列等）后，通过这里同步到线上。
+ * 使用 ALTER TABLE ADD COLUMN IF NOT EXISTS 确保幂等。
+ * 只改 DDL，不改 DML —— 数据永远以线上为准。
+ */
+async function migrateSchema(db: pkg.Pool): Promise<void> {
+  // 示例：如果未来要给 cards 表加列：
+  // await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS new_column TEXT DEFAULT ''`);
+  // await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS another_col INTEGER DEFAULT 0`);
+  //
+  // 把新的 ADD COLUMN 语句追加在这里，启动时自动同步到所有环境。
 }
 
-function pathJoin(...parts: string[]): string {
-  return parts.join('/').replace(/\/+/g, '/').replace(/\/$/, '');
+/** 上传目录的绝对路径（项目根目录下的 uploads/） */
+export function getUploadsDir(): string {
+  return path.join(__dirname, '..', 'uploads');
 }
