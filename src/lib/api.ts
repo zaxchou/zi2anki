@@ -473,3 +473,34 @@ export function fetchJiziMatch(text: string): Promise<JiziMatchResponse> {
   const qs = new URLSearchParams({ text });
   return request<JiziMatchResponse>(`/api/jizi/match?${qs}`);
 }
+
+// ===== 字帖元数据管理 API (Admin) =====
+
+/** 上传市场牌组封面图 */
+export function uploadMarketCover(deckId: string, file: File): Promise<{ success: true; cover_image: string }> {
+  const formData = new FormData();
+  formData.append('cover', file);
+  return fetch(`/api/marketplace/decks/${deckId}/cover`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${useAuthStore.getState().token}` },
+    body: formData,
+  }).then((res) => {
+    if (!res.ok) throw new Error('上传失败');
+    return res.json();
+  });
+}
+
+/** 更新市场牌组元数据 */
+export function updateMarketDeck(deckId: string, data: {
+  calligrapher?: string;
+  dynasty?: string;
+  style?: string;
+  description?: string;
+  featured?: number;
+  cover_image?: string;
+}): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/api/marketplace/decks/${deckId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}

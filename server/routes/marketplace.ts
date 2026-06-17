@@ -1,8 +1,32 @@
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db.js';
+import { getDb, getUploadsDir } from '../db.js';
 import { requireAdmin } from '../middleware/auth.js';
+import multer from 'multer';
+import crypto from 'node:crypto';
+import path from 'node:path';
 
 export const marketplaceRouter = Router();
+
+/** 上传封面图的 Multer 配置 */
+const coverUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, getUploadsDir());
+    },
+    filename: (_req, _file, cb) => {
+      const uniqueName = `${crypto.randomUUID()}.jpg`;
+      cb(null, uniqueName);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('仅支持图片文件'));
+    }
+  },
+});
 
 /** 生成 ISO 8601 时间戳 */
 function nowISO(): string {
@@ -374,5 +398,28 @@ marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, asy
   } catch (err) {
     console.error('DELETE /marketplace/decks/:deckId/publish error:', err);
     res.status(500).json({ error: 'Failed to unpublish deck' });
+  }
+});
+
+// POST /api/marketplace/decks/:deckId/cover —— Admin 上传封面图
+marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, coverUpload.single('cover'), async (req: Request, res: Response) => {
+  try {
+    const { deckId } = req.params;
+    if (!req.file) {
+      res.status(400).json({ error: '请选择图片文件' });
+      return;
+    }
+
+    const db = getDb();
+    const imagePath = `/uploads/${req.file.filename}`;
+    await db.query(
+      'UPDATE marketplace_decks SET cover_image = $1 WHERE deck_id = $2',
+      [imagePath, deckId]
+    );
+
+    res.json({ success: true, cover_image: imagePath });
+  } catch (err) {
+    console.error('POST /marketplace/decks/:deckId/cover error:', err);
+    res.status(500).json({ error: 'Failed to upload cover' });
   }
 });

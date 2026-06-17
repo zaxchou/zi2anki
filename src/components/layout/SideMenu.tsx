@@ -21,6 +21,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StoreIcon from '@mui/icons-material/Store';
 import BrushIcon from '@mui/icons-material/Brush';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 导航项定义 */
@@ -118,6 +119,23 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
             );
           })}
         </List>
+
+        {/* Admin：字帖管理 */}
+        {user?.role === 'admin' && (
+          <List sx={{ pt: 0 }}>
+            <ListItem disablePadding>
+              <ListItemButton
+                selected={location.pathname.startsWith('/admin/marketplace')}
+                onClick={() => navigate('/admin/marketplace')}
+              >
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname.startsWith('/admin/marketplace') ? 'inherit' : 'text.secondary' }}>
+                  <AdminPanelSettingsIcon />
+                </ListItemIcon>
+                <ListItemText primary="字帖管理" primaryTypographyProps={{ fontWeight: 500, fontSize: 14 }} />
+              </ListItemButton>
+            </ListItem>
+          </List>
+        )}
 
         <Divider sx={{ mx: 2, my: 0.5 }} />
 
