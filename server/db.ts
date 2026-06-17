@@ -1,45 +1,53 @@
-import Database from 'better-sqlite3';
-import path from 'node:path';
-import fs from 'node:fs';
+import pkg from 'pg';
+const { Pool } = pkg;
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+let pool: pkg.Pool | null = null;
+let initPromise: Promise<void> | null = null;
 
-let db: Database.Database | null = null;
+/** 获取 PG 连接池（单例），首次调用时触发异步初始化 */
+export function getDb(): pkg.Pool {
+  if (pool) return pool;
 
-/** 获取数据库实例（单例），首次调用时初始化 */
-export function getDb(): Database.Database {
-  if (db) return db;
+  pool = new Pool({
+    host: process.env.PG_HOST || 'localhost',
+    port: parseInt(process.env.PG_PORT || '5432', 10),
+    database: process.env.PG_DATABASE || 'zi2anki',
+    user: process.env.PG_USER || 'zi2anki',
+    password: process.env.PG_PASSWORD || 'zi2anki_pg_2026',
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
 
-  // 确保 data 目录存在
-  const dataDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
+  initPromise = initDb().catch((err) => {
+    console.error('[db] 数据库初始化失败:', err);
+    throw err;
+  });
 
-  // 确保 uploads 目录存在（项目根目录）
-  const uploadsDir = path.join(__dirname, '..', 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
+  return pool;
+}
 
-  const dbPath = path.join(dataDir, 'calligraphy.db');
-  db = new Database(dbPath);
+/** 等待数据库初始化完成（服务启动时调用） */
+export async function waitForDb(): Promise<void> {
+  getDb();
+  if (initPromise) await initPromise;
+}
 
-  // 启用 WAL 模式和外键约束
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+/** 异步数据库初始化：建表 + 迁移 + 创建管理员 */
+async function initDb(): Promise<void> {
+  const db = pool!;
 
   // 建表
-  db.exec(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       card_count INTEGER DEFAULT 0,
       daily_new_card_limit INTEGER DEFAULT 20,
       daily_review_limit INTEGER DEFAULT 200,
+      user_id TEXT DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -55,6 +63,7 @@ export function getDb(): Database.Database {
       repetitions INTEGER DEFAULT 0,
       next_review TEXT NOT NULL,
       last_review TEXT,
+      user_id TEXT DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -62,6 +71,7 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS study_sessions (
       id TEXT PRIMARY KEY,
       deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+      user_id TEXT DEFAULT '',
       started_at TEXT NOT NULL,
       ended_at TEXT,
       cards_studied INTEGER DEFAULT 0,
@@ -120,99 +130,8 @@ export function getDb(): Database.Database {
     );
   `);
 
-  // 迁移：为已有数据库添加 back_text 列
-  try { db.exec('ALTER TABLE cards ADD COLUMN back_text TEXT DEFAULT \'\''); } catch { /* 列已存在 */ }
-  // 迁移：为已有数据库添加牌组独立上限
-  try { db.exec('ALTER TABLE decks ADD COLUMN daily_new_card_limit INTEGER DEFAULT 20'); } catch {}
-  try { db.exec('ALTER TABLE decks ADD COLUMN daily_review_limit INTEGER DEFAULT 200'); } catch {}
-
-  // 迁移：为已有数据库添加 user_id 列
-  try { db.exec('ALTER TABLE decks ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
-  try { db.exec('ALTER TABLE cards ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
-  try { db.exec('ALTER TABLE study_sessions ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
-  try { db.exec('ALTER TABLE daily_stats ADD COLUMN user_id TEXT'); } catch { /* 列已存在 */ }
-
-  // 迁移：daily_stats 增加 deck_id 列（用于按牌组聚合）并把 PK 升级为三元组
-  // 旧 PK 是 (date, user_id)，需要先删旧 PK、加 deck_id 默认 ''、重设 PK
-  try { db.exec("UPDATE daily_stats SET user_id = '' WHERE user_id IS NULL"); } catch {}
-  try {
-    const hasDeckCol = db.prepare("PRAGMA table_info(daily_stats)").all().some((c: any) => c.name === 'deck_id');
-    if (!hasDeckCol) {
-      db.exec("ALTER TABLE daily_stats ADD COLUMN deck_id TEXT NOT NULL DEFAULT ''");
-      // 旧 PK 是 (date, user_id)，需要重建表来改 PK
-      db.exec(`
-        CREATE TABLE daily_stats_new (
-          date TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          deck_id TEXT NOT NULL DEFAULT '',
-          cards_studied INTEGER DEFAULT 0,
-          new_cards_learned INTEGER DEFAULT 0,
-          PRIMARY KEY (date, user_id, deck_id)
-        );
-        INSERT INTO daily_stats_new (date, user_id, deck_id, cards_studied, new_cards_learned)
-          SELECT date, COALESCE(user_id, ''), '', cards_studied, new_cards_learned FROM daily_stats;
-        DROP TABLE daily_stats;
-        ALTER TABLE daily_stats_new RENAME TO daily_stats;
-      `);
-    }
-  } catch (e) {
-    console.warn('[db] daily_stats deck_id 迁移失败（可忽略）:', e);
-  }
-
-  // ⚠️ 必须先创建管理员，再执行数据迁移（已有数据需要 user_id = admin.id）
-  const userCount = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
-    if (userCount === 0) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    const adminId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    db.prepare(
-      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(adminId, 'admin', hash, 'admin', now);
-    console.log('🔐 已创建默认管理员账号 — 用户名: admin, 密码: admin123（请尽快修改）');
-  }
-
-  // 迁移：已有数据的 user_id 统一归管理员
-  const adminCheck = db.prepare("SELECT id FROM users WHERE username = 'admin'").get() as { id: string } | undefined;
-  if (adminCheck) {
-    for (const table of ['decks', 'cards', 'study_sessions', 'daily_stats']) {
-      db.prepare(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`).run(adminCheck.id);
-    }
-  }
-
-  // 迁移：把所有现有 decks 自动发布到 marketplace_decks（元数据留空）
-  try {
-    const now = new Date().toISOString();
-    const ins = db.prepare(
-      `INSERT OR IGNORE INTO marketplace_decks
-        (deck_id, calligrapher, dynasty, style, description, cover_image, featured, sort_order, published_at, created_at)
-       VALUES (?, '', '', '', '', '', 0, 0, ?, ?)`
-    );
-    const decks = db.prepare('SELECT id, created_at FROM decks').all() as Array<{ id: string; created_at: string }>;
-    for (const d of decks) {
-      ins.run(d.id, now, d.created_at || now);
-    }
-  } catch (e) {
-    console.warn('[db] 自动发布 decks 到 marketplace_decks 失败（可忽略）:', e);
-  }
-
-  // 迁移：为所有用户自动订阅他们已有 user_id 的牌组
-  try {
-    const now = new Date().toISOString();
-    const subStmt = db.prepare(
-      'INSERT OR IGNORE INTO user_subscriptions (user_id, deck_id, subscribed_at) VALUES (?, ?, ?)'
-    );
-    const ownedDecks = db.prepare(
-      'SELECT DISTINCT user_id, id FROM decks WHERE user_id IS NOT NULL'
-    ).all() as Array<{ user_id: string; id: string }>;
-    for (const d of ownedDecks) {
-      subStmt.run(d.user_id, d.id, now);
-    }
-  } catch (e) {
-    console.warn('[db] 自动订阅用户牌组失败（可忽略）:', e);
-  }
-
-  // 性能索引（在建表和迁移之后执行，IF NOT EXISTS 保证幂等）
-  db.exec(`
+  // 索引
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
     CREATE INDEX IF NOT EXISTS idx_cards_created ON cards(created_at);
     CREATE INDEX IF NOT EXISTS idx_ucp_user_due ON user_card_progress(user_id, next_review, interval);
@@ -226,10 +145,57 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_decks_user ON decks(user_id);
   `);
 
-  return db;
+  // 创建默认管理员
+  const { rows: users } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
+  if (users[0].cnt === 0) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    const adminId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.query(
+      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
+      [adminId, 'admin', hash, 'admin', now]
+    );
+    console.log('🔐 已创建默认管理员账号 — 用户名: admin, 密码: admin123（请尽快修改）');
+  }
+
+  // 迁移：自动发布 decks 到 marketplace_decks
+  const { rows: adminRows } = await db.query("SELECT id FROM users WHERE username = 'admin'");
+  if (adminRows.length > 0) {
+    const adminId = adminRows[0].id;
+    const now = new Date().toISOString();
+    // 统一 user_id（已有数据的 user_id 归管理员）
+    for (const table of ['decks', 'cards', 'study_sessions', 'daily_stats']) {
+      await db.query(`UPDATE ${table} SET user_id = $1 WHERE user_id = '' OR user_id IS NULL`, [adminId]);
+    }
+    // 发布到市场
+    const { rows: decks } = await db.query('SELECT id, created_at FROM decks');
+    for (const d of decks) {
+      await db.query(
+        `INSERT INTO marketplace_decks (deck_id, calligrapher, dynasty, style, description, cover_image, featured, sort_order, published_at, created_at)
+         VALUES ($1, '', '', '', '', '', 0, 0, $2, $3)
+         ON CONFLICT (deck_id) DO NOTHING`,
+        [d.id, now, d.created_at || now]
+      );
+    }
+    // 自动订阅
+    const { rows: owned } = await db.query('SELECT DISTINCT user_id, id FROM decks WHERE user_id IS NOT NULL AND user_id != $1', ['']);
+    for (const d of owned) {
+      await db.query(
+        'INSERT INTO user_subscriptions (user_id, deck_id, subscribed_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [d.user_id, d.id, now]
+      );
+    }
+  }
+
+  console.log('[db] 数据库初始化完成');
 }
 
 /** 上传目录的绝对路径（项目根目录下的 uploads/） */
 export function getUploadsDir(): string {
-  return path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'uploads');
+  const __dirname = new URL('.', import.meta.url).pathname;
+  return pathJoin(__dirname, '..', 'uploads');
+}
+
+function pathJoin(...parts: string[]): string {
+  return parts.join('/').replace(/\/+/g, '/').replace(/\/$/, '');
 }

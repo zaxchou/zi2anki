@@ -4,38 +4,42 @@ import { getDb } from '../db.js';
 export const analyticsRouter = Router();
 
 // GET /api/analytics/:deckId/card-status —— 卡片状态分布
-analyticsRouter.get('/analytics/:deckId/card-status', (req: Request, res: Response) => {
+analyticsRouter.get('/analytics/:deckId/card-status', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 验证牌组属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     // New: interval = 0
-    const newCount = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval = 0'
-    ).get(deckId) as { cnt: number };
+    const newCount = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval = 0',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Learning: interval > 0 且未毕业（≤ 学习阶梯最大值）
-    const learningCount = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval > 0 AND interval <= 10'
-    ).get(deckId) as { cnt: number };
+    const learningCount = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND interval <= 10',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Review (young): 已毕业 + interval < 21 days (30240 min)
-    const youngCount = db.prepare(
-      `SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? 
-       AND interval > 10 AND interval < 30240`
-    ).get(deckId) as { cnt: number };
+    const youngCount = (await db.query(
+      `SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 
+       AND interval > 10 AND interval < 30240`,
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Mature: interval >= 21 days
-    const matureCount = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval >= 30240'
-    ).get(deckId) as { cnt: number };
+    const matureCount = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval >= 30240',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     res.json({
       new: newCount.cnt,
@@ -50,37 +54,41 @@ analyticsRouter.get('/analytics/:deckId/card-status', (req: Request, res: Respon
 });
 
 // GET /api/analytics/:deckId/difficulty —— 难度分布（按 ease 因子）
-analyticsRouter.get('/analytics/:deckId/difficulty', (req: Request, res: Response) => {
+analyticsRouter.get('/analytics/:deckId/difficulty', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 验证牌组属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     // Hard: ease <= 1.8
-    const hard = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval > 0 AND ease <= 1.8'
-    ).get(deckId) as { cnt: number };
+    const hard = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease <= 1.8',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Medium: 1.8 < ease < 2.3
-    const medium = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval > 0 AND ease > 1.8 AND ease < 2.3'
-    ).get(deckId) as { cnt: number };
+    const medium = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease > 1.8 AND ease < 2.3',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Easy: ease >= 2.3 (only reviewed cards)
-    const easy = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval > 0 AND ease >= 2.3'
-    ).get(deckId) as { cnt: number };
+    const easy = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease >= 2.3',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     // Not yet reviewed (interval = 0)
-    const newCards = db.prepare(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ? AND interval = 0'
-    ).get(deckId) as { cnt: number };
+    const newCards = (await db.query(
+      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval = 0',
+      [deckId]
+    )).rows[0] as { cnt: number };
 
     res.json({
       hard: hard.cnt,
@@ -95,27 +103,28 @@ analyticsRouter.get('/analytics/:deckId/difficulty', (req: Request, res: Respons
 });
 
 // GET /api/analytics/:deckId/ratings —— 评分分布
-analyticsRouter.get('/analytics/:deckId/ratings', (req: Request, res: Response) => {
+analyticsRouter.get('/analytics/:deckId/ratings', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 验证牌组属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
-    const row = db.prepare(
+    const row = (await db.query(
       `SELECT 
          COALESCE(SUM(ratings_again), 0) as again,
          COALESCE(SUM(ratings_hard), 0) as hard,
          COALESCE(SUM(ratings_good), 0) as good,
          COALESCE(SUM(ratings_easy), 0) as easy,
          COALESCE(SUM(cards_studied), 0) as total
-       FROM study_sessions WHERE deck_id = ?`
-    ).get(deckId) as {
+       FROM study_sessions WHERE deck_id = $1`,
+      [deckId]
+    )).rows[0] as {
       again: number; hard: number; good: number; easy: number; total: number;
     };
 
@@ -127,7 +136,7 @@ analyticsRouter.get('/analytics/:deckId/ratings', (req: Request, res: Response) 
 });
 
 // GET /api/analytics/daily-trend —— 每日复习趋势（最近 N 天）
-analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
+analyticsRouter.get('/analytics/daily-trend', async (req: Request, res: Response) => {
   try {
     const days = parseInt(req.query.days as string, 10) || 14;
     const db = getDb();
@@ -145,10 +154,11 @@ analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
     }
 
     // 查询这些天的统计
-    const rows = db.prepare(
+    const rows = (await db.query(
       `SELECT date, cards_studied, new_cards_learned FROM daily_stats
-       WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`
-    ).all(req.user!.userId, dates[0], dates[dates.length - 1]) as {
+       WHERE user_id = $1 AND date >= $2 AND date <= $3 ORDER BY date ASC`,
+      [req.user!.userId, dates[0], dates[dates.length - 1]]
+    )).rows as {
       date: string; cards_studied: number; new_cards_learned: number;
     }[];
 
@@ -173,7 +183,7 @@ analyticsRouter.get('/analytics/daily-trend', (req: Request, res: Response) => {
 // GET /api/analytics/daily-extra —— 每日扩展统计（新学/复习 + 评分分布 + 学时）
 // Query: days（默认 11）/ from+to（覆盖 days）/ deckId（可选；缺省=全部牌组）
 // 字段：date, new_learned, reviewed, hard, medium, easy, minutes
-analyticsRouter.get('/analytics/daily-extra', (req: Request, res: Response) => {
+analyticsRouter.get('/analytics/daily-extra', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const userId = req.user!.userId;
@@ -216,42 +226,51 @@ analyticsRouter.get('/analytics/daily-extra', (req: Request, res: Response) => {
     //    - 无 deckId：跨牌组 SUM
     //    - 有 deckId：按该牌组查
     const dailyRows = deckId
-      ? (db.prepare(
+      ? ((await db.query(
           `SELECT date, cards_studied, new_cards_learned
            FROM daily_stats
-           WHERE user_id = ? AND date >= ? AND date <= ? AND deck_id = ?`
-        ).all(userId, from, to, deckId) as {
+           WHERE user_id = $1 AND date >= $2 AND date <= $3 AND deck_id = $4`,
+          [userId, from, to, deckId]
+        )).rows as {
           date: string; cards_studied: number; new_cards_learned: number;
         }[])
-      : (db.prepare(
+      : ((await db.query(
           `SELECT date,
                   SUM(cards_studied) as cards_studied,
                   SUM(new_cards_learned) as new_cards_learned
            FROM daily_stats
-           WHERE user_id = ? AND date >= ? AND date <= ?
-           GROUP BY date`
-        ).all(userId, from, to) as {
+           WHERE user_id = $1 AND date >= $2 AND date <= $3
+           GROUP BY date`,
+          [userId, from, to]
+        )).rows as {
           date: string; cards_studied: number; new_cards_learned: number;
         }[]);
 
     // 2) 评分按日分布 + 学时 —— 全部在 SQL 端聚合（避免 N+1）
-    //    用 date(started_at, 'localtime') 提取本地日期键
-    const sessionAgg = db.prepare(
-      `SELECT date(started_at, 'localtime') as date_key,
+    //    用 AT TIME ZONE 提取本地日期键
+    const sessionParams: unknown[] = [userId, `${from} 00:00:00`, `${to} 23:59:59`];
+    const sessionWhere = deckId
+      ? `AND deck_id = $${sessionParams.length + 1}`
+      : '';
+    if (deckId) {
+      sessionParams.push(deckId);
+    }
+
+    const sessionAgg = (await db.query(
+      `SELECT (started_at::timestamp AT TIME ZONE 'Asia/Shanghai')::date as date_key,
               SUM(ratings_again + ratings_hard) as hard,
               SUM(ratings_good) as medium,
               SUM(ratings_easy) as easy,
               SUM(CASE WHEN ended_at IS NOT NULL
-                       THEN (julianday(ended_at) - julianday(started_at)) * 24 * 60
+                       THEN EXTRACT(EPOCH FROM (ended_at::timestamp - started_at::timestamp)) / 60.0
                        ELSE 0 END) as minutes
        FROM study_sessions
-       WHERE user_id = ? AND started_at >= ? AND started_at <= ?
+       WHERE user_id = $1 AND started_at >= $2 AND started_at <= $3
          AND ended_at IS NOT NULL
-         ${deckId ? 'AND deck_id = ?' : ''}
-       GROUP BY date_key`
-    ).all(...(deckId
-      ? [userId, `${from} 00:00:00`, `${to} 23:59:59`, deckId]
-      : [userId, `${from} 00:00:00`, `${to} 23:59:59`])) as {
+         ${sessionWhere}
+       GROUP BY date_key`,
+      sessionParams
+    )).rows as {
       date_key: string;
       hard: number | null;
       medium: number | null;

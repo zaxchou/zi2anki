@@ -394,58 +394,65 @@ importRouter.post('/import', (req: Request, res: Response) => {
         });
       }
 
-      // ========== 阶段三：同步事务写入数据库 ==========
-      const appDb = getDb();
+      // ========== 阶段三：PG 事务写入数据库 ==========
+      const db = getDb();
       const deckIdCache = new Map<string, string>();
 
-      const batchImport = appDb.transaction(() => {
-        const insertCard = appDb.prepare(`
-          INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                              next_review, last_review, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
-        `);
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
 
         for (const pc of preparedCards) {
           // 查找或创建牌组
           let deckId = deckIdCache.get(pc.deckName);
           if (!deckId) {
-            const existing = appDb.prepare('SELECT id FROM decks WHERE name = ? AND user_id = ?').get(pc.deckName, req.user!.userId) as
-              { id: string } | undefined;
-            if (existing) {
-              deckId = existing.id;
+            const { rows: existing } = await client.query('SELECT id FROM decks WHERE name = $1 AND user_id = $2', [pc.deckName, req.user!.userId]);
+            if (existing.length > 0) {
+              deckId = existing[0].id;
             } else {
               deckId = uuid();
               const now = nowISO();
-              appDb.prepare(
-                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id) VALUES (?, ?, 0, 20, 200, ?, ?, ?)'
-              ).run(deckId, pc.deckName, now, now, req.user!.userId);
+              await client.query(
+                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id) VALUES ($1, $2, 0, 20, 200, $3, $4, $5)',
+                [deckId, pc.deckName, now, now, req.user!.userId]
+              );
             }
             deckIdCache.set(pc.deckName, deckId);
           }
 
           const cardId = uuid();
           const now = nowISO();
-          insertCard.run(
-            cardId, deckId,
-            pc.frontText, pc.backText, pc.imageUrl,
-            pc.ease, pc.interval, pc.repetitions,
-            pc.nextReview, now, now,
+          await client.query(
+            `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
+                                next_review, last_review, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11)`,
+            [
+              cardId, deckId,
+              pc.frontText, pc.backText, pc.imageUrl,
+              pc.ease, pc.interval, pc.repetitions,
+              pc.nextReview, now, now,
+            ]
           );
         }
 
         // 更新所有牌组的 card_count
         for (const [name, did] of deckIdCache) {
-          const count = appDb.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(did) as { cnt: number };
-          appDb.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, nowISO(), did);
+          const { rows: countRows } = await client.query('SELECT COUNT(*)::int as cnt FROM cards WHERE deck_id = $1', [did]);
+          await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [countRows[0].cnt, nowISO(), did]);
         }
-      });
 
-      batchImport();
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
 
       // 生成结果
       for (const [name, did] of deckIdCache) {
-        const count = appDb.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(did) as { cnt: number };
-        result.decks.push({ id: did, name, card_count: count.cnt });
+        const { rows: countRows } = await db.query('SELECT COUNT(*)::int as cnt FROM cards WHERE deck_id = $1', [did]);
+        result.decks.push({ id: did, name, card_count: countRows[0].cnt });
       }
     } catch (err) {
       console.error('[import] Error:', err);

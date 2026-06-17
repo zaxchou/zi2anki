@@ -7,7 +7,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
+export const cache = new Map<string, CacheEntry<unknown>>();
 
 /**
  * 获取缓存或执行 fetcher 并缓存结果

@@ -4,7 +4,7 @@ import compression from 'compression';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { getDb } from './db.js';
+import { getDb, waitForDb } from './db.js';
 import { authRouter } from './routes/auth.js';
 import { authMiddleware } from './middleware/auth.js';
 import { decksRouter } from './routes/decks.js';
@@ -71,9 +71,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // 启动
-app.listen(PORT, () => {
-  // 初始化数据库（建表）
-  getDb();
+app.listen(PORT, async () => {
+  try {
+    await waitForDb();
+    console.log(`[数据库] PostgreSQL 初始化完成`);
+  } catch (err) {
+    console.error('[数据库] 启动失败:', err);
+    process.exit(1);
+  }
   console.log(`Server running on http://localhost:${PORT}`);
 });
 

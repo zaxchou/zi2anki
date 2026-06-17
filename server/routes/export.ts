@@ -26,23 +26,25 @@ function uuidToNumeric(uuid: string): number {
 }
 
 // GET /api/export/:deckId —— 导出指定牌组为 APKG
-exportRouter.get('/export/:deckId', (req: Request, res: Response) => {
+exportRouter.get('/export/:deckId', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 1. 获取牌组（仅当前用户的）
-    const deck = db.prepare('SELECT * FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId) as Record<string, unknown> | undefined;
+    const { rows: deckRows } = await db.query('SELECT * FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId]) as unknown as { rows: Record<string, unknown>[] };
+    const deck = deckRows[0] as Record<string, unknown> | undefined;
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     // 2. 获取卡片
-    const cards = db.prepare(
+    const { rows: cards } = await db.query(
       `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions, next_review, created_at
-       FROM cards WHERE deck_id = ? ORDER BY created_at ASC`
-    ).all(deckId) as Array<Record<string, unknown>>;
+       FROM cards WHERE deck_id = $1 ORDER BY created_at ASC`,
+      [deckId]
+    ) as unknown as { rows: Array<Record<string, unknown>> };
 
     if (cards.length === 0) {
       res.status(400).json({ error: 'Deck has no cards to export' });
@@ -319,10 +321,10 @@ exportRouter.get('/export/:deckId', (req: Request, res: Response) => {
 });
 
 // GET /api/export —— 导出全部牌组为 APKG
-exportRouter.get('/export', (req: Request, res: Response) => {
+exportRouter.get('/export', async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const decks = db.prepare('SELECT id, name FROM decks WHERE user_id = ? ORDER BY created_at ASC').all(req.user!.userId) as Array<Record<string, unknown>>;
+    const { rows: decks } = await db.query('SELECT id, name FROM decks WHERE user_id = $1 ORDER BY created_at ASC', [req.user!.userId]) as unknown as { rows: Array<Record<string, unknown>> };
 
     if (decks.length === 0) {
       res.status(400).json({ error: 'No decks to export' });
@@ -444,10 +446,11 @@ exportRouter.get('/export', (req: Request, res: Response) => {
       };
 
       // 获取该牌组的卡片
-      const cards = db.prepare(
+      const { rows: cards } = await db.query(
         `SELECT id, front_text, back_text, image_url, ease, interval, repetitions, next_review
-         FROM cards WHERE deck_id = ? ORDER BY created_at ASC`
-      ).all(deck.id) as Array<Record<string, unknown>>;
+         FROM cards WHERE deck_id = $1 ORDER BY created_at ASC`,
+        [deck.id]
+      ) as unknown as { rows: Array<Record<string, unknown>> };
 
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];

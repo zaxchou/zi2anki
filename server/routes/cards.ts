@@ -74,26 +74,28 @@ const batchUpload = multer({
 });
 
 // GET /api/decks/:deckId/cards —— 获取牌组下所有卡片
-cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
+cardsRouter.get('/decks/:deckId/cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
-    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
-    const isSubscribed = db.prepare(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
-    ).get(req.user!.userId, deckId);
+    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    const isSubscribed = (await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+      [req.user!.userId, deckId]
+    )).rows[0];
     if (!isOwner && !isSubscribed) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
-    const cards = db.prepare(
+    const cards = (await db.query(
       `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
-       FROM cards WHERE deck_id = ? ORDER BY created_at DESC`
-    ).all(deckId);
+       FROM cards WHERE deck_id = $1 ORDER BY created_at DESC`,
+      [deckId]
+    )).rows;
 
     res.json(cards);
   } catch (err) {
@@ -103,7 +105,7 @@ cardsRouter.get('/decks/:deckId/cards', (req: Request, res: Response) => {
 });
 
 // POST /api/decks/:deckId/cards —— 创建单张卡片
-cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
+cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const { front_text, back_text, image_url } = req.body;
@@ -116,7 +118,7 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
     const db = getDb();
 
     // 验证牌组存在且属于当前用户
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -136,25 +138,35 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
     const now = nowISO();
     const nextReview = now; // 新卡片立即到期
 
-    const createCard = db.transaction(() => {
-      db.prepare(
+    // 事务：创建卡片 + 更新计数
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
                             next_review, last_review, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 2.5, 0, 0, ?, NULL, ?, ?)`
-      ).run(id, deckId, front_text.trim(), (back_text || '').trim(), finalImageUrl, nextReview, now, now);
+         VALUES ($1, $2, $3, $4, $5, 2.5, 0, 0, $6, NULL, $7, $8)`,
+        [id, deckId, front_text.trim(), (back_text || '').trim(), finalImageUrl, nextReview, now, now]
+      );
 
       // 更新牌组卡片计数
-      const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(deckId) as { cnt: number };
-      db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, now, deckId);
-    });
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+      const cnt = countResult.rows[0].cnt;
+      await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
-    createCard();
-
-    const card = db.prepare(
+    const card = (await db.query(
       `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
-       FROM cards WHERE id = ?`
-    ).get(id);
+       FROM cards WHERE id = $1`,
+      [id]
+    )).rows[0];
 
     res.status(201).json(card);
   } catch (err) {
@@ -169,13 +181,13 @@ cardsRouter.post('/decks/:deckId/cards', (req: Request, res: Response) => {
 cardsRouter.post(
   '/decks/:deckId/cards/batch',
   batchUpload.array('images', 500),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const { deckId } = req.params as { deckId: string };
       const db = getDb();
 
       // 验证牌组存在且属于当前用户
-      const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+      const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
       if (!deck) {
         // 清理已上传的文件
         const files = req.files as Express.Multer.File[] | undefined;
@@ -211,12 +223,13 @@ cardsRouter.post(
       }> = [];
 
       // 在事务中批量创建
-      const batchCreate = db.transaction(() => {
-        const stmt = db.prepare(
-          `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                              next_review, last_review, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 2.5, 0, 0, ?, NULL, ?, ?)`
-        );
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+
+        const insertSQL = `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
+                                                next_review, last_review, created_at, updated_at)
+                           VALUES ($1, $2, $3, $4, $5, 2.5, 0, 0, $6, NULL, $7, $8)`;
 
         for (const file of files) {
           // 文件名去扩展名 → front_text
@@ -227,7 +240,7 @@ cardsRouter.post(
           const imageUrl = `/uploads/${filename}`;
 
           const cardId = uuid();
-          stmt.run(cardId, deckId, frontText, imageUrl, nextReview, now, now);
+          await client.query(insertSQL, [cardId, deckId, frontText, imageUrl, nextReview, now, now]);
 
           createdCards.push({
             id: cardId,
@@ -245,11 +258,16 @@ cardsRouter.post(
         }
 
         // 更新牌组卡片计数
-        const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(deckId) as { cnt: number };
-        db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, now, deckId);
-      });
-
-      batchCreate();
+        const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+        const cnt = countResult.rows[0].cnt;
+        await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
 
       res.status(201).json({ created: createdCards.length, cards: createdCards });
     } catch (err) {
@@ -261,7 +279,7 @@ cardsRouter.post(
 
 // POST /api/decks/:deckId/cards/batch-text —— 文字批量导入
 // 格式：每两行为一张卡片（正面 / 背面），空行分隔
-cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response) => {
+cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const { text } = req.body;
@@ -272,7 +290,7 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response
     }
 
     const db = getDb();
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, req.user!.userId);
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -284,27 +302,35 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response
     const now = nowISO();
     const nextReview = now;
 
-    const batchCreate = db.transaction(() => {
-      const stmt = db.prepare(
-        `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                            next_review, last_review, created_at, updated_at)
-         VALUES (?, ?, ?, ?, '', 2.5, 0, 0, ?, NULL, ?, ?)`
-      );
+    // 事务：批量创建 + 更新计数
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const insertSQL = `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
+                                              next_review, last_review, created_at, updated_at)
+                         VALUES ($1, $2, $3, $4, '', 2.5, 0, 0, $5, NULL, $6, $7)`;
 
       for (let i = 0; i < lines.length - 1; i += 2) {
         const front = lines[i];
         const back = lines[i + 1];
         if (!front) continue;
-        stmt.run(uuid(), deckId, front, back || '', nextReview, now, now);
+        await client.query(insertSQL, [uuid(), deckId, front, back || '', nextReview, now, now]);
         created.push({ front, back: back || '' });
       }
 
       // 更新计数
-      const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(deckId) as { cnt: number };
-      db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, now, deckId);
-    });
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+      const cnt = countResult.rows[0].cnt;
+      await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
-    batchCreate();
     res.status(201).json({ created: created.length, cards: created });
   } catch (err) {
     console.error('POST /decks/:deckId/cards/batch-text error:', err);
@@ -313,15 +339,16 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', (req: Request, res: Response
 });
 
 // PUT /api/cards/:id —— 更新卡片
-cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
+cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     const db = getDb();
     const userId = req.user!.userId;
-    const existing = db.prepare(
-      'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = ?'
-    ).get(id) as { id: string; image_url: string; deck_id: string } | undefined;
+    const existing = (await db.query(
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = $1',
+      [id]
+    )).rows[0] as { id: string; image_url: string; deck_id: string } | undefined;
 
     if (!existing) {
       res.status(404).json({ error: 'Card not found' });
@@ -329,10 +356,11 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     }
 
     // 验证权限：所有者（admin）可修改所有字段，订阅用户仅可更新 SM-2 进度
-    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(existing.deck_id, userId);
-    const isSubscribed = db.prepare(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
-    ).get(userId, existing.deck_id);
+    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [existing.deck_id, userId])).rows[0];
+    const isSubscribed = (await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+      [userId, existing.deck_id]
+    )).rows[0];
 
     if (!isOwner && !isSubscribed) {
       res.status(404).json({ error: 'Card not found' });
@@ -356,17 +384,18 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
     const now = nowISO();
 
     // 构建动态更新（仅更新 cards 表的内容字段，SM-2 进度改写到 user_card_progress）
-    const updates: string[] = [];
+    const setClauses: string[] = [];
     const values: unknown[] = [];
+    let paramIdx = 1;
 
     // 订阅用户不能修改卡片内容
     if (front_text !== undefined && !isSubscribedOnly) {
-      updates.push('front_text = ?');
+      setClauses.push(`front_text = $${paramIdx++}`);
       values.push(front_text);
     }
 
     if (back_text !== undefined && !isSubscribedOnly) {
-      updates.push('back_text = ?');
+      setClauses.push(`back_text = $${paramIdx++}`);
       values.push(back_text);
     }
 
@@ -377,27 +406,28 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
           // 删除旧图片
           deleteImageFile(existing.image_url);
           const newUrl = saveBase64Image(image_url);
-          updates.push('image_url = ?');
+          setClauses.push(`image_url = $${paramIdx++}`);
           values.push(newUrl);
         } else if (image_url !== existing.image_url) {
           // 路径变了
           deleteImageFile(existing.image_url);
-          updates.push('image_url = ?');
+          setClauses.push(`image_url = $${paramIdx++}`);
           values.push(image_url);
         }
       } else if (image_url === '' || image_url === null) {
         // 清空图片
         deleteImageFile(existing.image_url);
-        updates.push('image_url = ?');
+        setClauses.push(`image_url = $${paramIdx++}`);
         values.push('');
       }
     }
 
-    if (updates.length > 0) {
-      updates.push('updated_at = ?');
+    if (setClauses.length > 0) {
+      setClauses.push(`updated_at = $${paramIdx++}`);
       values.push(now);
+      const idParam = paramIdx++;
       values.push(id);
-      db.prepare(`UPDATE cards SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+      await db.query(`UPDATE cards SET ${setClauses.join(', ')} WHERE id = $${idParam}`, values);
     }
 
     // SM-2 进度字段：UPSERT 到 user_card_progress（不再写入 cards 表）
@@ -409,27 +439,28 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
       last_review !== undefined;
 
     if (hasSM2Fields) {
-      db.prepare(
+      await db.query(
         `INSERT INTO user_card_progress (user_id, card_id, ease, interval, repetitions, next_review, last_review)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT(user_id, card_id) DO UPDATE SET
            ease = COALESCE(excluded.ease, user_card_progress.ease),
            interval = COALESCE(excluded.interval, user_card_progress.interval),
            repetitions = COALESCE(excluded.repetitions, user_card_progress.repetitions),
            next_review = COALESCE(excluded.next_review, user_card_progress.next_review),
-           last_review = COALESCE(excluded.last_review, user_card_progress.last_review)`
-      ).run(
-        req.user!.userId,
-        id,
-        ease ?? null,
-        interval ?? null,
-        repetitions ?? null,
-        next_review ?? null,
-        last_review ?? null
+           last_review = COALESCE(excluded.last_review, user_card_progress.last_review)`,
+        [
+          req.user!.userId,
+          id,
+          ease ?? null,
+          interval ?? null,
+          repetitions ?? null,
+          next_review ?? null,
+          last_review ?? null,
+        ]
       );
     }
 
-    const card = db.prepare(
+    const card = (await db.query(
       `SELECT c.id, c.deck_id, c.front_text, c.back_text, c.image_url,
               COALESCE(ucp.ease, 2.5) AS ease,
               COALESCE(ucp.interval, 0) AS interval,
@@ -438,9 +469,10 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
               ucp.last_review AS last_review,
               c.created_at, c.updated_at
        FROM cards c
-       LEFT JOIN user_card_progress ucp ON ucp.user_id = ? AND ucp.card_id = c.id
-       WHERE c.id = ?`
-    ).get(req.user!.userId, id);
+       LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
+       WHERE c.id = $2`,
+      [req.user!.userId, id]
+    )).rows[0];
 
     res.json(card);
   } catch (err) {
@@ -450,14 +482,15 @@ cardsRouter.put('/cards/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/cards/:id —— 删除卡片
-cardsRouter.delete('/cards/:id', (req: Request, res: Response) => {
+cardsRouter.delete('/cards/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
 
-    const card = db.prepare(
-      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = ? AND d.user_id = ?'
-    ).get(id, req.user!.userId) as {
+    const card = (await db.query(
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = $1 AND d.user_id = $2',
+      [id, req.user!.userId]
+    )).rows[0] as {
       id: string;
       image_url: string;
       deck_id: string;
@@ -468,20 +501,30 @@ cardsRouter.delete('/cards/:id', (req: Request, res: Response) => {
       return;
     }
 
-    const deleteCard = db.transaction(() => {
+    // 事务：删除图片 → 删除卡片记录 → 更新计数
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
       // 删除图片文件
       deleteImageFile(card.image_url);
 
       // 删除卡片记录
-      db.prepare('DELETE FROM cards WHERE id = ?').run(id);
+      await client.query('DELETE FROM cards WHERE id = $1', [id]);
 
       // 更新牌组卡片计数
-      const count = db.prepare('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = ?').get(card.deck_id) as { cnt: number };
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [card.deck_id]);
+      const cnt = countResult.rows[0].cnt;
       const now = nowISO();
-      db.prepare('UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?').run(count.cnt, now, card.deck_id);
-    });
+      await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, card.deck_id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
-    deleteCard();
     res.json({ success: true });
   } catch (err) {
     console.error('DELETE /cards/:id error:', err);
@@ -490,7 +533,7 @@ cardsRouter.delete('/cards/:id', (req: Request, res: Response) => {
 });
 
 // GET /api/decks/:deckId/due-cards —— 获取到期卡片
-cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
+cardsRouter.get('/decks/:deckId/due-cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
@@ -499,10 +542,11 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
     const userId = req.user!.userId;
 
     // 验证牌组存在且当前用户已订阅（或 admin 直接放行）
-    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, userId);
-    const isSubscribed = db.prepare(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
-    ).get(userId, deckId);
+    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, userId])).rows[0];
+    const isSubscribed = (await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+      [userId, deckId]
+    )).rows[0];
     if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
       res.status(404).json({ error: 'Deck not found or not subscribed' });
       return;
@@ -518,17 +562,17 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
                       c.created_at, c.updated_at
                FROM cards c
                INNER JOIN user_card_progress ucp
-                  ON ucp.user_id = ? AND ucp.card_id = c.id
-               WHERE c.deck_id = ? AND ucp.interval > 0 AND ucp.next_review <= ?
+                  ON ucp.user_id = $1 AND ucp.card_id = c.id
+               WHERE c.deck_id = $2 AND ucp.interval > 0 AND ucp.next_review <= $3
                ORDER BY ucp.next_review ASC`;
     const params: unknown[] = [userId, deckId, now];
 
     if (limit && limit > 0) {
-      sql += ' LIMIT ?';
+      sql += ` LIMIT $${params.length + 1}`;
       params.push(limit);
     }
 
-    const cards = db.prepare(sql).all(...params);
+    const cards = (await db.query(sql, params)).rows;
     res.json(cards);
   } catch (err) {
     console.error('GET /decks/:deckId/due-cards error:', err);
@@ -537,7 +581,7 @@ cardsRouter.get('/decks/:deckId/due-cards', (req: Request, res: Response) => {
 });
 
 // GET /api/decks/:deckId/new-cards —— 获取新卡片
-cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
+cardsRouter.get('/decks/:deckId/new-cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
@@ -546,10 +590,11 @@ cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
     const userId = req.user!.userId;
 
     // 验证牌组存在且当前用户已订阅（或 admin 直接放行）
-    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deckId, userId);
-    const isSubscribed = db.prepare(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
-    ).get(userId, deckId);
+    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, userId])).rows[0];
+    const isSubscribed = (await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+      [userId, deckId]
+    )).rows[0];
     if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
       res.status(404).json({ error: 'Deck not found or not subscribed' });
       return;
@@ -564,17 +609,17 @@ cardsRouter.get('/decks/:deckId/new-cards', (req: Request, res: Response) => {
                       c.created_at, c.updated_at
                FROM cards c
                LEFT JOIN user_card_progress ucp
-                  ON ucp.user_id = ? AND ucp.card_id = c.id
-               WHERE c.deck_id = ? AND (ucp.card_id IS NULL OR ucp.interval = 0)
+                  ON ucp.user_id = $1 AND ucp.card_id = c.id
+               WHERE c.deck_id = $2 AND (ucp.card_id IS NULL OR ucp.interval = 0)
                ORDER BY c.created_at ASC`;
     const params: unknown[] = [userId, deckId];
 
     if (limit && limit > 0) {
-      sql += ' LIMIT ?';
+      sql += ` LIMIT $${params.length + 1}`;
       params.push(limit);
     }
 
-    const cards = db.prepare(sql).all(...params);
+    const cards = (await db.query(sql, params)).rows;
     res.json(cards);
   } catch (err) {
     console.error('GET /decks/:deckId/new-cards error:', err);

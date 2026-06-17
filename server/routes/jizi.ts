@@ -37,7 +37,7 @@ interface JiziMatchResult {
 }
 
 // GET /api/jizi/match?text=春江花月夜
-jiziRouter.get('/jizi/match', (req: Request, res: Response) => {
+jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
   try {
     const text = (req.query.text as string || '').trim();
     if (!text) {
@@ -59,7 +59,7 @@ jiziRouter.get('/jizi/match', (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const t0 = Date.now();
 
-    const rows = db.prepare(
+    const rows = (await db.query(
       `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
               d.name AS deck_name,
               md.style, md.calligrapher
@@ -68,14 +68,15 @@ jiziRouter.get('/jizi/match', (req: Request, res: Response) => {
        LEFT JOIN marketplace_decks md ON md.deck_id = c.deck_id
        WHERE c.image_url != ''
          AND (
-           d.user_id = ?
+           d.user_id = $1
            OR EXISTS (
              SELECT 1 FROM user_subscriptions us
-             WHERE us.user_id = ? AND us.deck_id = c.deck_id
+             WHERE us.user_id = $2 AND us.deck_id = c.deck_id
            )
          )
-       ORDER BY c.created_at ASC`
-    ).all(userId, userId) as Array<{
+       ORDER BY c.created_at ASC`,
+      [userId, userId]
+    )).rows as Array<{
       id: string;
       deck_id: string;
       front_text: string;

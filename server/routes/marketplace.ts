@@ -17,7 +17,7 @@ function todayLocal(): string {
 
 // GET /api/marketplace/decks —— 列出市场牌组
 // Query: ?style=&calligrapher=&search=
-marketplaceRouter.get('/marketplace/decks', (req: Request, res: Response) => {
+marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const userId = req.user!.userId;
@@ -29,29 +29,33 @@ marketplaceRouter.get('/marketplace/decks', (req: Request, res: Response) => {
       SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
              md.featured, md.sort_order, md.published_at, md.created_at,
              d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
-             EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = ? AND us.deck_id = md.deck_id) AS is_subscribed
+             EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = $1 AND us.deck_id = md.deck_id) AS is_subscribed
       FROM marketplace_decks md
       JOIN decks d ON d.id = md.deck_id
       WHERE 1=1
     `;
     const params: unknown[] = [userId];
+    let paramIndex = 1;
 
     if (style) {
-      sql += ' AND md.style = ?';
+      paramIndex = params.length + 1;
+      sql += ` AND md.style = $${paramIndex}`;
       params.push(style);
     }
     if (calligrapher) {
-      sql += ' AND md.calligrapher = ?';
+      paramIndex = params.length + 1;
+      sql += ` AND md.calligrapher = $${paramIndex}`;
       params.push(calligrapher);
     }
     if (search) {
-      sql += ' AND (d.name LIKE ? OR md.description LIKE ? OR md.calligrapher LIKE ?)';
+      paramIndex = params.length + 1;
+      sql += ` AND (d.name LIKE $${paramIndex} OR md.description LIKE $${paramIndex + 1} OR md.calligrapher LIKE $${paramIndex + 2})`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     sql += ' ORDER BY md.featured DESC, md.sort_order ASC, md.published_at DESC';
 
-    const rows = db.prepare(sql).all(...params);
+    const { rows } = await db.query(sql, params);
     res.json(rows);
   } catch (err) {
     console.error('GET /marketplace/decks error:', err);
@@ -60,21 +64,23 @@ marketplaceRouter.get('/marketplace/decks', (req: Request, res: Response) => {
 });
 
 // GET /api/marketplace/decks/:deckId —— 单个市场牌组详情
-marketplaceRouter.get('/marketplace/decks/:deckId', (req: Request, res: Response) => {
+marketplaceRouter.get('/marketplace/decks/:deckId', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
     const userId = req.user!.userId;
 
-    const row = db.prepare(
+    const { rows } = await db.query(
       `SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
               md.featured, md.sort_order, md.published_at, md.created_at,
               d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
-              EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = ? AND us.deck_id = md.deck_id) AS is_subscribed
+              EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = $1 AND us.deck_id = md.deck_id) AS is_subscribed
        FROM marketplace_decks md
        JOIN decks d ON d.id = md.deck_id
-       WHERE md.deck_id = ?`
-    ).get(userId, deckId);
+       WHERE md.deck_id = $2`,
+      [userId, deckId]
+    );
+    const row = rows[0];
 
     if (!row) {
       res.status(404).json({ error: 'Marketplace deck not found' });
@@ -89,22 +95,23 @@ marketplaceRouter.get('/marketplace/decks/:deckId', (req: Request, res: Response
 });
 
 // POST /api/marketplace/decks/:deckId/subscribe —— 订阅
-marketplaceRouter.post('/marketplace/decks/:deckId/subscribe', (req: Request, res: Response) => {
+marketplaceRouter.post('/marketplace/decks/:deckId/subscribe', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
     const userId = req.user!.userId;
 
     // 验证牌组在市场中存在
-    const exists = db.prepare('SELECT deck_id FROM marketplace_decks WHERE deck_id = ?').get(deckId);
-    if (!exists) {
+    const { rows: existsRows } = await db.query('SELECT deck_id FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    if (existsRows.length === 0) {
       res.status(404).json({ error: 'Marketplace deck not found' });
       return;
     }
 
-    db.prepare(
-      'INSERT OR IGNORE INTO user_subscriptions (user_id, deck_id, subscribed_at) VALUES (?, ?, ?)'
-    ).run(userId, deckId, nowISO());
+    await db.query(
+      'INSERT INTO user_subscriptions (user_id, deck_id, subscribed_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [userId, deckId, nowISO()]
+    );
 
     res.json({ success: true, deck_id: deckId });
   } catch (err) {
@@ -114,20 +121,28 @@ marketplaceRouter.post('/marketplace/decks/:deckId/subscribe', (req: Request, re
 });
 
 // DELETE /api/marketplace/decks/:deckId/subscribe —— 退订（同时清理进度）
-marketplaceRouter.delete('/marketplace/decks/:deckId/subscribe', (req: Request, res: Response) => {
+marketplaceRouter.delete('/marketplace/decks/:deckId/subscribe', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
     const userId = req.user!.userId;
 
-    const unsubscribe = db.transaction(() => {
-      db.prepare('DELETE FROM user_subscriptions WHERE user_id = ? AND deck_id = ?').run(userId, deckId);
-      db.prepare(
-        `DELETE FROM user_card_progress WHERE user_id = ?
-          AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)`
-      ).run(userId, deckId);
-    });
-    unsubscribe();
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2', [userId, deckId]);
+      await client.query(
+        `DELETE FROM user_card_progress WHERE user_id = $1
+          AND card_id IN (SELECT id FROM cards WHERE deck_id = $2)`,
+        [userId, deckId]
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     res.json({ success: true, deck_id: deckId });
   } catch (err) {
@@ -137,28 +152,29 @@ marketplaceRouter.delete('/marketplace/decks/:deckId/subscribe', (req: Request, 
 });
 
 // GET /api/marketplace/subscriptions —— 当前用户已订阅的市场牌组列表
-marketplaceRouter.get('/marketplace/subscriptions', (req: Request, res: Response) => {
+marketplaceRouter.get('/marketplace/subscriptions', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const userId = req.user!.userId;
     const today = todayLocal();
 
-    const rows = db.prepare(
+    const { rows } = await db.query(
       `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
               d.created_at, d.updated_at,
               md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
               us.subscribed_at,
               COALESCE((
                 SELECT COUNT(*) FROM cards c
-                  LEFT JOIN user_card_progress ucp ON ucp.user_id = ? AND ucp.card_id = c.id
+                  LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
                   WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
               ), 0) AS new_count
        FROM user_subscriptions us
        JOIN decks d ON d.id = us.deck_id
        LEFT JOIN marketplace_decks md ON md.deck_id = us.deck_id
-       WHERE us.user_id = ?
-       ORDER BY us.subscribed_at DESC`
-    ).all(userId, userId) as Array<{
+       WHERE us.user_id = $2
+       ORDER BY us.subscribed_at DESC`,
+      [userId, userId]
+    ) as Array<{
       id: string;
       name: string;
       card_count: number;
@@ -170,16 +186,18 @@ marketplaceRouter.get('/marketplace/subscriptions', (req: Request, res: Response
     }>;
 
     // 计算 new_available_today（与 GET /decks 一致的逻辑）
-    const result = rows.map((d) => {
-      const ds = db.prepare(
+    const result = await Promise.all(rows.map(async (d) => {
+      const { rows: dsRows } = await db.query(
         `SELECT new_cards_learned FROM daily_stats
-         WHERE user_id = ? AND date = ? AND deck_id = ?`
-      ).get(userId, today, d.id) as { new_cards_learned: number } | undefined;
+         WHERE user_id = $1 AND date = $2 AND deck_id = $3`,
+        [userId, today, d.id]
+      );
+      const ds = dsRows[0] as { new_cards_learned: number } | undefined;
       const learnedToday = ds?.new_cards_learned ?? 0;
       const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
       const newAvailableToday = Math.min(d.new_count, remainingByLimit);
       return { ...d, new_available_today: newAvailableToday };
-    });
+    }));
 
     res.json(result);
   } catch (err) {
@@ -189,14 +207,14 @@ marketplaceRouter.get('/marketplace/subscriptions', (req: Request, res: Response
 });
 
 // POST /api/marketplace/decks/:deckId/publish —— Admin 发布牌组到市场
-marketplaceRouter.post('/marketplace/decks/:deckId/publish', requireAdmin, (req: Request, res: Response) => {
+marketplaceRouter.post('/marketplace/decks/:deckId/publish', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
     // 验证牌组存在
-    const deck = db.prepare('SELECT id FROM decks WHERE id = ?').get(deckId);
-    if (!deck) {
+    const { rows: deckRows } = await db.query('SELECT id FROM decks WHERE id = $1', [deckId]);
+    if (deckRows.length === 0) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
@@ -211,24 +229,35 @@ marketplaceRouter.post('/marketplace/decks/:deckId/publish', requireAdmin, (req:
     } = req.body;
 
     const now = nowISO();
-    db.prepare(
-      `INSERT OR REPLACE INTO marketplace_decks
+    await db.query(
+      `INSERT INTO marketplace_decks
         (deck_id, calligrapher, dynasty, style, description, cover_image, featured, sort_order, published_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-    ).run(
-      deckId,
-      typeof calligrapher === 'string' ? calligrapher : '',
-      typeof dynasty === 'string' ? dynasty : '',
-      typeof style === 'string' ? style : '',
-      typeof description === 'string' ? description : '',
-      typeof cover_image === 'string' ? cover_image : '',
-      typeof featured === 'boolean' ? (featured ? 1 : 0) : (typeof featured === 'number' ? (featured ? 1 : 0) : 0),
-      now,
-      now
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9)
+       ON CONFLICT (deck_id) DO UPDATE SET
+         calligrapher = EXCLUDED.calligrapher,
+         dynasty = EXCLUDED.dynasty,
+         style = EXCLUDED.style,
+         description = EXCLUDED.description,
+         cover_image = EXCLUDED.cover_image,
+         featured = EXCLUDED.featured,
+         sort_order = EXCLUDED.sort_order,
+         published_at = EXCLUDED.published_at,
+         created_at = EXCLUDED.created_at`,
+      [
+        deckId,
+        typeof calligrapher === 'string' ? calligrapher : '',
+        typeof dynasty === 'string' ? dynasty : '',
+        typeof style === 'string' ? style : '',
+        typeof description === 'string' ? description : '',
+        typeof cover_image === 'string' ? cover_image : '',
+        typeof featured === 'boolean' ? (featured ? 1 : 0) : (typeof featured === 'number' ? (featured ? 1 : 0) : 0),
+        now,
+        now
+      ]
     );
 
-    const row = db.prepare('SELECT * FROM marketplace_decks WHERE deck_id = ?').get(deckId);
-    res.status(201).json(row);
+    const { rows } = await db.query('SELECT * FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    res.status(201).json(rows[0]);
   } catch (err) {
     console.error('POST /marketplace/decks/:deckId/publish error:', err);
     res.status(500).json({ error: 'Failed to publish deck' });
@@ -236,13 +265,13 @@ marketplaceRouter.post('/marketplace/decks/:deckId/publish', requireAdmin, (req:
 });
 
 // PUT /api/marketplace/decks/:deckId —— Admin 编辑市场元数据
-marketplaceRouter.put('/marketplace/decks/:deckId', requireAdmin, (req: Request, res: Response) => {
+marketplaceRouter.put('/marketplace/decks/:deckId', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
-    const existing = db.prepare('SELECT deck_id FROM marketplace_decks WHERE deck_id = ?').get(deckId);
-    if (!existing) {
+    const { rows: existingRows } = await db.query('SELECT deck_id FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    if (existingRows.length === 0) {
       res.status(404).json({ error: 'Marketplace deck not found' });
       return;
     }
@@ -261,41 +290,42 @@ marketplaceRouter.put('/marketplace/decks/:deckId', requireAdmin, (req: Request,
     const values: unknown[] = [];
 
     if (calligrapher !== undefined) {
-      updates.push('calligrapher = ?');
+      updates.push(`calligrapher = $${values.length + 1}`);
       values.push(typeof calligrapher === 'string' ? calligrapher : '');
     }
     if (dynasty !== undefined) {
-      updates.push('dynasty = ?');
+      updates.push(`dynasty = $${values.length + 1}`);
       values.push(typeof dynasty === 'string' ? dynasty : '');
     }
     if (style !== undefined) {
-      updates.push('style = ?');
+      updates.push(`style = $${values.length + 1}`);
       values.push(typeof style === 'string' ? style : '');
     }
     if (description !== undefined) {
-      updates.push('description = ?');
+      updates.push(`description = $${values.length + 1}`);
       values.push(typeof description === 'string' ? description : '');
     }
     if (cover_image !== undefined) {
-      updates.push('cover_image = ?');
+      updates.push(`cover_image = $${values.length + 1}`);
       values.push(typeof cover_image === 'string' ? cover_image : '');
     }
     if (featured !== undefined) {
-      updates.push('featured = ?');
+      updates.push(`featured = $${values.length + 1}`);
       values.push(featured ? 1 : 0);
     }
     if (sort_order !== undefined) {
-      updates.push('sort_order = ?');
+      updates.push(`sort_order = $${values.length + 1}`);
       values.push(typeof sort_order === 'number' ? sort_order : 0);
     }
 
     if (updates.length > 0) {
+      const deckIdPlaceholder = `$${values.length + 1}`;
       values.push(deckId);
-      db.prepare(`UPDATE marketplace_decks SET ${updates.join(', ')} WHERE deck_id = ?`).run(...values);
+      await db.query(`UPDATE marketplace_decks SET ${updates.join(', ')} WHERE deck_id = ${deckIdPlaceholder}`, values);
     }
 
-    const row = db.prepare('SELECT * FROM marketplace_decks WHERE deck_id = ?').get(deckId);
-    res.json(row);
+    const { rows } = await db.query('SELECT * FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    res.json(rows[0]);
   } catch (err) {
     console.error('PUT /marketplace/decks/:deckId error:', err);
     res.status(500).json({ error: 'Failed to update marketplace deck' });
@@ -303,13 +333,13 @@ marketplaceRouter.put('/marketplace/decks/:deckId', requireAdmin, (req: Request,
 });
 
 // DELETE /api/marketplace/decks/:deckId/publish —— Admin 下架
-marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, (req: Request, res: Response) => {
+marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
-    const info = db.prepare('DELETE FROM marketplace_decks WHERE deck_id = ?').run(deckId);
-    if (info.changes === 0) {
+    const result = await db.query('DELETE FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    if (result.rowCount === 0) {
       res.status(404).json({ error: 'Marketplace deck not found' });
       return;
     }

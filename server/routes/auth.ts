@@ -10,7 +10,7 @@ export const authRouter = Router();
 function uuid(): string { return crypto.randomUUID(); }
 
 // POST /api/auth/register
-authRouter.post('/register', (req: Request, res: Response) => {
+authRouter.post('/register', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -28,7 +28,7 @@ authRouter.post('/register', (req: Request, res: Response) => {
     const cleanUsername = username.trim();
 
     // 检查用户名唯一性
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
+    const existing = (await db.query('SELECT id FROM users WHERE username = $1', [cleanUsername])).rows[0];
     if (existing) {
       res.status(409).json({ error: '用户名已存在' });
       return;
@@ -38,9 +38,10 @@ authRouter.post('/register', (req: Request, res: Response) => {
     const id = uuid();
     const passwordHash = bcrypt.hashSync(password, 10);
     const now = new Date().toISOString();
-    db.prepare(
-      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, cleanUsername, passwordHash, 'user', now);
+    await db.query(
+      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
+      [id, cleanUsername, passwordHash, 'user', now]
+    );
 
     // 签发 JWT
     const token = jwt.sign({ userId: id, username: cleanUsername, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
@@ -53,7 +54,7 @@ authRouter.post('/register', (req: Request, res: Response) => {
 });
 
 // POST /api/auth/login
-authRouter.post('/login', (req: Request, res: Response) => {
+authRouter.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -63,9 +64,11 @@ authRouter.post('/login', (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const user = db.prepare(
-      'SELECT id, username, password_hash, role FROM users WHERE username = ?'
-    ).get(username.trim()) as { id: string; username: string; password_hash: string; role: string } | undefined;
+    const { rows } = await db.query(
+      'SELECT id, username, password_hash, role FROM users WHERE username = $1',
+      [username.trim()]
+    );
+    const user = rows[0] as { id: string; username: string; password_hash: string; role: string } | undefined;
 
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       res.status(401).json({ error: '用户名或密码错误' });
@@ -86,7 +89,7 @@ authRouter.post('/login', (req: Request, res: Response) => {
 });
 
 // PUT /api/auth/password — 修改密码（需鉴权）
-authRouter.put('/password', authMiddleware, (req: Request, res: Response) => {
+authRouter.put('/password', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { oldPassword, newPassword } = req.body ?? {};
     const userId = req.user?.userId;
@@ -109,7 +112,7 @@ authRouter.put('/password', authMiddleware, (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash: string } | undefined;
+    const user = (await db.query('SELECT password_hash FROM users WHERE id = $1', [userId])).rows[0] as { password_hash: string } | undefined;
     if (!user) {
       res.status(404).json({ error: '用户不存在' });
       return;
@@ -121,7 +124,7 @@ authRouter.put('/password', authMiddleware, (req: Request, res: Response) => {
     }
 
     const newHash = bcrypt.hashSync(newPassword, 10);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, userId);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
 
     res.json({ success: true });
   } catch (err) {

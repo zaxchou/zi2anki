@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db.js';
-import { cached } from '../lib/cache.js';
+import { cache } from '../lib/cache.js';
 import crypto from 'node:crypto';
 
 export const studyRouter = Router();
@@ -43,7 +43,7 @@ function rowToSession(row: {
 }
 
 // POST /api/study-sessions —— 创建学习会话
-studyRouter.post('/study-sessions', (req: Request, res: Response) => {
+studyRouter.post('/study-sessions', async (req: Request, res: Response) => {
   try {
     const { deck_id } = req.body;
 
@@ -55,10 +55,11 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
     const db = getDb();
 
     // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
-    const isOwner = db.prepare('SELECT id FROM decks WHERE id = ? AND user_id = ?').get(deck_id, req.user!.userId);
-    const isSubscribed = db.prepare(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = ? AND deck_id = ?'
-    ).get(req.user!.userId, deck_id);
+    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deck_id, req.user!.userId])).rows[0];
+    const isSubscribed = (await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+      [req.user!.userId, deck_id]
+    )).rows[0];
     if (!isOwner && !isSubscribed) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -67,13 +68,15 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
     const id = uuid();
     const startedAt = req.body.started_at || nowISO();
 
-    db.prepare(
+    await db.query(
       `INSERT INTO study_sessions (id, deck_id, started_at, ended_at, cards_studied,
                                    ratings_again, ratings_hard, ratings_good, ratings_easy, user_id)
-       VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, ?)`
-    ).run(id, deck_id, startedAt, req.user!.userId);
+       VALUES ($1, $2, $3, NULL, 0, 0, 0, 0, 0, $4)`,
+      [id, deck_id, startedAt, req.user!.userId]
+    );
 
-    const row = db.prepare('SELECT * FROM study_sessions WHERE id = ?').get(id) as {
+    const { rows } = await db.query('SELECT * FROM study_sessions WHERE id = $1', [id]);
+    const row = rows[0] as {
       id: string;
       deck_id: string;
       started_at: string;
@@ -93,12 +96,12 @@ studyRouter.post('/study-sessions', (req: Request, res: Response) => {
 });
 
 // PUT /api/study-sessions/:id —— 结束学习会话
-studyRouter.put('/study-sessions/:id', (req: Request, res: Response) => {
+studyRouter.put('/study-sessions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
 
-    const existing = db.prepare('SELECT id FROM study_sessions WHERE id = ? AND user_id = ?').get(id, req.user!.userId);
+    const existing = (await db.query('SELECT id FROM study_sessions WHERE id = $1 AND user_id = $2', [id, req.user!.userId])).rows[0];
     if (!existing) {
       res.status(404).json({ error: 'Study session not found' });
       return;
@@ -106,42 +109,51 @@ studyRouter.put('/study-sessions/:id', (req: Request, res: Response) => {
 
     const { ended_at, cards_studied, ratings } = req.body;
 
-    const updates: string[] = [];
+    const setClauses: string[] = [];
     const values: unknown[] = [];
+    let paramIdx = 0;
 
     if (ended_at !== undefined) {
-      updates.push('ended_at = ?');
+      paramIdx++;
+      setClauses.push(`ended_at = $${paramIdx}`);
       values.push(ended_at);
     }
     if (cards_studied !== undefined) {
-      updates.push('cards_studied = ?');
+      paramIdx++;
+      setClauses.push(`cards_studied = $${paramIdx}`);
       values.push(cards_studied);
     }
     if (ratings !== undefined) {
       if (ratings.again !== undefined) {
-        updates.push('ratings_again = ?');
+        paramIdx++;
+        setClauses.push(`ratings_again = $${paramIdx}`);
         values.push(ratings.again);
       }
       if (ratings.hard !== undefined) {
-        updates.push('ratings_hard = ?');
+        paramIdx++;
+        setClauses.push(`ratings_hard = $${paramIdx}`);
         values.push(ratings.hard);
       }
       if (ratings.good !== undefined) {
-        updates.push('ratings_good = ?');
+        paramIdx++;
+        setClauses.push(`ratings_good = $${paramIdx}`);
         values.push(ratings.good);
       }
       if (ratings.easy !== undefined) {
-        updates.push('ratings_easy = ?');
+        paramIdx++;
+        setClauses.push(`ratings_easy = $${paramIdx}`);
         values.push(ratings.easy);
       }
     }
 
-    if (updates.length > 0) {
+    if (setClauses.length > 0) {
+      paramIdx++;
       values.push(id);
-      db.prepare(`UPDATE study_sessions SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+      await db.query(`UPDATE study_sessions SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`, values);
     }
 
-    const row = db.prepare('SELECT * FROM study_sessions WHERE id = ?').get(id) as {
+    const { rows } = await db.query('SELECT * FROM study_sessions WHERE id = $1', [id]);
+    const row = rows[0] as {
       id: string;
       deck_id: string;
       started_at: string;
@@ -161,7 +173,7 @@ studyRouter.put('/study-sessions/:id', (req: Request, res: Response) => {
 });
 
 // GET /api/daily-stats/range —— 获取日期范围统计（必须在 /:date 之前注册）
-studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
+studyRouter.get('/daily-stats/range', async (req: Request, res: Response) => {
   try {
     const { from, to } = req.query;
     if (!from || !to || typeof from !== 'string' || typeof to !== 'string') {
@@ -170,13 +182,14 @@ studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
     }
     const db = getDb();
     // 跨牌组聚合（用户级查询）
-    const rows = db.prepare(
+    const { rows } = await db.query(
       `SELECT date,
               SUM(cards_studied) as cards_studied,
               SUM(new_cards_learned) as new_cards_learned
-       FROM daily_stats WHERE user_id = ? AND date >= ? AND date <= ?
-       GROUP BY date ORDER BY date DESC`
-    ).all(req.user!.userId, from, to);
+       FROM daily_stats WHERE user_id = $1 AND date >= $2 AND date <= $3
+       GROUP BY date ORDER BY date DESC`,
+      [req.user!.userId, from, to]
+    );
     res.json(rows);
   } catch (err) {
     console.error('GET /daily-stats/range error:', err);
@@ -186,7 +199,7 @@ studyRouter.get('/daily-stats/range', (req: Request, res: Response) => {
 
 // GET /api/daily-stats/:date —— 获取指定日期的统计
 // 可选 query: ?deck_id=xxx（查具体牌组）；缺省则 SUM 跨牌组
-studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
+studyRouter.get('/daily-stats/:date', async (req: Request, res: Response) => {
   try {
     const { date } = req.params;
     const db = getDb();
@@ -194,18 +207,22 @@ studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
 
     let row: { cards_studied: number; new_cards_learned: number };
     if (deckId) {
-      row = db.prepare(
+      const r = await db.query(
         `SELECT cards_studied, new_cards_learned
-         FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?`
-      ).get(date, req.user!.userId, deckId) as any;
+         FROM daily_stats WHERE date = $1 AND user_id = $2 AND deck_id = $3`,
+        [date, req.user!.userId, deckId]
+      );
+      row = r.rows[0] as any;
     } else {
       // 查全部牌组 SUM（旧行为，用于 useDashboardStats）
-      row = db.prepare(
+      const r = await db.query(
         `SELECT
            COALESCE(SUM(cards_studied), 0) as cards_studied,
            COALESCE(SUM(new_cards_learned), 0) as new_cards_learned
-         FROM daily_stats WHERE date = ? AND user_id = ?`
-      ).get(date, req.user!.userId) as any;
+         FROM daily_stats WHERE date = $1 AND user_id = $2`,
+        [date, req.user!.userId]
+      );
+      row = r.rows[0] as any;
     }
 
     res.json({ date, cards_studied: row?.cards_studied ?? 0, new_cards_learned: row?.new_cards_learned ?? 0 });
@@ -216,7 +233,7 @@ studyRouter.get('/daily-stats/:date', (req: Request, res: Response) => {
 });
 
 // PUT /api/daily-stats/:date —— 更新/创建每日统计
-studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
+studyRouter.put('/daily-stats/:date', async (req: Request, res: Response) => {
   try {
     const { date } = req.params;
     const { cards_studied, new_cards_learned } = req.body;
@@ -225,25 +242,29 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
 
     // upsert：按 (date, user_id, deck_id) 三元 PK
     const deckId = (req.body.deck_id as string | undefined) || '';
-    const existing = db.prepare(
-      'SELECT date FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?'
-    ).get(date, req.user!.userId, deckId);
+    const existing = (await db.query(
+      'SELECT date FROM daily_stats WHERE date = $1 AND user_id = $2 AND deck_id = $3',
+      [date, req.user!.userId, deckId]
+    )).rows[0];
 
     if (existing) {
-      db.prepare(
-        'UPDATE daily_stats SET cards_studied = ?, new_cards_learned = ? WHERE date = ? AND user_id = ? AND deck_id = ?'
-      ).run(cards_studied ?? 0, new_cards_learned ?? 0, date, req.user!.userId, deckId);
+      await db.query(
+        'UPDATE daily_stats SET cards_studied = $1, new_cards_learned = $2 WHERE date = $3 AND user_id = $4 AND deck_id = $5',
+        [cards_studied ?? 0, new_cards_learned ?? 0, date, req.user!.userId, deckId]
+      );
     } else {
-      db.prepare(
-        'INSERT INTO daily_stats (date, user_id, deck_id, cards_studied, new_cards_learned) VALUES (?, ?, ?, ?, ?)'
-      ).run(date, req.user!.userId, deckId, cards_studied ?? 0, new_cards_learned ?? 0);
+      await db.query(
+        'INSERT INTO daily_stats (date, user_id, deck_id, cards_studied, new_cards_learned) VALUES ($1, $2, $3, $4, $5)',
+        [date, req.user!.userId, deckId, cards_studied ?? 0, new_cards_learned ?? 0]
+      );
     }
 
-    const row = db.prepare(
-      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = ? AND user_id = ? AND deck_id = ?'
-    ).get(date, req.user!.userId, deckId);
+    const { rows } = await db.query(
+      'SELECT date, cards_studied, new_cards_learned FROM daily_stats WHERE date = $1 AND user_id = $2 AND deck_id = $3',
+      [date, req.user!.userId, deckId]
+    );
 
-    res.json(row);
+    res.json(rows[0]);
   } catch (err) {
     console.error('PUT /daily-stats/:date error:', err);
     res.status(500).json({ error: 'Failed to update daily stats' });
@@ -251,24 +272,32 @@ studyRouter.put('/daily-stats/:date', (req: Request, res: Response) => {
 });
 
 // GET /api/due-counts —— 获取所有牌组的到期卡片计数（30s 内存缓存）
-studyRouter.get('/due-counts', (req: Request, res: Response) => {
+studyRouter.get('/due-counts', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
     const now = nowISO();
     const cacheKey = `due-counts:${userId}`;
-    const rows = cached(cacheKey, 30_000, () => {
+
+    let rows: { id: string; name: string; due_count: number }[];
+    const entry = cache.get(cacheKey);
+    if (entry && Date.now() < entry.expiresAt) {
+      rows = entry.data as typeof rows;
+    } else {
       const db = getDb();
-      return db.prepare(
+      const r = await db.query(
         `SELECT d.id, d.name, COUNT(c.id) as due_count
          FROM decks d
          LEFT JOIN cards c ON c.deck_id = d.id
-         LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = ?
-         LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
-         WHERE (d.user_id = ? OR us.user_id = ?)
-           AND ucp.interval > 0 AND ucp.next_review <= ?
-         GROUP BY d.id, d.name ORDER BY d.created_at DESC`
-      ).all(userId, userId, userId, now) as { id: string; name: string; due_count: number }[];
-    });
+         LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $1
+         LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = $2
+         WHERE (d.user_id = $3 OR us.user_id = $4)
+           AND ucp.interval > 0 AND ucp.next_review <= $5
+         GROUP BY d.id, d.name ORDER BY d.created_at DESC`,
+        [userId, userId, userId, userId, now]
+      );
+      rows = r.rows as typeof rows;
+      cache.set(cacheKey, { data: rows, expiresAt: Date.now() + 30_000 });
+    }
     res.json(rows);
   } catch (err) {
     console.error('GET /due-counts error:', err);
@@ -277,15 +306,17 @@ studyRouter.get('/due-counts', (req: Request, res: Response) => {
 });
 
 // GET /api/study-sessions/total —— 累计学习总时长与总会话数
-studyRouter.get('/study-sessions/total', (req: Request, res: Response) => {
+studyRouter.get('/study-sessions/total', async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const row = db.prepare(
-      `SELECT COUNT(*) as total_sessions,
-              COALESCE(SUM((julianday(ended_at) - julianday(started_at)) * 24 * 60), 0) as total_minutes
+    const { rows } = await db.query(
+      `SELECT COUNT(*)::int as total_sessions,
+              COALESCE(SUM(EXTRACT(EPOCH FROM (ended_at::timestamp - started_at::timestamp)) / 60.0), 0) as total_minutes
        FROM study_sessions
-       WHERE user_id = ? AND ended_at IS NOT NULL`
-    ).get(req.user!.userId) as { total_sessions: number; total_minutes: number };
+       WHERE user_id = $1 AND ended_at IS NOT NULL`,
+      [req.user!.userId]
+    );
+    const row = rows[0] as { total_sessions: number; total_minutes: number };
     res.json(row);
   } catch (err) {
     console.error('GET /study-sessions/total error:', err);
