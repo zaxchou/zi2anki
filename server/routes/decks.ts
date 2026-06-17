@@ -3,6 +3,7 @@ import { getDb, getUploadsDir } from '../db.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const decksRouter = Router();
 
@@ -70,7 +71,7 @@ decksRouter.get('/decks', (req: Request, res: Response) => {
 });
 
 // POST /api/decks —— 创建牌组
-decksRouter.post('/decks', (req: Request, res: Response) => {
+decksRouter.post('/decks', requireAdmin, (req: Request, res: Response) => {
   try {
     const { name } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {

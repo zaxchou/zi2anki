@@ -256,10 +256,14 @@ studyRouter.get('/due-counts', (req: Request, res: Response) => {
     const now = nowISO();
     const rows = db.prepare(
       `SELECT d.id, d.name, COUNT(c.id) as due_count
-       FROM decks d LEFT JOIN cards c ON c.deck_id = d.id AND c.next_review <= ? AND c.interval > 0
-       WHERE d.user_id = ?
+       FROM decks d
+       LEFT JOIN cards c ON c.deck_id = d.id
+       LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = ?
+       LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ?
+       WHERE (d.user_id = ? OR us.user_id = ?)
+         AND ucp.interval > 0 AND ucp.next_review <= ?
        GROUP BY d.id, d.name ORDER BY d.created_at DESC`
-    ).all(now, req.user!.userId) as { id: string; name: string; due_count: number }[];
+    ).all(req.user!.userId, req.user!.userId, req.user!.userId, now) as { id: string; name: string; due_count: number }[];
     res.json(rows);
   } catch (err) {
     console.error('GET /due-counts error:', err);
