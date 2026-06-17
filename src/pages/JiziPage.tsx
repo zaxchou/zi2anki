@@ -39,21 +39,25 @@ const JiziPage: React.FC = () => {
       setSelections([]);
       return;
     }
+    let cancelled = false;
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       setError(null);
       try {
         const resp = await fetchJiziMatch(trimmed);
+        if (cancelled) return;
         setResults(resp.results);
         setSelections(resp.results.map(() => 0));
       } catch (err) {
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : '匹配失败');
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, 400);
     return () => {
+      cancelled = true;
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [text]);

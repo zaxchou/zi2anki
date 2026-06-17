@@ -51,6 +51,16 @@ const JiziCell: React.FC<JiziCellProps> = ({
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault(); // 防止触摸事件后触发模拟鼠标事件
+    handleMouseDown();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleMouseUp();
+  };
+
   return (
     <Box
       sx={{
@@ -66,12 +76,14 @@ const JiziCell: React.FC<JiziCellProps> = ({
         justifyContent: 'center',
         overflow: 'hidden',
         userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
       }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      onTouchStart={handleMouseDown}
-      onTouchEnd={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {current ? (
         <Box

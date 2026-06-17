@@ -28,15 +28,14 @@ const JiziSwitcherDialog: React.FC<JiziSwitcherDialogProps> = ({
   onPick,
   onClose,
 }) => {
-  if (!result) return null;
-  const hits = result.hits;
+  const hits = result?.hits ?? [];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
         <Box>
           <Typography variant="h6" component="span" className="font-kai" sx={{ fontWeight: 600 }}>
-            「{result.char}」的 {hits.length} 种写法
+            {result ? `「${result.char}」的 ${hits.length} 种写法` : '加载中...'}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small">
