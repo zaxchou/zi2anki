@@ -504,23 +504,28 @@ export function uploadMarketCover(deckId: string, file: File): Promise<{ success
   const formData = new FormData();
   formData.append('cover', file);
   const token = useAuthStore.getState().token;
-  // 使用 Headers 构造函数，避免干扰浏览器对 FormData 的 Content-Type 自动检测
-  const hdrs = new Headers();
-  if (token) hdrs.set('Authorization', `Bearer ${token}`);
-  return fetch(`/api/marketplace/decks/${deckId}/cover`, {
-    method: 'POST',
-    headers: hdrs,
-    body: formData,
-  }).then((res) => {
-    if (!res.ok) {
-      return res.json().then((b) => {
-        throw new Error((b as any).error || '上传失败');
-      }).catch((e) => {
-        if (e.message !== '上传失败') throw new Error(`上传失败 (HTTP ${res.status})`);
-        throw e;
-      });
-    }
-    return res.json();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/marketplace/decks/${deckId}/cover`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    // 不设置 Content-Type，让浏览器自动设置 multipart boundary
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error('解析失败')); }
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new Error(body.error || `上传失败 (HTTP ${xhr.status})`));
+        } catch {
+          reject(new Error(`上传失败 (HTTP ${xhr.status})`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('网络错误'));
+    xhr.send(formData);
   });
 }
 
