@@ -215,7 +215,7 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
               onChange={(e) => setCoverImage(e.target.value)}
               placeholder="https://... 或留空使用默认封面"
               disabled={saving}
-              helperText="可选，留空时使用牌组首张卡片图片"
+              helperText="可选。也可通过编辑按钮上传本地图片"
             />
 
             <Divider />
