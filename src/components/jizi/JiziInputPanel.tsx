@@ -14,6 +14,7 @@ import {
   Stack,
   Divider,
 } from '@mui/material';
+import JiziPresetButton from './JiziPresetButton';
 import type { JiziLayout, JiziDirection, JiziBackground, JiziMatchResult } from '@/types/jizi';
 
 export interface JiziInputPanelProps {
@@ -67,9 +68,12 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
     <Stack spacing={2.5}>
       {/* 文字输入 */}
       <Box>
-        <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
-          集字内容
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            集字内容
+          </Typography>
+          <JiziPresetButton onSelect={onTextChange} />
+        </Box>
         <TextField
           fullWidth
           multiline
