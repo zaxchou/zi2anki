@@ -30,6 +30,7 @@ const JiziPage: React.FC = () => {
   const [switcherIndex, setSwitcherIndex] = useState(-1);
   const [exporting, setExporting] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [scope, setScope] = useState<'mine' | 'all'>('mine');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,7 +48,7 @@ const JiziPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const resp = await fetchJiziMatch(trimmed);
+        const resp = await fetchJiziMatch(trimmed, scope);
         if (cancelled) return;
         setResults(resp.results);
         setSelections(resp.results.map(() => 0));
@@ -63,7 +64,7 @@ const JiziPage: React.FC = () => {
       cancelled = true;
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [text]);
+  }, [text, scope]);
 
   /** 打开选择弹窗 */
   const handleOpenPicker = useCallback((index: number) => {
@@ -140,6 +141,8 @@ const JiziPage: React.FC = () => {
             onTextChange={setText}
             layout={layout}
             onLayoutChange={setLayout}
+            scope={scope}
+            onScopeChange={setScope}
           />
         </Grid>
 

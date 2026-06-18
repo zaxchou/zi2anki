@@ -500,8 +500,8 @@ export function unpublishDeck(deckId: string): Promise<{ ok: true }> {
 import type { JiziMatchResponse } from '@/types/jizi';
 
 /** 集字匹配：输入文字，返回每个字对应的卡片图片列表 */
-export function fetchJiziMatch(text: string): Promise<JiziMatchResponse> {
-  const qs = new URLSearchParams({ text });
+export function fetchJiziMatch(text: string, scope: 'mine' | 'all' = 'mine'): Promise<JiziMatchResponse> {
+  const qs = new URLSearchParams({ text, scope });
   return request<JiziMatchResponse>(`/api/jizi/match?${qs}`);
 }
 

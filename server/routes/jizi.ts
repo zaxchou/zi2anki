@@ -34,6 +34,7 @@ interface JiziMatchResult {
 jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
   try {
     const text = (req.query.text as string || '').trim();
+    const scope = (req.query.scope as string || '').trim() === 'all' ? 'all' : 'mine';
     if (!text) {
       res.json({ results: [], meta: { scanned: 0, ms: 0, unique_chars: 0 } });
       return;
@@ -50,27 +51,9 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const userId = req.user!.userId;
-    const t0 = Date.now();
+    const userId = req.user?.userId;
 
-    const rows = (await db.query(
-      `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
-              d.name AS deck_name,
-              md.style, md.calligrapher
-       FROM cards c
-       JOIN decks d ON d.id = c.deck_id
-       LEFT JOIN marketplace_decks md ON md.deck_id = c.deck_id
-       WHERE c.image_url != ''
-         AND (
-           d.user_id = $1
-           OR EXISTS (
-             SELECT 1 FROM user_subscriptions us
-             WHERE us.user_id = $2 AND us.deck_id = c.deck_id
-           )
-         )
-       ORDER BY c.created_at ASC`,
-      [userId, userId]
-    )).rows as Array<{
+    let rows: Array<{
       id: string;
       deck_id: string;
       front_text: string;
@@ -80,6 +63,41 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
       style: string | null;
       calligrapher: string | null;
     }>;
+
+    if (scope === 'all') {
+      // 查询所有公开牌组的单字卡片
+      rows = (await db.query(
+        `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
+                d.name AS deck_name,
+                md.style, md.calligrapher
+         FROM cards c
+         JOIN decks d ON d.id = c.deck_id
+         LEFT JOIN marketplace_decks md ON md.deck_id = c.deck_id
+         WHERE c.image_url != ''
+           AND d.is_public = 1
+         ORDER BY c.created_at ASC`
+      )).rows as typeof rows;
+    } else {
+      // 默认：只查已订阅 + 自建
+      rows = (await db.query(
+        `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
+                d.name AS deck_name,
+                md.style, md.calligrapher
+         FROM cards c
+         JOIN decks d ON d.id = c.deck_id
+         LEFT JOIN marketplace_decks md ON md.deck_id = c.deck_id
+         WHERE c.image_url != ''
+           AND (
+             d.user_id = $1
+             OR EXISTS (
+               SELECT 1 FROM user_subscriptions us
+               WHERE us.user_id = $2 AND us.deck_id = c.deck_id
+             )
+           )
+         ORDER BY c.created_at ASC`,
+        [userId, userId]
+      )).rows as typeof rows;
+    }
 
     const map = new Map<string, CharHit[]>();
     for (const r of rows) {

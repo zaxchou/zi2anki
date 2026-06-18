@@ -6,6 +6,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Slider,
+  Chip,
   Select,
   MenuItem,
   FormControl,
@@ -20,6 +21,8 @@ export interface JiziInputPanelProps {
   onTextChange: (text: string) => void;
   layout: JiziLayout;
   onLayoutChange: (layout: JiziLayout) => void;
+  scope?: 'mine' | 'all';
+  onScopeChange?: (scope: 'mine' | 'all') => void;
 }
 
 /** 输入区 + 排版控件 */
@@ -28,6 +31,8 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
   onTextChange,
   layout,
   onLayoutChange,
+  scope,
+  onScopeChange,
 }) => {
   const update = (patch: Partial<JiziLayout>) => onLayoutChange({ ...layout, ...patch });
 
@@ -54,6 +59,31 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
       </Box>
 
       <Divider />
+
+      {/* 字库范围 */}
+      {onScopeChange && (
+        <Box>
+          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+            字库范围
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Chip
+              label="已订阅"
+              size="small"
+              variant={scope === 'mine' ? 'filled' : 'outlined'}
+              color={scope === 'mine' ? 'primary' : 'default'}
+              onClick={() => onScopeChange('mine')}
+            />
+            <Chip
+              label="全部公开"
+              size="small"
+              variant={scope === 'all' ? 'filled' : 'outlined'}
+              color={scope === 'all' ? 'primary' : 'default'}
+              onClick={() => onScopeChange('all')}
+            />
+          </Box>
+        </Box>
+      )}
 
       {/* 排版方向 */}
       <Box>
