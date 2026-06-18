@@ -23,6 +23,7 @@ import {
   publishDeck,
   updateMarketplaceDeck,
 } from '@/lib/api';
+import { updateDeckName } from '@/lib/api';
 import type { PublishDeckData, MarketplaceDeck } from '@/types';
 
 /** 书体选项 */
@@ -53,6 +54,10 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
   const [description, setDescription] = useState('');
   const [coverImage, setCoverImage] = useState('');
   const [featured, setFeatured] = useState(false);
+  const [editingDeckName, setEditingDeckName] = useState(deckName);
+
+  // 当 props.deckName 变化时同步
+  useEffect(() => { setEditingDeckName(deckName); }, [deckName]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,6 +110,7 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
     }
     setSaving(true);
     setError(null);
+
     const payload: PublishDeckData = {
       calligrapher: calligrapher.trim(),
       dynasty: dynasty.trim(),
@@ -114,6 +120,11 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       featured,
     };
     try {
+      // 如果牌组名称有变化，先更新
+      if (editingDeckName.trim() !== deckName.trim()) {
+        await updateDeckName(deckId, editingDeckName.trim());
+      }
+
       let result: MarketplaceDeck;
       if (isPublished) {
         result = await updateMarketplaceDeck(deckId, payload);
@@ -131,6 +142,8 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
   }, [
     deckId,
     saving,
+    editingDeckName,
+    deckName,
     calligrapher,
     dynasty,
     style,
@@ -163,6 +176,15 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
                 该牌组已发布到市场，修改将立即生效。
               </Alert>
             )}
+
+            <TextField
+              fullWidth
+              label="牌组名称"
+              value={editingDeckName}
+              onChange={(e) => setEditingDeckName(e.target.value)}
+              disabled={saving}
+              sx={{ mb: 1 }}
+            />
 
             <TextField
               fullWidth

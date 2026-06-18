@@ -666,6 +666,11 @@ const CardManagePage: React.FC = () => {
         <Typography variant="h5" className="font-kai">
           {deck?.name ?? '牌组'}
         </Typography>
+        {deck && isAdmin && (
+          <IconButton size="small" color="inherit" onClick={() => setPublishDialogOpen(true)} aria-label="编辑牌组">
+            <EditIcon fontSize="small" />
+          </IconButton>
+        )}
         {deck && (
           <Chip
             label={`${deck.card_count} 张卡片`}
@@ -1420,6 +1425,11 @@ const CardManagePage: React.FC = () => {
           onPublished={(d) => {
             setPublishedDeck(d);
             setPublishDialogOpen(false);
+            // 刷新牌组列表以获取新的名称
+            fetchDecks().then((decks) => {
+              const updated = decks.find((dk) => dk.id === deck.id);
+              if (updated) setDeck(updated);
+            }).catch(() => {});
           }}
         />
       )}
