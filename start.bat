@@ -1,5 +1,5 @@
 @echo off
-chcp 65001 >nul
+chcp 65001 >nul 2>&1
 cd /d "%~dp0"
 
 echo ========================================
@@ -7,7 +7,7 @@ echo   Zi2Anki - Starting
 echo ========================================
 echo.
 
-REM 杀掉所有 node.exe 进程，防止旧进程占用端口
+REM Kill all node.exe processes first
 echo [0/3] Killing old node processes ...
 taskkill /f /im node.exe >nul 2>&1
 timeout /t 2 /nobreak >nul

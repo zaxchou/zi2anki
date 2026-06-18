@@ -35,6 +35,7 @@ import {
   updateMarketDeck,
   uploadMarketCover,
   getImageUrl,
+  updateDeckName,
 } from '@/lib/api';
 import type { MarketplaceDeck } from '@/types';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
@@ -72,6 +73,7 @@ const EditDeckDialog: React.FC<{
   onSaved: () => void;
 }> = ({ deck, open, onClose, onSaved }) => {
   const [form, setForm] = useState({ calligrapher: '', dynasty: '', style: '', description: '', featured: 0 });
+  const [deckName, setDeckName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -86,6 +88,7 @@ const EditDeckDialog: React.FC<{
         description: deck.description || '',
         featured: deck.featured ?? 0,
       });
+      setDeckName(deck.name || '');
     }
   }, [deck]);
 
@@ -94,6 +97,10 @@ const EditDeckDialog: React.FC<{
     setSaving(true);
     setError(null);
     try {
+      // 如果名称有变化，先更新牌组名称
+      if (deckName.trim() !== (deck.name || '').trim()) {
+        await updateDeckName(deck.deck_id, deckName.trim());
+      }
       await updateMarketDeck(deck.deck_id, form);
       onSaved();
       onClose();
@@ -150,6 +157,13 @@ const EditDeckDialog: React.FC<{
                 }} />
               </Box>
             </Box>
+
+            <TextField
+              fullWidth size="small" label="牌组名称"
+              value={deckName}
+              onChange={(e) => setDeckName(e.target.value)}
+              sx={{ mb: 1 }}
+            />
 
             <TextField
               fullWidth size="small" label="书家"
