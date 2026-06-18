@@ -188,6 +188,7 @@ const JiziPage: React.FC = () => {
               selections={selections}
               layout={layout}
               onOpenPicker={handleOpenPicker}
+              text={text}
             />
           </Box>
 

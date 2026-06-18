@@ -8,14 +8,38 @@ export interface JiziPreviewProps {
   selections: number[];
   layout: JiziLayout;
   onOpenPicker: (index: number) => void;
+  text?: string;
 }
 
-/** 预览区 —— 按方向+列字数渲染网格 */
+/** 将 results 按文本换行分组（有空行时手动分行，否则按 colCount 自动分行） */
+function groupResults(results: JiziMatchResult[], colCount: number, text?: string): JiziMatchResult[][] {
+  // 如果有手动换行（文本中含空行），按空行分组
+  if (text && /\n\s*\n/.test(text)) {
+    const lines = text.split(/\n\s*\n/).filter((l) => l.trim().length > 0);
+    const groups: JiziMatchResult[][] = [];
+    let offset = 0;
+    for (const line of lines) {
+      const chars = Array.from(line).filter((c) => /\p{Script=Han}/u.test(c));
+      groups.push(results.slice(offset, offset + chars.length));
+      offset += chars.length;
+    }
+    return groups.filter((g) => g.length > 0);
+  }
+  // 默认按 colCount 自动分行
+  const groups: JiziMatchResult[][] = [];
+  for (let i = 0; i < results.length; i += colCount) {
+    groups.push(results.slice(i, i + colCount));
+  }
+  return groups;
+}
+
+/** 预览区 —— 按方向+分行渲染网格 */
 const JiziPreview: React.FC<JiziPreviewProps> = ({
   results,
   selections,
   layout,
   onOpenPicker,
+  text,
 }) => {
   const { direction, fontSize, colCount, charGap, lineGap, background } = layout;
 
@@ -40,11 +64,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const cg = Math.round(fontSize * charGap);
   const lg = Math.round(fontSize * lineGap);
 
-  // 分组：竖排每 colCount 字一列，横排每 colCount 字一行
-  const groups: JiziMatchResult[][] = [];
-  for (let i = 0; i < results.length; i += colCount) {
-    groups.push(results.slice(i, i + colCount));
-  }
+  // 分组：手动分行优先，否则按 colCount 自动
+  const groups = groupResults(results, colCount, text);
 
   const isVertical = direction.startsWith('vertical');
   // 列/行是否需要反转（竖排RL：列从右到左；横排RL：行从下到上）
