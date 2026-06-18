@@ -7,6 +7,13 @@ echo   Zi2Anki - Starting
 echo ========================================
 echo.
 
+REM 杀掉所有 node.exe 进程，防止旧进程占用端口
+echo [0/3] Killing old node processes ...
+taskkill /f /im node.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo   Done.
+echo.
+
 set PG_BIN=C:\Program Files\PostgreSQL\16\bin
 
 REM Check PostgreSQL
@@ -21,12 +28,12 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/2] Starting backend (:3001) ...
+echo [1/3] Starting backend (:3001) ...
 start "Zi2Anki-Backend" npx tsx server/index.ts
 
 timeout /t 3 /nobreak >nul
 
-echo [2/2] Starting frontend (:3000) ...
+echo [2/3] Starting frontend (:3000) ...
 start "Zi2Anki-Frontend" npx vite --port 3000
 
 echo.
