@@ -37,7 +37,7 @@ export interface JiziMatchResponse {
 export type JiziDirection = 'vertical-rl' | 'vertical-lr' | 'horizontal-lr' | 'horizontal-rl';
 
 /** 背景类型 */
-export type JiziBackground = 'xuan' | 'white';
+export type JiziBackground = 'xuan' | 'white' | 'ink' | 'vermilion';
 
 /** 排版参数 */
 export interface JiziLayout {

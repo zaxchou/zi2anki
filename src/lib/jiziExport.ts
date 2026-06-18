@@ -47,7 +47,13 @@ export async function exportJiziPNG(
   ctx.scale(dpr, dpr);
 
   // 背景
-  ctx.fillStyle = background === 'xuan' ? '#f5ecd9' : '#ffffff';
+  const bgColors: Record<string, string> = {
+    xuan: '#f5ecd9',
+    white: '#ffffff',
+    ink: '#1a1a1a',
+    vermilion: '#8b0000',
+  };
+  ctx.fillStyle = bgColors[background] || '#ffffff';
   ctx.fillRect(0, 0, totalW, totalH);
 
   // 预加载图片

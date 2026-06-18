@@ -8,7 +8,8 @@ export interface JiziCellProps {
   hits: CharHit[];
   selectedIndex: number;
   fontSize: number;
-  onOpenPicker: () => void;  // 点击直接打开选择弹窗
+  onOpenPicker: () => void;
+  darkMode?: boolean;
 }
 
 /** 单字单元 —— 显示图片 + 来源标注（书家/字帖），点击弹窗选择写法 */
@@ -18,8 +19,17 @@ const JiziCell: React.FC<JiziCellProps> = ({
   selectedIndex,
   fontSize,
   onOpenPicker,
+  darkMode,
 }) => {
   const current = hits.length > 0 ? hits[selectedIndex % hits.length] : null;
+
+  const textColor = darkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary';
+  const subColor = darkMode ? 'rgba(255,255,255,0.45)' : 'text.disabled';
+  const badgeColor = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
+  const badgeBg = darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+  const emptyBg = darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
+  const missingColor = darkMode ? 'rgba(255,255,255,0.3)' : 'text.disabled';
+  const borderColor = darkMode ? 'rgba(255,255,255,0.15)' : 'divider';
 
   return (
     <Box
@@ -40,9 +50,9 @@ const JiziCell: React.FC<JiziCellProps> = ({
           height: fontSize,
           position: 'relative',
           cursor: hits.length > 0 ? 'pointer' : 'default',
-          bgcolor: current ? 'transparent' : 'rgba(0,0,0,0.02)',
+          bgcolor: current ? 'transparent' : emptyBg,
           border: current ? 'none' : '1px dashed',
-          borderColor: 'divider',
+          borderColor: borderColor,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -66,7 +76,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
           <Typography
             sx={{
               fontSize: fontSize * 0.4,
-              color: 'text.disabled',
+              color: missingColor,
               fontFamily: 'serif',
             }}
           >
@@ -82,8 +92,8 @@ const JiziCell: React.FC<JiziCellProps> = ({
               bottom: 1,
               right: 2,
               fontSize: 9,
-              color: 'rgba(0,0,0,0.4)',
-              bgcolor: 'rgba(255,255,255,0.7)',
+              color: badgeColor,
+              bgcolor: badgeBg,
               px: 0.3,
               borderRadius: 0.5,
               lineHeight: 1.2,
@@ -108,7 +118,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
           <Typography
             sx={{
               fontSize: Math.max(9, fontSize * 0.085),
-              color: 'text.secondary',
+              color: textColor,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -119,7 +129,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
           <Typography
             sx={{
               fontSize: Math.max(8, fontSize * 0.075),
-              color: 'text.disabled',
+              color: subColor,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',

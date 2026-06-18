@@ -51,17 +51,25 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const needsReversed = direction.endsWith('rl');
   const orderedGroups = needsReversed ? [...groups].reverse() : groups;
 
+  const bgColors: Record<string, string> = {
+    xuan: '#f5ecd9',
+    white: '#ffffff',
+    ink: '#1a1a1a',
+    vermilion: '#8b0000',
+  };
+
+  const isDark = background === 'ink' || background === 'vermilion';
+
   return (
     <Box
       sx={{
         display: 'flex',
         flexDirection: isVertical ? 'row' : 'column',
-        bgcolor: background === 'xuan' ? '#f5ecd9' : '#ffffff',
+        bgcolor: bgColors[background] || '#ffffff',
         borderRadius: 1,
         p: 2,
         overflow: 'auto',
         minHeight: 300,
-        // 宣纸纹理
         backgroundImage:
           background === 'xuan'
             ? 'radial-gradient(ellipse at top, rgba(255,250,240,0.3), transparent 60%)'
@@ -96,6 +104,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
                     selectedIndex={selections[globalIndex] ?? 0}
                     fontSize={fontSize}
                     onOpenPicker={() => onOpenPicker(globalIndex)}
+                    darkMode={isDark}
                   />
                 </Box>
               );

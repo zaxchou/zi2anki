@@ -5,6 +5,7 @@ import {
   Typography,
   ToggleButtonGroup,
   ToggleButton,
+  Slider,
   Select,
   MenuItem,
   FormControl,
@@ -108,16 +109,18 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
         <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
           字距
         </Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layout.charGap}
-          onChange={(_, v: number | null) => v && update({ charGap: v })}
-        >
-          <ToggleButton value={0.05}>紧凑</ToggleButton>
-          <ToggleButton value={0.15}>标准</ToggleButton>
-          <ToggleButton value={0.30}>宽松</ToggleButton>
-        </ToggleButtonGroup>
+        <Box sx={{ px: 1 }}>
+          <Slider
+            size="small"
+            min={0}
+            max={0.4}
+            step={0.02}
+            value={layout.charGap}
+            onChange={(_, v) => update({ charGap: v as number })}
+            valueLabelDisplay="auto"
+            valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+          />
+        </Box>
       </Box>
 
       {/* 行距 */}
@@ -125,16 +128,18 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
         <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
           行距
         </Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layout.lineGap}
-          onChange={(_, v: number | null) => v && update({ lineGap: v })}
-        >
-          <ToggleButton value={0.10}>紧凑</ToggleButton>
-          <ToggleButton value={0.25}>标准</ToggleButton>
-          <ToggleButton value={0.50}>宽松</ToggleButton>
-        </ToggleButtonGroup>
+        <Box sx={{ px: 1 }}>
+          <Slider
+            size="small"
+            min={0}
+            max={0.6}
+            step={0.02}
+            value={layout.lineGap}
+            onChange={(_, v) => update({ lineGap: v as number })}
+            valueLabelDisplay="auto"
+            valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+          />
+        </Box>
       </Box>
 
       {/* 背景 */}
@@ -150,6 +155,8 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
         >
           <ToggleButton value="xuan">宣纸</ToggleButton>
           <ToggleButton value="white">纯白</ToggleButton>
+          <ToggleButton value="ink">墨色</ToggleButton>
+          <ToggleButton value="vermilion">朱砂</ToggleButton>
         </ToggleButtonGroup>
       </Box>
     </Stack>
