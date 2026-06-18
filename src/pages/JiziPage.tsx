@@ -11,7 +11,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import JiziInputPanel from '@/components/jizi/JiziInputPanel';
 import JiziPreview from '@/components/jizi/JiziPreview';
-import JiziSwitcherDialog from '@/components/jizi/JiziSwitcherDialog';
+import JiziSwitcherSheet from '@/components/jizi/JiziSwitcherSheet';
 import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
 import { fetchJiziMatch } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
@@ -183,7 +183,7 @@ const JiziPage: React.FC = () => {
       </Grid>
 
       {/* 切换弹窗 */}
-      <JiziSwitcherDialog
+      <JiziSwitcherSheet
         open={switcherOpen}
         result={switcherIndex >= 0 ? results[switcherIndex] : null}
         selectedIndex={switcherIndex >= 0 ? selections[switcherIndex] ?? 0 : 0}
