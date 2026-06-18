@@ -52,6 +52,7 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
 
     const db = getDb();
     const userId = req.user?.userId;
+    const t0 = Date.now();
 
     let rows: Array<{
       id: string;

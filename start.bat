@@ -55,7 +55,7 @@ set NODE=%USERPROFILE%\.workbuddy\binaries\node\versions\22.22.2\node.exe
 
 echo [2/4] Starting backend (:3001) ...
 :: 使用 node --import tsx（不用 tsx CLI），避免 tsx 缓存问题
-start "Zi2Anki-Backend" "%NODE%" "--import" "tsx" "server/index.ts"
+start "Zi2Anki-Backend" "%NODE%" "--import" "tsx/register" "server/index.ts"
 
 :: 等待后端就绪（固定等 8 秒，简单可靠）
 echo   Waiting for backend...
