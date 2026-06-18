@@ -8,9 +8,11 @@ import {
   Alert,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import JiziInputPanel from '@/components/jizi/JiziInputPanel';
 import JiziPreview from '@/components/jizi/JiziPreview';
 import JiziSwitcherDialog from '@/components/jizi/JiziSwitcherDialog';
+import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
 import { fetchJiziMatch } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
 import { DEFAULT_LAYOUT } from '@/types/jizi';
@@ -27,6 +29,7 @@ const JiziPage: React.FC = () => {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherIndex, setSwitcherIndex] = useState(-1);
   const [exporting, setExporting] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -105,15 +108,26 @@ const JiziPage: React.FC = () => {
             从字库中匹配汉字，拼成书法作品
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-          onClick={handleExport}
-          disabled={!hasResults || exporting}
-          sx={{ textTransform: 'none' }}
-        >
-          {exporting ? '导出中...' : '导出 PNG'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FullscreenIcon />}
+            onClick={() => setFullscreenOpen(true)}
+            disabled={!hasResults}
+            sx={{ textTransform: 'none' }}
+          >
+            全屏预览
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+            onClick={handleExport}
+            disabled={!hasResults || exporting}
+            sx={{ textTransform: 'none' }}
+          >
+            {exporting ? '导出中...' : '导出 PNG'}
+          </Button>
+        </Box>
       </Box>
 
       {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
@@ -175,6 +189,18 @@ const JiziPage: React.FC = () => {
         selectedIndex={switcherIndex >= 0 ? selections[switcherIndex] ?? 0 : 0}
         onPick={handleSwitcherPick}
         onClose={() => setSwitcherOpen(false)}
+      />
+
+      {/* 全屏预览 */}
+      <JiziFullscreenPreview
+        open={fullscreenOpen}
+        onClose={() => setFullscreenOpen(false)}
+        results={results}
+        selections={selections}
+        layout={layout}
+        onOpenPicker={handleOpenPicker}
+        onExport={handleExport}
+        exporting={exporting}
       />
     </Box>
   );
