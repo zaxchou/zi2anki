@@ -80,8 +80,9 @@ cardsRouter.get('/decks/:deckId/cards', async (req: Request, res: Response) => {
     const db = getDb();
 
     // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
-    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
-    const isSubscribed = (await db.query(
+    const isAdmin = req.user!.role === 'admin';
+    const isOwner = isAdmin ? true : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    const isSubscribed = isAdmin ? true : (await db.query(
       'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
       [req.user!.userId, deckId]
     )).rows[0];
@@ -116,9 +117,11 @@ cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => 
     }
 
     const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
 
-    // 验证牌组存在且属于当前用户
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    // 验证牌组存在且当前用户有权操作
+    const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
+      : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -185,9 +188,11 @@ cardsRouter.post(
     try {
       const { deckId } = req.params as { deckId: string };
       const db = getDb();
+      const isAdmin = req.user!.role === 'admin';
 
-      // 验证牌组存在且属于当前用户
-      const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+      // 验证牌组存在且当前用户有权操作
+      const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
+        : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
       if (!deck) {
         // 清理已上传的文件
         const files = req.files as Express.Multer.File[] | undefined;
@@ -290,7 +295,9 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Re
     }
 
     const db = getDb();
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    const isAdmin = req.user!.role === 'admin';
+    const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
+      : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -362,13 +369,13 @@ cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
       [userId, existing.deck_id]
     )).rows[0];
 
-    if (!isOwner && !isSubscribed) {
+    if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
       res.status(404).json({ error: 'Card not found' });
       return;
     }
 
-    // 订阅用户仅可更新 SM-2 进度字段，不能修改卡片内容
-    const isSubscribedOnly = !isOwner && isSubscribed;
+    // 订阅用户仅可更新 SM-2 进度字段，不能修改卡片内容；admin 不受限
+    const isSubscribedOnly = !isOwner && isSubscribed && req.user!.role !== 'admin';
 
     const {
       front_text,

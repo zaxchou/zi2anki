@@ -57,7 +57,7 @@ import {
 import type { Card, Deck, MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
-import PublishDialog from '@/components/market/PublishDialog';
+import EditDeckDialog from '@/components/market/EditDeckDialog';
 
 const PAGE_SIZE = 20;
 
@@ -1417,13 +1417,14 @@ const CardManagePage: React.FC = () => {
 
       {/* 发布到市场弹窗（仅管理员） */}
       {isAdmin && deck && (
-        <PublishDialog
+        <EditDeckDialog
           open={publishDialogOpen}
           deckId={deck.id}
           deckName={deck.name}
+          publishMode={true}
           onClose={() => setPublishDialogOpen(false)}
-          onPublished={(d) => {
-            setPublishedDeck(d);
+          onSaved={(d) => {
+            if (d) setPublishedDeck(d as MarketplaceDeck);
             setPublishDialogOpen(false);
             // 刷新牌组列表以获取新的名称
             fetchDecks().then((decks) => {

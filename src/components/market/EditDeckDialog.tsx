@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -22,37 +22,44 @@ import {
   fetchMarketplaceDeck,
   publishDeck,
   updateMarketplaceDeck,
+  updateDeckName,
+  uploadMarketCover,
+  getImageUrl,
 } from '@/lib/api';
-import { updateDeckName } from '@/lib/api';
 import type { PublishDeckData, MarketplaceDeck } from '@/types';
 
-/** 书体选项 */
-const STYLE_OPTIONS = ['楷', '行', '草', '隶', '篆'] as const;
+/** 书体选项（含空值=无） */
+const STYLE_OPTIONS = ['', '楷', '行', '草', '隶', '篆'] as const;
 
-export interface PublishDialogProps {
+export interface EditDeckDialogProps {
   open: boolean;
   deckId: string | null;
   deckName: string;
   onClose: () => void;
-  onPublished: (deck: MarketplaceDeck) => void;
+  onSaved: (deck?: MarketplaceDeck) => void;
+  /** true = 发布模式（"发布到市场"/"编辑市场信息"标题，书家必填）
+   *  false = 仅编辑模式（"编辑牌组信息"标题，无必填） */
+  publishMode?: boolean;
 }
 
 /**
- * 管理员发布牌组到市场的对话框。
- * 打开时若该牌组已发布，则加载现有元数据回填。
+ * 统一牌组编辑对话框。
+ * 同时支持发布到市场（publishMode=true）和编辑已有市场信息（publishMode=false）。
+ * 封面图同时支持 URL 输入和本地文件上传。
  */
-const PublishDialog: React.FC<PublishDialogProps> = ({
+const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
   open,
   deckId,
   deckName,
   onClose,
-  onPublished,
+  onSaved,
+  publishMode = false,
 }) => {
   const [calligrapher, setCalligrapher] = useState('');
   const [dynasty, setDynasty] = useState('');
-  const [style, setStyle] = useState<string>('楷');
+  const [style, setStyle] = useState<string>('');
   const [description, setDescription] = useState('');
-  const [coverImage, setCoverImage] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
   const [featured, setFeatured] = useState(false);
   const [editingDeckName, setEditingDeckName] = useState(deckName);
 
@@ -61,8 +68,11 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coverSuccess, setCoverSuccess] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /** 加载已发布元数据 */
   const loadExisting = useCallback(async (id: string) => {
@@ -73,14 +83,13 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       setIsPublished(true);
       setCalligrapher(data.calligrapher || '');
       setDynasty(data.dynasty || '');
-      setStyle(data.style || '楷');
+      setStyle(data.style || '');
       setDescription(data.description || '');
-      setCoverImage(data.cover_image || '');
+      setCoverImageUrl(data.cover_image || '');
       setFeatured(data.featured === 1);
-    } catch (err) {
+    } catch {
       // 未发布或不存在的市场牌组：视为新发布
       setIsPublished(false);
-      // 静默忽略错误
     } finally {
       setLoading(false);
     }
@@ -91,20 +100,38 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       // 重置状态
       setCalligrapher('');
       setDynasty('');
-      setStyle('楷');
+      setStyle('');
       setDescription('');
-      setCoverImage('');
+      setCoverImageUrl('');
       setFeatured(false);
       setError(null);
+      setCoverSuccess(false);
       setIsPublished(false);
       loadExisting(deckId);
     }
   }, [open, deckId, loadExisting]);
 
+  /** 封面文件上传 */
+  const handleCoverUpload = useCallback(async (file: File) => {
+    if (!deckId) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await uploadMarketCover(deckId, file);
+      setCoverImageUrl(result.cover_image);
+      setCoverSuccess(true);
+      setTimeout(() => setCoverSuccess(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '封面上传失败');
+    } finally {
+      setUploading(false);
+    }
+  }, [deckId]);
+
   /** 保存 */
   const handleSave = useCallback(async () => {
     if (!deckId || saving) return;
-    if (!calligrapher.trim()) {
+    if (publishMode && !calligrapher.trim()) {
       setError('请填写书家');
       return;
     }
@@ -116,9 +143,10 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       dynasty: dynasty.trim(),
       style,
       description: description.trim(),
-      cover_image: coverImage.trim(),
+      cover_image: coverImageUrl.trim(),
       featured,
     };
+
     try {
       // 如果牌组名称有变化，先更新
       if (editingDeckName.trim() !== deckName.trim()) {
@@ -132,7 +160,7 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
         result = await publishDeck(deckId, payload);
       }
       setIsPublished(true);
-      onPublished(result);
+      onSaved(result);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存失败');
@@ -140,25 +168,18 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       setSaving(false);
     }
   }, [
-    deckId,
-    saving,
-    editingDeckName,
-    deckName,
-    calligrapher,
-    dynasty,
-    style,
-    description,
-    coverImage,
-    featured,
-    isPublished,
-    onPublished,
-    onClose,
+    deckId, saving, publishMode,
+    calligrapher, dynasty, style, description, coverImageUrl, featured,
+    editingDeckName, deckName, isPublished, onSaved, onClose,
   ]);
 
   return (
-    <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={saving || uploading ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pb: 1 }}>
-        {isPublished ? '编辑市场信息' : '发布到市场'}
+        {publishMode
+          ? (isPublished ? '编辑市场信息' : '发布到市场')
+          : '编辑牌组信息'
+        }
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
           牌组：{deckName}
         </Typography>
@@ -171,24 +192,73 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
         ) : (
           <Box className="space-y-3">
             {error && <Alert severity="error">{error}</Alert>}
-            {isPublished && (
+            {coverSuccess && <Alert severity="success" sx={{ py: 0.5 }}>封面图上传成功</Alert>}
+            {isPublished && publishMode && (
               <Alert severity="info" sx={{ py: 0.5 }}>
                 该牌组已发布到市场，修改将立即生效。
               </Alert>
             )}
 
+            {/* 牌组名称 */}
             <TextField
               fullWidth
               label="牌组名称"
               value={editingDeckName}
               onChange={(e) => setEditingDeckName(e.target.value)}
               disabled={saving}
-              sx={{ mb: 1 }}
             />
 
+            {/* 封面图 */}
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: 13 }}>
+                封面图
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 100, height: 70, borderRadius: 1, overflow: 'hidden',
+                    bgcolor: 'grey.100', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    border: 1, borderColor: 'divider',
+                  }}
+                >
+                  {coverImageUrl ? (
+                    <Box component="img" src={getImageUrl(coverImageUrl)} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Typography fontSize={11} color="text.disabled">无封面</Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box component="label" sx={{ cursor: 'pointer', fontSize: 13, color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}>
+                    {uploading ? '上传中...' : '上传本地图片'}
+                    <input
+                      ref={fileInputRef}
+                      type="file" accept="image/*" hidden
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleCoverUpload(f);
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+              <TextField
+                fullWidth
+                size="small"
+                label="或输入封面图 URL"
+                value={coverImageUrl}
+                onChange={(e) => setCoverImageUrl(e.target.value)}
+                disabled={saving || uploading}
+                placeholder="https://..."
+              />
+            </Box>
+
+            <Divider />
+
+            {/* 书家 */}
             <TextField
               fullWidth
-              required
+              required={publishMode}
               label="书家"
               value={calligrapher}
               onChange={(e) => setCalligrapher(e.target.value)}
@@ -196,6 +266,7 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
               disabled={saving}
             />
 
+            {/* 朝代 */}
             <TextField
               fullWidth
               label="朝代"
@@ -205,6 +276,7 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
               disabled={saving}
             />
 
+            {/* 书体 */}
             <FormControl fullWidth disabled={saving}>
               <InputLabel>书体</InputLabel>
               <Select
@@ -213,11 +285,12 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
                 onChange={(e) => setStyle(e.target.value)}
               >
                 {STYLE_OPTIONS.map((s) => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                  <MenuItem key={s} value={s}>{s || '无'}</MenuItem>
                 ))}
               </Select>
             </FormControl>
 
+            {/* 简介 */}
             <TextField
               fullWidth
               multiline
@@ -230,18 +303,8 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
               disabled={saving}
             />
 
-            <TextField
-              fullWidth
-              label="封面图 URL"
-              value={coverImage}
-              onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="https://... 或留空使用默认封面"
-              disabled={saving}
-              helperText="可选。也可通过编辑按钮上传本地图片"
-            />
-
+            {/* 推荐状态 */}
             <Divider />
-
             <FormControlLabel
               control={
                 <Switch
@@ -266,13 +329,13 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={saving} color="inherit">
+        <Button onClick={onClose} disabled={saving || uploading} color="inherit">
           取消
         </Button>
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={loading || saving || !calligrapher.trim()}
+          disabled={loading || saving || uploading || (publishMode && !calligrapher.trim())}
           startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
           {saving ? '保存中...' : isPublished ? '保存修改' : '发布'}
@@ -282,4 +345,4 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
   );
 };
 
-export default PublishDialog;
+export default EditDeckDialog;

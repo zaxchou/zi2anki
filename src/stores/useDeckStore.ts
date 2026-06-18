@@ -20,7 +20,7 @@ interface DeckStore {
   error: string | null;
 
   /** 从服务端加载所有牌组 */
-  loadDecks: () => Promise<void>;
+  loadDecks: (subscribedOnly?: boolean) => Promise<void>;
   /** 创建新牌组 */
   createDeck: (name: string) => Promise<Deck | null>;
   /** 重命名牌组 */
@@ -38,10 +38,10 @@ export const useDeckStore = create<DeckStore>((set) => ({
   loading: false,
   error: null,
 
-  loadDecks: async () => {
+  loadDecks: async (subscribedOnly?: boolean) => {
     set({ loading: true, error: null });
     try {
-      const decks = await fetchDecks();
+      const decks = await fetchDecks(subscribedOnly);
       set({ decks, loading: false });
     } catch (err) {
       const message =

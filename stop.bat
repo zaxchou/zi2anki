@@ -1,7 +1,8 @@
 @echo off
 echo Stopping Zi2Anki...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" 2^>nul') do taskkill /f /pid %%a >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001" 2^>nul') do taskkill /f /pid %%a >nul 2>&1
-taskkill /f /fi "WINDOWTITLE eq Zi2Anki*" >nul 2>&1
+:: 通过窗口名精确杀进程（只杀本应用启动的进程）
+taskkill /f /fi "WINDOWTITLE eq Zi2Anki-Backend" >nul 2>&1
+taskkill /f /fi "WINDOWTITLE eq Zi2Anki-Frontend" >nul 2>&1
+timeout /t 2 /nobreak >nul
 echo Done.
 pause

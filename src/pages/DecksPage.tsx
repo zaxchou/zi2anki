@@ -25,6 +25,7 @@ import AddIcon from '@mui/icons-material/Add';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import { useDeckStore } from '@/stores/useDeckStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import EditDeckDialog from '@/components/market/EditDeckDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 
 /**
@@ -39,10 +40,8 @@ const DecksPage: React.FC = () => {
   const [newDeckName, setNewDeckName] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // 重命名对话框状态
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
-  const [renameNewName, setRenameNewName] = useState('');
+  // 编辑对话框状态
+  const [editTarget, setEditTarget] = useState<{ id: string; name: string } | null>(null);
 
   // 删除确认对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -72,28 +71,9 @@ const DecksPage: React.FC = () => {
     [handleCreate]
   );
 
-  /** 打开重命名对话框 */
-  const handleOpenRename = useCallback((id: string, currentName: string) => {
-    setRenameTargetId(id);
-    setRenameNewName(currentName);
-    setRenameDialogOpen(true);
-  }, []);
-
-  /** 确认重命名 */
-  const handleConfirmRename = useCallback(async () => {
-    if (renameTargetId && renameNewName.trim()) {
-      await renameDeck(renameTargetId, renameNewName.trim());
-    }
-    setRenameDialogOpen(false);
-    setRenameTargetId(null);
-    setRenameNewName('');
-  }, [renameTargetId, renameNewName, renameDeck]);
-
-  /** 取消重命名 */
-  const handleCancelRename = useCallback(() => {
-    setRenameDialogOpen(false);
-    setRenameTargetId(null);
-    setRenameNewName('');
+  /** 打开编辑对话框 */
+  const handleOpenEdit = useCallback((id: string, name: string) => {
+    setEditTarget({ id, name });
   }, []);
 
   /** 打开删除确认对话框 */
@@ -186,7 +166,7 @@ const DecksPage: React.FC = () => {
                       aria-label={`重命名 ${deck.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenRename(deck.id, deck.name);
+                        handleOpenEdit(deck.id, deck.name);
                       }}
                       size="small"
                       className="mr-1"
@@ -227,43 +207,15 @@ const DecksPage: React.FC = () => {
         </Card>
       )}
 
-      {/* 重命名对话框 */}
-      <Dialog
-        open={renameDialogOpen}
-        onClose={handleCancelRename}
-        aria-labelledby="rename-dialog-title"
-      >
-        <DialogTitle id="rename-dialog-title">重命名牌组</DialogTitle>
-        <DialogContent>
-          <DialogContentText className="mb-3">
-            请输入新的牌组名称：
-          </DialogContentText>
-          <TextField
-            autoFocus
-            fullWidth
-            value={renameNewName}
-            onChange={(e) => setRenameNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleConfirmRename();
-              else if (e.key === 'Escape') handleCancelRename();
-            }}
-            placeholder="牌组名称"
-            inputProps={{ maxLength: 50 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelRename} color="inherit">
-            取消
-          </Button>
-          <Button
-            onClick={handleConfirmRename}
-            variant="contained"
-            disabled={!renameNewName.trim()}
-          >
-            确认
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* 编辑对话框 */}
+      <EditDeckDialog
+        deckId={editTarget?.id ?? null}
+        deckName={editTarget?.name ?? ''}
+        open={!!editTarget}
+        publishMode={false}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => { setEditTarget(null); loadDecks(); }}
+      />
 
       {/* 删除确认对话框 */}
       <ConfirmDialog

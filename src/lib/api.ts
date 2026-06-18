@@ -54,8 +54,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ===== 牌组 API =====
 
-export function fetchDecks(): Promise<Deck[]> {
-  return request<Deck[]>('/api/decks');
+export function fetchDecks(subscribedOnly?: boolean): Promise<Deck[]> {
+  const qs = subscribedOnly ? '?subscribed=1' : '';
+  return request<Deck[]>(`/api/decks${qs}`);
 }
 
 export function createDeck(name: string): Promise<Deck> {

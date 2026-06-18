@@ -106,10 +106,10 @@ const AnalyticsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  // 加载牌组
+  // 加载牌组（仅已订阅的，用于下拉选择）
   useEffect(() => {
     const init = async () => {
-      await loadDecks();
+      await loadDecks(true);
       setReady(true);
     };
     init();

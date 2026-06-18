@@ -43,7 +43,7 @@ const DashboardPage: React.FC = () => {
   const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadDecks();
+    loadDecks(true);
   }, [loadDecks]);
 
   /** 确认重置进度 */
@@ -53,7 +53,7 @@ const DashboardPage: React.FC = () => {
     try {
       const res = await resetDeckProgress(resetTarget.id);
       console.log('[Dashboard] 重置成功:', res);
-      await loadDecks();
+      await loadDecks(true);
     } catch (err) {
       console.error('[Dashboard] 重置失败:', err);
       setResetError(err instanceof Error ? err.message : '重置失败');
@@ -69,7 +69,7 @@ const DashboardPage: React.FC = () => {
         <Alert severity="error" className="mb-4">
           {error}
         </Alert>
-        <Button variant="outlined" onClick={() => loadDecks()}>
+        <Button variant="outlined" onClick={() => loadDecks(true)}>
           重试
         </Button>
       </Box>
@@ -146,7 +146,7 @@ const DashboardPage: React.FC = () => {
                           {deck.card_count} 张
                         </Typography>
                         <Chip
-                          label={deck.card_count > 0 ? (reviewProgress > 0 ? `${reviewProgress}%` : '新牌组') : '空'}
+                          label={deck.card_count > 0 ? ((deck.new_count ?? deck.card_count) < deck.card_count ? `${reviewProgress}%` : '新牌组') : '空'}
                           size="small"
                           sx={{
                             fontSize: 11,
@@ -173,7 +173,7 @@ const DashboardPage: React.FC = () => {
                 </CardContent>
                 <Box className="px-4 pt-0 pb-1">
                   <Typography variant="caption" color="text.secondary">
-                    新卡 {deck.daily_new_card_limit ?? 20} · 复习 {deck.daily_review_limit ?? 200}
+                    新卡 {(deck as any).new_available_today ?? deck.daily_new_card_limit ?? 20} · 复习 {(deck as any).due_count ?? 0}
                   </Typography>
                 </Box>
                 <CardActions className="flex items-center px-4 pt-1 pb-3 gap-1">

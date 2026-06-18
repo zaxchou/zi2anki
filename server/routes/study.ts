@@ -53,10 +53,11 @@ studyRouter.post('/study-sessions', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
 
     // 验证牌组存在且当前用户有权访问（通过订阅或所有权）
-    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deck_id, req.user!.userId])).rows[0];
-    const isSubscribed = (await db.query(
+    const isOwner = isAdmin ? true : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deck_id, req.user!.userId])).rows[0];
+    const isSubscribed = isAdmin ? true : (await db.query(
       'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
       [req.user!.userId, deck_id]
     )).rows[0];
@@ -284,16 +285,17 @@ studyRouter.get('/due-counts', async (req: Request, res: Response) => {
       rows = entry.data as typeof rows;
     } else {
       const db = getDb();
+      const isAdmin = req.user!.role === 'admin';
       const r = await db.query(
         `SELECT d.id, d.name, COUNT(c.id) as due_count
          FROM decks d
-         LEFT JOIN cards c ON c.deck_id = d.id
-         LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $1
+         INNER JOIN cards c ON c.deck_id = d.id
+         INNER JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $1
          LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = $2
-         WHERE (d.user_id = $3 OR us.user_id = $4)
-           AND ucp.interval > 0 AND ucp.next_review <= $5
+         WHERE (d.user_id = $3 OR us.user_id = $4 OR $5)
+           AND ucp.interval > 0 AND ucp.next_review <= $6
          GROUP BY d.id, d.name ORDER BY d.created_at DESC`,
-        [userId, userId, userId, userId, now]
+        [userId, userId, userId, userId, isAdmin, now]
       );
       rows = r.rows as typeof rows;
       cache.set(cacheKey, { data: rows, expiresAt: Date.now() + 30_000 });

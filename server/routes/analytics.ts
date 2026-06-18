@@ -3,99 +3,68 @@ import { getDb } from '../db.js';
 
 export const analyticsRouter = Router();
 
-// GET /api/analytics/:deckId/card-status —— 卡片状态分布
+// GET /api/analytics/:deckId/card-status —— 卡片状态分布（从 user_card_progress 读取真实 SM-2 数据）
 analyticsRouter.get('/analytics/:deckId/card-status', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
 
-    // 验证牌组属于当前用户
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    // 验证牌组存在
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, isAdmin])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
-    // New: interval = 0
-    const newCount = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval = 0',
-      [deckId]
-    )).rows[0] as { cnt: number };
+    // 从 user_card_progress 读取真实 SM-2 状态；无进度记录的卡片算 New
+    const { rows } = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE ucp.card_id IS NULL OR ucp.interval = 0) AS "new",
+         COUNT(*) FILTER (WHERE ucp.interval > 0 AND ucp.interval <= 10) AS learning,
+         COUNT(*) FILTER (WHERE ucp.interval > 10 AND ucp.interval < 30240) AS young,
+         COUNT(*) FILTER (WHERE ucp.interval >= 30240) AS mature
+       FROM cards c
+       LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $1
+       WHERE c.deck_id = $2`,
+      [req.user!.userId, deckId]
+    );
 
-    // Learning: interval > 0 且未毕业（≤ 学习阶梯最大值）
-    const learningCount = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND interval <= 10',
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    // Review (young): 已毕业 + interval < 21 days (30240 min)
-    const youngCount = (await db.query(
-      `SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 
-       AND interval > 10 AND interval < 30240`,
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    // Mature: interval >= 21 days
-    const matureCount = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval >= 30240',
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    res.json({
-      new: newCount.cnt,
-      learning: learningCount.cnt,
-      young: youngCount.cnt,
-      mature: matureCount.cnt,
-    });
+    res.json(rows[0]);
   } catch (err) {
     console.error('GET /analytics/:deckId/card-status error:', err);
     res.status(500).json({ error: 'Failed to fetch card status' });
   }
 });
 
-// GET /api/analytics/:deckId/difficulty —— 难度分布（按 ease 因子）
+// GET /api/analytics/:deckId/difficulty —— 难度分布（从 user_card_progress 读取真实 ease 因子）
 analyticsRouter.get('/analytics/:deckId/difficulty', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
 
-    // 验证牌组属于当前用户
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    // 验证牌组存在
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, isAdmin])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
-    // Hard: ease <= 1.8
-    const hard = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease <= 1.8',
-      [deckId]
-    )).rows[0] as { cnt: number };
+    // 从 user_card_progress 读取 ease 分布；无进度记录算 unreviewed
+    const { rows } = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE ucp.card_id IS NOT NULL AND ucp.interval > 0 AND ucp.ease <= 1.8) AS hard,
+         COUNT(*) FILTER (WHERE ucp.card_id IS NOT NULL AND ucp.interval > 0 AND ucp.ease > 1.8 AND ucp.ease < 2.3) AS medium,
+         COUNT(*) FILTER (WHERE ucp.card_id IS NOT NULL AND ucp.interval > 0 AND ucp.ease >= 2.3) AS easy,
+         COUNT(*) FILTER (WHERE ucp.card_id IS NULL OR ucp.interval = 0) AS unreviewed
+       FROM cards c
+       LEFT JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $1
+       WHERE c.deck_id = $2`,
+      [req.user!.userId, deckId]
+    );
 
-    // Medium: 1.8 < ease < 2.3
-    const medium = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease > 1.8 AND ease < 2.3',
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    // Easy: ease >= 2.3 (only reviewed cards)
-    const easy = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval > 0 AND ease >= 2.3',
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    // Not yet reviewed (interval = 0)
-    const newCards = (await db.query(
-      'SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND interval = 0',
-      [deckId]
-    )).rows[0] as { cnt: number };
-
-    res.json({
-      hard: hard.cnt,
-      medium: medium.cnt,
-      easy: easy.cnt,
-      unreviewed: newCards.cnt,
-    });
+    res.json(rows[0]);
   } catch (err) {
     console.error('GET /analytics/:deckId/difficulty error:', err);
     res.status(500).json({ error: 'Failed to fetch difficulty' });
@@ -108,8 +77,8 @@ analyticsRouter.get('/analytics/:deckId/ratings', async (req: Request, res: Resp
     const { deckId } = req.params;
     const db = getDb();
 
-    // 验证牌组属于当前用户
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    // 验证牌组存在
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, req.user!.role === 'admin'])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;

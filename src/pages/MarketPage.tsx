@@ -32,12 +32,11 @@ import {
   fetchMarketplaceDecks,
   subscribeDeck,
   unsubscribeDeck,
-  updateMarketDeck,
-  uploadMarketCover,
   getImageUrl,
-  updateDeckName,
 } from '@/lib/api';
 import type { MarketplaceDeck } from '@/types';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import EditDeckDialog from '@/components/market/EditDeckDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -63,156 +62,7 @@ const CoverPlaceholder: React.FC<{ name: string }> = ({ name }) => (
   </Box>
 );
 
-/** 编辑弹窗（仅 admin） */
-const STYLE_OPTIONS_FULL = ['', '楷', '行', '草', '隶', '篆'];
-
-const EditDeckDialog: React.FC<{
-  deck: MarketplaceDeck | null;
-  open: boolean;
-  onClose: () => void;
-  onSaved: () => void;
-}> = ({ deck, open, onClose, onSaved }) => {
-  const [form, setForm] = useState({ calligrapher: '', dynasty: '', style: '', description: '', featured: 0 });
-  const [deckName, setDeckName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  useEffect(() => {
-    if (deck) {
-      setForm({
-        calligrapher: deck.calligrapher || '',
-        dynasty: deck.dynasty || '',
-        style: deck.style || '',
-        description: deck.description || '',
-        featured: deck.featured ?? 0,
-      });
-      setDeckName(deck.name || '');
-    }
-  }, [deck]);
-
-  const handleSave = async () => {
-    if (!deck) return;
-    setSaving(true);
-    setError(null);
-    try {
-      // 如果名称有变化，先更新牌组名称
-      if (deckName.trim() !== (deck.name || '').trim()) {
-        await updateDeckName(deck.deck_id, deckName.trim());
-      }
-      await updateMarketDeck(deck.deck_id, form);
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCoverUpload = async (file: File) => {
-    if (!deck) return;
-    setUploading(true);
-    setError(null);
-    try {
-      await uploadMarketCover(deck.deck_id, file);
-      onSaved();
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 2000); // 2 秒后自动消失
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '上传失败');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>编辑字帖信息</DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {success && <Alert severity="success" sx={{ mb: 2 }}>封面图上传成功</Alert>}
-        {deck && (
-          <Box className="space-y-3" sx={{ mt: 1 }}>
-            {/* 封面预览 + 换图 */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-              <Box
-                sx={{
-                  width: 100, height: 70, borderRadius: 1, overflow: 'hidden',
-                  bgcolor: 'grey.100', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}
-              >
-                {deck.cover_image ? (
-                  <Box component="img" src={getImageUrl(deck.cover_image)} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <Typography fontSize={11} color="text.disabled">无封面</Typography>
-                )}
-              </Box>
-              <Box component="label" sx={{ cursor: 'pointer', fontSize: 13, color: 'primary.main' }}>
-                {uploading ? '上传中...' : '上传封面图'}
-                <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleCoverUpload(f);
-                }} />
-              </Box>
-            </Box>
-
-            <TextField
-              fullWidth size="small" label="牌组名称"
-              value={deckName}
-              onChange={(e) => setDeckName(e.target.value)}
-              sx={{ mb: 1 }}
-            />
-
-            <TextField
-              fullWidth size="small" label="书家"
-              value={form.calligrapher}
-              onChange={(e) => setForm({ ...form, calligrapher: e.target.value })}
-            />
-            <TextField
-              fullWidth size="small" label="朝代"
-              value={form.dynasty}
-              onChange={(e) => setForm({ ...form, dynasty: e.target.value })}
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel>书体</InputLabel>
-              <Select
-                value={form.style}
-                label="书体"
-                onChange={(e) => setForm({ ...form, style: e.target.value })}
-              >
-                {STYLE_OPTIONS_FULL.map((s) => <MenuItem key={s} value={s}>{s || '无'}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth size="small" label="描述" multiline rows={3}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel>推荐状态</InputLabel>
-              <Select
-                value={form.featured}
-                label="推荐状态"
-                onChange={(e) => setForm({ ...form, featured: Number(e.target.value) as 0 | 1 })}
-              >
-                <MenuItem value={0}>普通</MenuItem>
-                <MenuItem value={1}>推荐</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>取消</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? <CircularProgress size={16} /> : '保存'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
+/**
 
 /**
  * 市场页面。
@@ -235,6 +85,8 @@ const MarketPage: React.FC = () => {
   // 操作中状态
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [unsubConfirmDeck, setUnsubConfirmDeck] = useState<MarketplaceDeck | null>(null);
+  const [showSubscribedOnly, setShowSubscribedOnly] = useState(false);
 
   // 编辑弹窗
   const [editDeck, setEditDeck] = useState<MarketplaceDeck | null>(null);
@@ -285,35 +137,62 @@ const MarketPage: React.FC = () => {
           d.dynasty.toLowerCase().includes(kw)
       );
     }
+    if (showSubscribedOnly) {
+      list = list.filter((d) => d.is_subscribed);
+    }
     return list;
-  }, [decks, styleFilter, calligrapherFilter, searchKeyword]);
+  }, [decks, styleFilter, calligrapherFilter, searchKeyword, showSubscribedOnly]);
 
   /** 订阅/退订 */
   const handleToggleSubscribe = useCallback(
     async (deck: MarketplaceDeck) => {
+      if (deck.is_subscribed) {
+        // 退订走确认弹窗
+        setUnsubConfirmDeck(deck);
+        return;
+      }
+      // 直接订阅
       setActionError(null);
       setPendingId(deck.deck_id);
       try {
-        if (deck.is_subscribed) {
-          await unsubscribeDeck(deck.deck_id);
-        } else {
-          await subscribeDeck(deck.deck_id);
-        }
+        await subscribeDeck(deck.deck_id);
         setDecks((prev) =>
           prev.map((d) =>
             d.deck_id === deck.deck_id
-              ? { ...d, is_subscribed: !d.is_subscribed }
+              ? { ...d, is_subscribed: true }
               : d
           )
         );
       } catch (err) {
-        setActionError(err instanceof Error ? err.message : '操作失败');
+        setActionError(err instanceof Error ? err.message : '订阅失败');
       } finally {
         setPendingId(null);
       }
     },
     []
   );
+
+  /** 确认退订 */
+  const handleConfirmUnsubscribe = useCallback(async () => {
+    if (!unsubConfirmDeck) return;
+    setActionError(null);
+    setPendingId(unsubConfirmDeck.deck_id);
+    try {
+      await unsubscribeDeck(unsubConfirmDeck.deck_id);
+      setDecks((prev) =>
+        prev.map((d) =>
+          d.deck_id === unsubConfirmDeck.deck_id
+            ? { ...d, is_subscribed: false }
+            : d
+        )
+      );
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : '退订失败');
+    } finally {
+      setPendingId(null);
+      setUnsubConfirmDeck(null);
+    }
+  }, [unsubConfirmDeck]);
 
   return (
     <Box className="space-y-4 py-4">
@@ -360,6 +239,15 @@ const MarketPage: React.FC = () => {
             sx={{ cursor: 'pointer' }}
           />
         ))}
+        <Chip
+          label="已订阅"
+          size="small"
+          icon={showSubscribedOnly ? <CheckCircleIcon fontSize="small" /> : undefined}
+          color={showSubscribedOnly ? 'primary' : 'default'}
+          variant={showSubscribedOnly ? 'filled' : 'outlined'}
+          onClick={() => setShowSubscribedOnly((v) => !v)}
+          sx={{ cursor: 'pointer', ml: 1 }}
+        />
       </Box>
 
       {/* 书家筛选 */}
@@ -490,12 +378,23 @@ const MarketPage: React.FC = () => {
         </Grid>
       )}
 
+      {/* 退订确认对话框 */}
+      <ConfirmDialog
+        open={!!unsubConfirmDeck}
+        title="退订牌组"
+        message={`确定要退订「${unsubConfirmDeck?.name ?? ''}」吗？退订后该牌组的所有学习进度将被永久删除，此操作不可撤销。`}
+        onConfirm={handleConfirmUnsubscribe}
+        onCancel={() => setUnsubConfirmDeck(null)}
+      />
+
       {/* 编辑弹窗 */}
       <EditDeckDialog
-        deck={editDeck}
+        deckId={editDeck?.deck_id ?? null}
+        deckName={editDeck?.name ?? ''}
         open={!!editDeck}
+        publishMode={false}
         onClose={() => setEditDeck(null)}
-        onSaved={loadDecks}
+        onSaved={() => { setEditDeck(null); loadDecks(); }}
       />
     </Box>
   );
