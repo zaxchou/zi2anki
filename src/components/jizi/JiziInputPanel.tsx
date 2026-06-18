@@ -65,8 +65,10 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
           value={layout.direction}
           onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
         >
-          <ToggleButton value="vertical">竖排</ToggleButton>
-          <ToggleButton value="horizontal">横排</ToggleButton>
+          <ToggleButton value="vertical-rl">竖排⇦</ToggleButton>
+          <ToggleButton value="vertical-lr">竖排⇨</ToggleButton>
+          <ToggleButton value="horizontal-lr">横排⇩</ToggleButton>
+          <ToggleButton value="horizontal-rl">横排⇧</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 
@@ -89,10 +91,10 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
 
       {/* 列字数 */}
       <FormControl size="small" fullWidth>
-        <InputLabel>{layout.direction === 'vertical' ? '每列字数' : '每行字数'}</InputLabel>
+        <InputLabel>{layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}</InputLabel>
         <Select
           value={layout.colCount}
-          label={layout.direction === 'vertical' ? '每列字数' : '每行字数'}
+          label={layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}
           onChange={(e) => update({ colCount: Number(e.target.value) })}
         >
           <MenuItem value={4}>4 字</MenuItem>

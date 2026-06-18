@@ -46,9 +46,10 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
     groups.push(results.slice(i, i + colCount));
   }
 
-  const isVertical = direction === 'vertical';
-  // 竖排：列从右到左
-  const orderedGroups = isVertical ? [...groups].reverse() : groups;
+  const isVertical = direction.startsWith('vertical');
+  // 列/行是否需要反转（竖排RL：列从右到左；横排RL：行从下到上）
+  const needsReversed = direction.endsWith('rl');
+  const orderedGroups = needsReversed ? [...groups].reverse() : groups;
 
   return (
     <Box
@@ -67,40 +68,41 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
             : 'none',
       }}
     >
-      {orderedGroups.map((group, gi) => (
-        <Box
-          key={gi}
-          sx={{
-            display: 'flex',
-            flexDirection: isVertical ? 'column' : 'row',
-            mr: isVertical ? lg : 0,
-            mb: isVertical ? 0 : lg,
-          }}
-        >
-          {group.map((result, ii) => {
-            const globalIndex = isVertical
-              ? (groups.length - 1 - gi) * colCount + ii
-              : gi * colCount + ii;
-            return (
-              <Box
-                key={globalIndex}
-                sx={{
-                  mb: isVertical ? cg : 0,
-                  mr: isVertical ? 0 : cg,
-                }}
-              >
-                <JiziCell
-                  char={result.char}
-                  hits={result.hits}
-                  selectedIndex={selections[globalIndex] ?? 0}
-                  fontSize={fontSize}
-                  onOpenPicker={() => onOpenPicker(globalIndex)}
-                />
-              </Box>
-            );
-          })}
-        </Box>
-      ))}
+      {orderedGroups.map((group, gi) => {
+        const realGi = needsReversed ? groups.length - 1 - gi : gi;
+        return (
+          <Box
+            key={gi}
+            sx={{
+              display: 'flex',
+              flexDirection: isVertical ? 'column' : 'row',
+              mr: isVertical ? lg : 0,
+              mb: isVertical ? 0 : lg,
+            }}
+          >
+            {group.map((result, ii) => {
+              const globalIndex = realGi * colCount + ii;
+              return (
+                <Box
+                  key={globalIndex}
+                  sx={{
+                    mb: isVertical ? cg : 0,
+                    mr: isVertical ? 0 : cg,
+                  }}
+                >
+                  <JiziCell
+                    char={result.char}
+                    hits={result.hits}
+                    selectedIndex={selections[globalIndex] ?? 0}
+                    fontSize={fontSize}
+                    onOpenPicker={() => onOpenPicker(globalIndex)}
+                  />
+                </Box>
+              );
+            })}
+          </Box>
+        );
+      })}
     </Box>
   );
 };

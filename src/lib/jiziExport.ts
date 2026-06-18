@@ -24,7 +24,7 @@ export async function exportJiziPNG(
     groups.push(results.slice(i, i + colCount));
   }
 
-  const isVertical = direction === 'vertical';
+  const isVertical = direction.startsWith('vertical');
   const groupCount = groups.length;
   const maxInGroup = colCount;
 
@@ -59,13 +59,14 @@ export async function exportJiziPNG(
   const imgMap = await loadImages(Array.from(urlSet));
 
   // 逐字绘制
-  const orderedGroups = isVertical ? [...groups].reverse() : groups;
+  const needsReversed = direction.endsWith('rl');
+  const orderedGroups = needsReversed ? [...groups].reverse() : groups;
 
   orderedGroups.forEach((group, gi) => {
+    const realGi = needsReversed ? groups.length - 1 - gi : gi;
+
     group.forEach((result, ii) => {
-      const globalIndex = isVertical
-        ? (groups.length - 1 - gi) * colCount + ii
-        : gi * colCount + ii;
+      const globalIndex = realGi * colCount + ii;
 
       let x: number, y: number;
       if (isVertical) {

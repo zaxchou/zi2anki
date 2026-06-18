@@ -28,8 +28,13 @@ export interface JiziMatchResponse {
   };
 }
 
-/** 排版方向 */
-export type JiziDirection = 'vertical' | 'horizontal';
+/** 排版方向 — 4 种
+ *  vertical-rl: 竖排，列从右到左（默认）
+ *  vertical-lr: 竖排，列从左到右
+ *  horizontal-lr: 横排，行从上到下
+ *  horizontal-rl: 横排，行从下到上
+ */
+export type JiziDirection = 'vertical-rl' | 'vertical-lr' | 'horizontal-lr' | 'horizontal-rl';
 
 /** 背景类型 */
 export type JiziBackground = 'xuan' | 'white';
@@ -46,7 +51,7 @@ export interface JiziLayout {
 
 /** 默认排版 */
 export const DEFAULT_LAYOUT: JiziLayout = {
-  direction: 'vertical',
+  direction: 'vertical-rl',
   fontSize: 120,
   colCount: 6,
   charGap: 0.15,
