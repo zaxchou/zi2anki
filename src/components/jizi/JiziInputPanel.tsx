@@ -14,7 +14,7 @@ import {
   Stack,
   Divider,
 } from '@mui/material';
-import type { JiziLayout, JiziDirection, JiziBackground } from '@/types/jizi';
+import type { JiziLayout, JiziDirection, JiziBackground, JiziMatchResult } from '@/types/jizi';
 
 export interface JiziInputPanelProps {
   text: string;
@@ -23,6 +23,27 @@ export interface JiziInputPanelProps {
   onLayoutChange: (layout: JiziLayout) => void;
   scope?: 'mine' | 'all';
   onScopeChange?: (scope: 'mine' | 'all') => void;
+  results?: JiziMatchResult[];
+  styleFilter?: string;
+  onStyleFilterChange?: (style: string) => void;
+  calligrapherFilter?: string;
+  onCalligrapherFilterChange?: (name: string) => void;
+}
+
+/** 从匹配结果中提取去重的书体/书家列表 */
+function extractFilters(results: JiziMatchResult[]): { styles: string[]; calligraphers: string[] } {
+  const styleSet = new Set<string>();
+  const nameSet = new Set<string>();
+  results.forEach((r) => {
+    r.hits.forEach((h) => {
+      if (h.style) styleSet.add(h.style);
+      if (h.calligrapher) nameSet.add(h.calligrapher);
+    });
+  });
+  return {
+    styles: Array.from(styleSet).sort(),
+    calligraphers: Array.from(nameSet).sort(),
+  };
 }
 
 /** 输入区 + 排版控件 */
@@ -33,8 +54,14 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
   onLayoutChange,
   scope,
   onScopeChange,
+  results,
+  styleFilter,
+  onStyleFilterChange,
+  calligrapherFilter,
+  onCalligrapherFilterChange,
 }) => {
   const update = (patch: Partial<JiziLayout>) => onLayoutChange({ ...layout, ...patch });
+  const filters = results ? extractFilters(results) : { styles: [], calligraphers: [] };
 
   return (
     <Stack spacing={2.5}>
@@ -60,28 +87,81 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
 
       <Divider />
 
-      {/* 字库范围 */}
-      {onScopeChange && (
+      {/* 字库范围 + 筛选 */}
+      {(onScopeChange || onStyleFilterChange) && (
         <Box>
-          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
-            字库范围
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Chip
-              label="已订阅"
-              size="small"
-              variant={scope === 'mine' ? 'filled' : 'outlined'}
-              color={scope === 'mine' ? 'primary' : 'default'}
-              onClick={() => onScopeChange('mine')}
-            />
-            <Chip
-              label="全部公开"
-              size="small"
-              variant={scope === 'all' ? 'filled' : 'outlined'}
-              color={scope === 'all' ? 'primary' : 'default'}
-              onClick={() => onScopeChange('all')}
-            />
-          </Box>
+          {onScopeChange && (
+            <Box sx={{ mb: onStyleFilterChange ? 1.5 : 0 }}>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                字库范围
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Chip
+                  label="已订阅"
+                  size="small"
+                  variant={scope === 'mine' ? 'filled' : 'outlined'}
+                  color={scope === 'mine' ? 'primary' : 'default'}
+                  onClick={() => onScopeChange('mine')}
+                />
+                <Chip
+                  label="全部公开"
+                  size="small"
+                  variant={scope === 'all' ? 'filled' : 'outlined'}
+                  color={scope === 'all' ? 'primary' : 'default'}
+                  onClick={() => onScopeChange('all')}
+                />
+              </Box>
+            </Box>
+          )}
+
+          {/* 书体筛选 */}
+          {onStyleFilterChange && filters.styles.length > 0 && (
+            <Box sx={{ mb: onCalligrapherFilterChange && filters.calligraphers.length > 0 ? 1.5 : 0 }}>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                书体
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                <Chip
+                  label="全部"
+                  size="small"
+                  variant={!styleFilter ? 'filled' : 'outlined'}
+                  color={!styleFilter ? 'primary' : 'default'}
+                  onClick={() => onStyleFilterChange('')}
+                />
+                {filters.styles.map((s) => (
+                  <Chip
+                    key={s}
+                    label={s}
+                    size="small"
+                    variant={styleFilter === s ? 'filled' : 'outlined'}
+                    color={styleFilter === s ? 'primary' : 'default'}
+                    onClick={() => onStyleFilterChange(s)}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* 书家筛选 */}
+          {onCalligrapherFilterChange && filters.calligraphers.length > 0 && (
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                书家
+              </Typography>
+              <FormControl size="small" fullWidth>
+                <Select
+                  value={calligrapherFilter || ''}
+                  onChange={(e) => onCalligrapherFilterChange(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="">全部书家</MenuItem>
+                  {filters.calligraphers.map((name) => (
+                    <MenuItem key={name} value={name}>{name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
         </Box>
       )}
 

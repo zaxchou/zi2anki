@@ -31,6 +31,8 @@ const JiziPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  const [styleFilter, setStyleFilter] = useState('');
+  const [calligrapherFilter, setCalligrapherFilter] = useState('');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,6 +43,8 @@ const JiziPage: React.FC = () => {
     if (!trimmed) {
       setResults([]);
       setSelections([]);
+      setStyleFilter('');
+      setCalligrapherFilter('');
       return;
     }
     let cancelled = false;
@@ -82,20 +86,34 @@ const JiziPage: React.FC = () => {
     setSwitcherOpen(false);
   }, [switcherIndex]);
 
+  const hasResults = results.length > 0;
+
+  // 前端筛选：书体 + 书家
+  const filteredResults = React.useMemo(() => {
+    if (!styleFilter && !calligrapherFilter) return results;
+    return results.map((r) => ({
+      ...r,
+      hits: r.hits.filter((h) => {
+        if (styleFilter && h.style !== styleFilter) return false;
+        if (calligrapherFilter && h.calligrapher !== calligrapherFilter) return false;
+        return true;
+      }),
+    }));
+  }, [results, styleFilter, calligrapherFilter]);
+
   /** 导出 PNG */
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      await exportJiziPNG(results, selections, layout);
+      await exportJiziPNG(filteredResults, selections, layout);
     } catch (err) {
       setError(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
     }
-  }, [results, selections, layout]);
+  }, [filteredResults, selections, layout]);
 
-  const hasResults = results.length > 0;
-  const missingCount = results.filter((r) => r.hits.length === 0).length;
+  const missingCount = filteredResults.filter((r) => r.hits.length === 0).length;
 
   return (
     <Box className="space-y-4 py-4">
@@ -143,6 +161,11 @@ const JiziPage: React.FC = () => {
             onLayoutChange={setLayout}
             scope={scope}
             onScopeChange={setScope}
+            results={results}
+            styleFilter={styleFilter}
+            onStyleFilterChange={setStyleFilter}
+            calligrapherFilter={calligrapherFilter}
+            onCalligrapherFilterChange={setCalligrapherFilter}
           />
         </Grid>
 
@@ -161,7 +184,7 @@ const JiziPage: React.FC = () => {
               </Box>
             )}
             <JiziPreview
-              results={results}
+              results={filteredResults}
               selections={selections}
               layout={layout}
               onOpenPicker={handleOpenPicker}
@@ -171,14 +194,14 @@ const JiziPage: React.FC = () => {
           {/* 缺字提示 */}
           {hasResults && missingCount > 0 && (
             <Alert severity="info" sx={{ mt: 1.5 }} icon={false}>
-              {missingCount} 个字在字库中未找到（显示为方框）
+              {missingCount} 个字在当前筛选中无匹配
             </Alert>
           )}
 
           {/* 统计 */}
           {hasResults && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              共 {results.length} 字 · {results.filter((r) => r.hits.length > 0).length} 字有匹配
+              共 {results.length} 字 · {filteredResults.filter((r) => r.hits.length > 0).length} 字有匹配
               · 点击文字可切换写法
             </Typography>
           )}
@@ -188,7 +211,7 @@ const JiziPage: React.FC = () => {
       {/* 切换弹窗 */}
       <JiziSwitcherSheet
         open={switcherOpen}
-        result={switcherIndex >= 0 ? results[switcherIndex] : null}
+        result={switcherIndex >= 0 ? filteredResults[switcherIndex] : null}
         selectedIndex={switcherIndex >= 0 ? selections[switcherIndex] ?? 0 : 0}
         onPick={handleSwitcherPick}
         onClose={() => setSwitcherOpen(false)}
@@ -198,7 +221,7 @@ const JiziPage: React.FC = () => {
       <JiziFullscreenPreview
         open={fullscreenOpen}
         onClose={() => setFullscreenOpen(false)}
-        results={results}
+        results={filteredResults}
         selections={selections}
         layout={layout}
         onOpenPicker={handleOpenPicker}
