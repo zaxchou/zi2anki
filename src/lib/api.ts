@@ -516,11 +516,13 @@ export function uploadMarketCover(deckId: string, file: File): Promise<{ success
         try { resolve(JSON.parse(xhr.responseText)); }
         catch { reject(new Error('解析失败')); }
       } else {
+        const msg = `上传失败 (HTTP ${xhr.status})`;
+        console.error('[uploadMarketCover]', msg, xhr.responseText?.substring(0,200));
         try {
           const body = JSON.parse(xhr.responseText);
-          reject(new Error(body.error || `上传失败 (HTTP ${xhr.status})`));
+          reject(new Error(body.error || msg));
         } catch {
-          reject(new Error(`上传失败 (HTTP ${xhr.status})`));
+          reject(new Error(msg));
         }
       }
     };

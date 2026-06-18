@@ -417,27 +417,30 @@ marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, (req: R
       return;
     }
 
-    // 用 sharp 生成缩略图（最大宽度 400px，质量 80），覆盖原文件
-    const filePath = path.join(getUploadsDir(), req.file.filename);
-    await sharp(filePath)
+    // 用 sharp 生成缩略图（最大宽度 400px，质量 80），输出到新文件
+    const inputPath = path.join(getUploadsDir(), req.file.filename);
+    const outputName = `${crypto.randomUUID()}.jpg`;
+    const outputPath = path.join(getUploadsDir(), outputName);
+
+    await sharp(inputPath)
       .resize(400, undefined, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })
-      .toFile(filePath + '.thumb');
+      .toFile(outputPath);
 
-    // 用缩略图替换原图
-    fs.unlinkSync(filePath);
-    fs.renameSync(filePath + '.thumb', filePath);
+    // 删除原始上传文件（Windows 可能锁文件，失败不阻塞）
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
 
     const db = getDb();
-    const imagePath = `/uploads/${req.file.filename}`;
+    const imagePath = `/uploads/${outputName}`;
     await db.query(
       'UPDATE marketplace_decks SET cover_image = $1 WHERE deck_id = $2',
       [imagePath, deckId]
     );
 
     res.json({ success: true, cover_image: imagePath });
-  } catch (err) {
-    console.error('POST /marketplace/decks/:deckId/cover error:', err);
+  } catch (err: any) {
+    console.error('POST /marketplace/decks/:deckId/cover error:', err?.message || err);
+    console.error('POST /marketplace/decks/:deckId/cover file:', req.file?.originalname, 'size:', req.file?.size);
     res.status(500).json({ error: 'Failed to upload cover' });
   }
 });
