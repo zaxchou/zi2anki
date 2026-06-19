@@ -44,7 +44,17 @@ async function initDb(): Promise<void> {
   const db = pool!;
 
   // 建表
+  // 注意：建表语句在单条 query 内按顺序执行，被 REFERENCES 引用的表必须先创建。
+  // users 被几乎所有表引用，必须最先建；decks 次之；cards 再次。
   await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -92,14 +102,6 @@ async function initDb(): Promise<void> {
       cards_studied INTEGER DEFAULT 0,
       new_cards_learned INTEGER DEFAULT 0,
       PRIMARY KEY (date, user_id, deck_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT DEFAULT 'user',
-      created_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS marketplace_decks (
