@@ -28,17 +28,5 @@ export const DEFAULT_DAILY_NEW_CARD_LIMIT = 20;
 /** 每日复习卡片上限默认值 */
 export const DEFAULT_DAILY_REVIEW_LIMIT = 200;
 
-/** 后台同步间隔：30 秒 */
-export const SYNC_INTERVAL = 30_000;
-
 /** 牌组名称最大长度 */
 export const DECK_NAME_MAX_LENGTH = 50;
-
-/** Dexie 数据库名称 */
-export const DB_NAME = 'calligraphy-memory';
-
-/** 数据库版本 */
-export const DB_VERSION = 1;
-
-/** 每页卡片数量 */
-export const CARDS_PER_PAGE = 50;
