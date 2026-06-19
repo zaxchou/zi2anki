@@ -24,7 +24,7 @@ function nowISO(): string {
 // multer：内存存储，限制 500MB
 const importUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 500 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
 }).single('file');
 
 /** Anki 字段模型解析结果 */
@@ -154,7 +154,7 @@ importRouter.post('/import', requireAdmin, (req: Request, res: Response) => {
     if (uploadErr) {
       console.error('[import] Upload error:', uploadErr);
       if ((uploadErr as { code?: string }).code === 'LIMIT_FILE_SIZE') {
-        res.status(413).json({ error: 'File too large (max 200MB)' });
+        res.status(413).json({ error: 'File too large (max 1GB)' });
       } else {
         res.status(400).json({ error: 'Upload error: ' + uploadErr.message });
       }

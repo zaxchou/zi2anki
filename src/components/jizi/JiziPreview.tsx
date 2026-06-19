@@ -74,7 +74,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const groups = groupResults(results, colCount, text);
 
   const isVertical = direction.startsWith('vertical');
-  // 列/行是否需要反转（竖排RL：列从右到左；横排RL：行从下到上）
+  // 从右往左读 → 组反转：渲染顺序 [group2][group1]，从右往左读 group1→group2 即正确
   const needsReversed = direction.endsWith('rl');
   const orderedGroups = needsReversed ? [...groups].reverse() : groups;
 
@@ -92,6 +92,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
       sx={{
         display: 'flex',
         flexDirection: isVertical ? 'row' : 'column',
+        justifyContent: needsReversed ? 'flex-end' : 'flex-start',
         bgcolor: bgColors[background] || '#ffffff',
         borderRadius: 1,
         p: 2,

@@ -9,13 +9,11 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
-  Tooltip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import StoreIcon from '@mui/icons-material/Store';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import {
   fetchMarketplaceDecks,
@@ -110,8 +108,12 @@ const MarketPage: React.FC = () => {
   }, [decks]);
 
   /** 客户端筛选 */
-  const filteredDecks = useMemo(() => {
-    let list = decks;
+  const featuredDecks = useMemo(() => {
+    return decks.filter((d) => d.featured === 1);
+  }, [decks]);
+
+  const regularDecks = useMemo(() => {
+    let list = decks.filter((d) => d.featured !== 1);
     if (styleFilter !== '全部') {
       list = list.filter((d) => d.style === styleFilter);
     }
@@ -131,8 +133,7 @@ const MarketPage: React.FC = () => {
     if (showSubscribedOnly) {
       list = list.filter((d) => d.is_subscribed);
     }
-    // 推荐排最前
-    return [...list].sort((a, b) => (b.featured ?? 0) - (a.featured ?? 0));
+    return list;
   }, [decks, styleFilter, calligrapherFilter, searchKeyword, showSubscribedOnly]);
 
   /** 订阅/退订 */
@@ -159,6 +160,59 @@ const MarketPage: React.FC = () => {
     },
     [],
   );
+
+  /** 渲染单张牌组卡片 */
+  const renderDeckCard = useCallback((deck: MarketplaceDeck) => (
+    <Box
+      key={deck.deck_id}
+      onClick={() => setDetailDeck(deck)}
+      sx={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
+    >
+      <Box
+        sx={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: '1/1',
+          borderRadius: 1.5,
+          overflow: 'hidden',
+          bgcolor: (t: any) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'grey.100',
+        }}
+      >
+        {deck.cover_image ? (
+          <Box component="img" src={getImageUrl(deck.cover_image)} alt={deck.name}
+            sx={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+        ) : (
+          <CoverPlaceholder name={deck.name} />
+        )}
+      </Box>
+      <Typography variant="caption" noWrap
+        sx={{ mt: 0.5, textAlign: 'center', fontSize: { xs: 10, sm: 11 }, fontWeight: 500 }}>
+        {deck.name}
+      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 0.25 }}>
+        {pendingId === deck.deck_id ? (
+          <CircularProgress size={12} />
+        ) : (
+          <Typography component="span"
+            onClick={(e) => { e.stopPropagation(); handleToggleSubscribe(deck); }}
+            sx={{
+              fontSize: 10, fontWeight: 600,
+              color: deck.is_subscribed ? 'success.main' : 'primary.main',
+              cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, userSelect: 'none',
+            }}
+          >
+            {deck.is_subscribed ? '已订阅' : '+ 订阅'}
+          </Typography>
+        )}
+        {isAdmin && (
+          <IconButton size="small" onClick={(e) => { e.stopPropagation(); setEditDeck(deck); }}
+            sx={{ width: 16, height: 16, ml: 0.25, opacity: 0.35, '&:hover': { opacity: 1 } }}>
+            <EditIcon sx={{ fontSize: 10 }} />
+          </IconButton>
+        )}
+      </Box>
+    </Box>
+  ), [pendingId, isAdmin, setDetailDeck, handleToggleSubscribe, setEditDeck]);
 
   /** 确认退订 */
   const handleConfirmUnsubscribe = useCallback(async () => {
@@ -252,10 +306,10 @@ const MarketPage: React.FC = () => {
       {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       {actionError && <Alert severity="error" onClose={() => setActionError(null)} sx={{ mb: 1 }}>{actionError}</Alert>}
 
-      {/* 内容区：密集网格 */}
+      {/* 内容区 */}
       {loading ? (
         <LoadingState message="正在加载市场..." />
-      ) : filteredDecks.length === 0 ? (
+      ) : (featuredDecks.length === 0 && regularDecks.length === 0) ? (
         <EmptyState
           icon={<SearchIcon />}
           title="没有找到匹配的牌组"
@@ -266,148 +320,104 @@ const MarketPage: React.FC = () => {
           }
         />
       ) : (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: 'repeat(3, 1fr)',
-              sm: 'repeat(4, 1fr)',
-              md: 'repeat(5, 1fr)',
-              lg: 'repeat(6, 1fr)',
-              xl: 'repeat(8, 1fr)',
-            },
-            gap: 1,
-          }}
-        >
-          {filteredDecks.map((deck) => (
+        <>
+          {/* 推荐专区：渐变背景 + 大标题 + 装饰边框 */}
+          {featuredDecks.length > 0 && (
             <Box
-              key={deck.deck_id}
-              onClick={() => setDetailDeck(deck)}
+              sx={{
+                position: 'relative',
+                p: { xs: 1.5, sm: 2 },
+                borderRadius: 2,
+                background: (t: any) => t.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, rgba(33,150,243,0.12) 0%, rgba(156,39,176,0.08) 100%)'
+                  : 'linear-gradient(135deg, rgba(33,150,243,0.06) 0%, rgba(156,39,176,0.04) 100%)',
+                border: 1,
+                borderColor: (t: any) => t.palette.mode === 'dark' ? 'rgba(33,150,243,0.3)' : 'rgba(33,150,243,0.2)',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, mb: 1.5 }}>
+                <Typography
+                  className="font-kai"
+                  sx={{
+                    fontSize: { xs: 18, sm: 20 },
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
+                  ✦ 编辑精选
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                  最值得收藏的书法字帖
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: 'repeat(4, 1fr)',
+                    sm: 'repeat(4, 1fr)',
+                    md: 'repeat(5, 1fr)',
+                    lg: 'repeat(6, 1fr)',
+                    xl: 'repeat(7, 1fr)',
+                  },
+                  gap: { xs: 1, sm: 1.25 },
+                }}
+              >
+                {featuredDecks.map((deck) => renderDeckCard(deck))}
+              </Box>
+            </Box>
+          )}
+
+          {/* 全部牌组：朴素分隔线 + 小标题 */}
+          <Box sx={{ mt: featuredDecks.length > 0 ? 3 : 0 }}>
+            <Box
               sx={{
                 display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 1.5,
-                overflow: 'hidden',
-                bgcolor: 'background.paper',
-                border: 1,
-                borderColor: 'divider',
-                cursor: 'pointer',
-                transition: 'box-shadow 0.15s, transform 0.15s',
-                '&:hover': {
-                  boxShadow: 3,
-                  transform: 'translateY(-1px)',
+                alignItems: 'center',
+                gap: 1.5,
+                mb: 1.5,
+                '&::before, &::after': {
+                  content: '""',
+                  flex: 1,
+                  height: '1px',
+                  bgcolor: 'divider',
                 },
               }}
             >
-              {/* 封面图区域 */}
+              <Typography
+                className="font-kai"
+                sx={{ fontSize: 14, fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}
+              >
+                全部字帖
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                p: { xs: 1.5, sm: 2 },
+                borderRadius: 2,
+              }}
+            >
               <Box
                 sx={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '3/4',
-                  bgcolor: 'grey.50',
-                  overflow: 'hidden',
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: 'repeat(4, 1fr)',
+                    sm: 'repeat(4, 1fr)',
+                    md: 'repeat(5, 1fr)',
+                    lg: 'repeat(6, 1fr)',
+                    xl: 'repeat(7, 1fr)',
+                  },
+                  gap: { xs: 1, sm: 1.25 },
                 }}
               >
-                {deck.cover_image ? (
-                  <Box
-                    component="img"
-                    src={getImageUrl(deck.cover_image)}
-                    alt={deck.name}
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                    loading="lazy"
-                  />
-                ) : (
-                  <CoverPlaceholder name={deck.name} />
-                )}
-
-                {/* 推荐标记 */}
-                {deck.featured === 1 && (
-                  <Chip
-                    label="荐"
-                    size="small"
-                    sx={{
-                      position: 'absolute',
-                      top: 6,
-                      left: 6,
-                      fontWeight: 700,
-                      fontSize: 11,
-                      height: 20,
-                      bgcolor: 'primary.main',
-                      color: '#fff',
-                    }}
-                  />
-                )}
-
-                {/* 订阅按钮（右下角悬浮） */}
-                <IconButton
-                  size="small"
-                  onClick={(e) => { e.stopPropagation(); handleToggleSubscribe(deck); }}
-                  disabled={pendingId === deck.deck_id}
-                  sx={{
-                    position: 'absolute',
-                    bottom: 4,
-                    right: 4,
-                    bgcolor: deck.is_subscribed ? 'rgba(76,175,80,0.85)' : 'primary.main',
-                    color: '#fff',
-                    '&:hover': {
-                      bgcolor: deck.is_subscribed ? 'rgba(76,175,80,1)' : 'primary.dark',
-                    },
-                    '&.Mui-disabled': {
-                      bgcolor: 'rgba(0,0,0,0.2)',
-                      color: 'rgba(255,255,255,0.4)',
-                    },
-                    width: 28,
-                    height: 28,
-                  }}
-                >
-                  {pendingId === deck.deck_id ? (
-                    <CircularProgress size={14} sx={{ color: 'rgba(255,255,255,0.7)' }} />
-                  ) : deck.is_subscribed ? (
-                    <CheckCircleIcon sx={{ fontSize: 16 }} />
-                  ) : (
-                    <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
-                  )}
-                </IconButton>
-              </Box>
-
-              {/* 标题栏：牌组名 + admin 编辑 */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  px: 0.75,
-                  py: 0.5,
-                  gap: 0.25,
-                  minHeight: 32,
-                }}
-              >
-                <Tooltip title={`${deck.name}${deck.calligrapher ? ` · ${deck.calligrapher}` : ''}${deck.dynasty ? ` · ${deck.dynasty}` : ''}`}>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 500, flex: 1, minWidth: 0 }}
-                  >
-                    {deck.name}
-                  </Typography>
-                </Tooltip>
-                {isAdmin && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => { e.stopPropagation(); setEditDeck(deck); }}
-                    sx={{ width: 22, height: 22, opacity: 0.5, '&:hover': { opacity: 1 } }}
-                  >
-                    <EditIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                )}
+                {regularDecks.map((deck) => renderDeckCard(deck))}
               </Box>
             </Box>
-          ))}
-        </Box>
+          </Box>
+        </>
       )}
 
       {/* 退订确认对话框 */}

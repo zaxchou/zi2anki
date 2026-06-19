@@ -36,7 +36,7 @@ const JiziPage: React.FC = () => {
   const [switcherIndex, setSwitcherIndex] = useState(-1);
   const [exporting, setExporting] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  const [scope, setScope] = useState<'mine' | 'all'>('all');
   const [styleFilter, setStyleFilter] = useState('');
   const [calligrapherFilter, setCalligrapherFilter] = useState('');
   // 风格统一：首字选中后弹出确认

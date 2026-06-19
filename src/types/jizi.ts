@@ -52,7 +52,7 @@ export interface JiziLayout {
 /** 默认排版 */
 export const DEFAULT_LAYOUT: JiziLayout = {
   direction: 'vertical-rl',
-  fontSize: 120,
+  fontSize: 80,
   colCount: 6,
   charGap: 0.02,
   lineGap: 0.02,

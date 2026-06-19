@@ -162,7 +162,7 @@ const SettingsPage: React.FC = () => {
         setImportedDecks(result.decks.map((d) => ({ id: d.id, name: d.name })));
         setPublishDialogOpen(true);
       } else {
-        const errMsg = result.errors.map((e) => e.message).join('; ');
+        const errMsg = result.errors ? result.errors.map((e) => e.message).join('; ') : (result as any).error || '导入失败';
         setSnackbar({ open: true, message: `导入失败：${errMsg}`, severity: 'error' });
       }
     } catch (err) {

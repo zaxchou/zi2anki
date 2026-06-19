@@ -63,21 +63,25 @@ export async function exportJiziPNG(
   });
   const imgMap = await loadImages(Array.from(urlSet));
 
-  // 逐字绘制：列/行从右到左/从下到上需要反转
-  const needsReversed = direction.endsWith('rl');
-  const orderedGroups = needsReversed ? [...groups].reverse() : groups;
+  // 逐字绘制：从右往读时 group 保持原顺序（第一组6字+第二组2字），
+  // 但坐标从右/下开始算，这样内容自然居右/居下
+  const alignEnd = direction.endsWith('rl');
 
-  orderedGroups.forEach((group, gi) => {
+  groups.forEach((group, gi) => {
     group.items.forEach((result, ii) => {
       const globalIndex = group.offset + ii;
 
       let x: number, y: number;
       if (isVertical) {
-        x = padding + gi * (cell + lg);
+        x = alignEnd
+          ? padding + (groupCount - 1 - gi) * (cell + lg)
+          : padding + gi * (cell + lg);
         y = padding + ii * (cell + cg);
       } else {
         x = padding + ii * (cell + cg);
-        y = padding + gi * (cell + lg);
+        y = alignEnd
+          ? padding + (groupCount - 1 - gi) * (cell + lg)
+          : padding + gi * (cell + lg);
       }
 
       const hit = result.hits[selections[globalIndex] ?? 0];

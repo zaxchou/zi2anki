@@ -215,6 +215,12 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
           <MenuItem value={4}>4 字</MenuItem>
           <MenuItem value={6}>6 字</MenuItem>
           <MenuItem value={8}>8 字</MenuItem>
+          <MenuItem value={10}>10 字</MenuItem>
+          <MenuItem value={12}>12 字</MenuItem>
+          <MenuItem value={14}>14 字</MenuItem>
+          <MenuItem value={16}>16 字</MenuItem>
+          <MenuItem value={18}>18 字</MenuItem>
+          <MenuItem value={20}>20 字</MenuItem>
         </Select>
       </FormControl>
 
