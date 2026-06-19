@@ -2,10 +2,10 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StoreIcon from '@mui/icons-material/Store';
+import BrushIcon from '@mui/icons-material/Brush';
 
 /** 导航项定义 */
 interface NavItem {
@@ -29,9 +29,9 @@ const navItems: NavItem[] = [
     value: '/market',
   },
   {
-    icon: <PhotoLibraryIcon />,
-    label: '牌组',
-    value: '/decks',
+    icon: <BrushIcon />,
+    label: '集字',
+    value: '/jizi',
   },
   {
     icon: <BarChartIcon />,

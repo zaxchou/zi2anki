@@ -105,9 +105,27 @@ const DashboardPage: React.FC = () => {
 
       {/* 牌组列表：宽度撑满主区，卡片列数按容器宽度自动计算 */}
       <Box sx={{ width: '100%' }}>
-        <Typography variant="h6" className="font-kai mb-4" sx={{ fontWeight: 600, transform: 'translateY(-16px)' }}>
-          我的牌组
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            mb: 2,
+            transform: 'translateY(-16px)',
+          }}
+        >
+          <Typography variant="h6" className="font-kai" sx={{ fontWeight: 600 }}>
+            我的牌组
+          </Typography>
+          <Button
+            size="small"
+            startIcon={<LibraryBooksIcon />}
+            onClick={() => navigate('/decks')}
+            sx={{ textTransform: 'none' }}
+          >
+            管理牌组
+          </Button>
+        </Box>
         <Box
           sx={{
             display: 'grid',

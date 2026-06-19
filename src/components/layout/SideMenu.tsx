@@ -16,7 +16,6 @@ import {
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StoreIcon from '@mui/icons-material/Store';
@@ -37,7 +36,6 @@ const navItems: NavItem[] = [
   { icon: <DashboardIcon />, label: '仪表盘', value: '/dashboard' },
   { icon: <StoreIcon />, label: '市场', value: '/market' },
   { icon: <BrushIcon />, label: '集字', value: '/jizi' },
-  { icon: <PhotoLibraryIcon />, label: '牌组', value: '/decks' },
   { icon: <BarChartIcon />, label: '统计', value: '/analytics' },
   { icon: <SettingsIcon />, label: '设置', value: '/settings' },
 ];
