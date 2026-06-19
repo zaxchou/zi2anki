@@ -1,7 +1,15 @@
 import { Router, Request, Response } from 'express';
+import { Converter } from 'opencc-js';
 import { getDb } from '../db.js';
 
 export const jiziRouter = Router();
+
+/** 简→繁规范化器（中国大陆简体 → 台湾繁体）。
+ *  集字匹配时双向规范化：query 和 卡片字符都转为繁体 canonical，再做匹配。
+ *  这样无论用户输入简体还是繁体、卡片是简体还是繁体，都能命中。
+ *  注意：一个简体可能对应多个繁体（如"发"→"發"/"髮"），opencc 默认取最常用映射，
+ *  这是可接受的取舍。 */
+const toTraditional = Converter({ from: 'cn', to: 'tw' });
 
 /** 清洗 front_text：去括号后缀、下划线数字、尾部纯数字，返回核心汉字 */
 function cleanFrontText(raw: string): string {
@@ -106,7 +114,8 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
       // 只使用单字卡片（字组如"江月"的图片包含多个字，用于集字会错误）
       const singleChars = Array.from(cleaned).filter((c) => /\p{Script=Han}/u.test(c));
       if (singleChars.length !== 1) continue;
-      const ch = singleChars[0];
+      // 卡片字符规范化为繁体 canonical（卡片本身可能是简体或繁体）
+      const ch = toTraditional(singleChars[0]);
       let arr = map.get(ch);
       if (!arr) {
         arr = [];
@@ -125,8 +134,9 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     }
 
     const results: JiziMatchResult[] = chars.map((ch) => ({
+      // 返回用户原始输入的字符（保留 UI 显示一致性），但 lookup key 用规范化后的繁体
       char: ch,
-      hits: (map.get(ch) || []).sort((a, b) => a.sort_key - b.sort_key),
+      hits: (map.get(toTraditional(ch)) || []).sort((a, b) => a.sort_key - b.sort_key),
     }));
 
     res.json({
