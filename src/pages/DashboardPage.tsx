@@ -19,7 +19,7 @@ import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { resetDeckProgress } from '@/lib/api';
+import { resetDeckProgress, getImageUrl } from '@/lib/api';
 import OverviewPanel from '@/components/dashboard/OverviewPanel';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -148,10 +148,15 @@ const DashboardPage: React.FC = () => {
               >
                 <CardContent className="flex items-center gap-4 !pb-2">
                   <Box
-                    className="flex items-center justify-center w-12 h-12 rounded-lg shrink-0"
-                    sx={{ bgcolor: 'primary.main', color: '#fff' }}
+                    className="flex items-center justify-center w-12 h-12 rounded-lg shrink-0 overflow-hidden"
+                    sx={{ bgcolor: deck.cover_image ? 'transparent' : 'primary.main', color: '#fff' }}
                   >
-                    <AutoStoriesIcon />
+                    {deck.cover_image ? (
+                      <Box component="img" src={getImageUrl(deck.cover_image)} alt={deck.name}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <AutoStoriesIcon />
+                    )}
                   </Box>
                   <Box className="flex-1 min-w-0">
                     <Box className="flex items-center justify-between mb-1">

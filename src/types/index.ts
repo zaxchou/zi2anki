@@ -34,6 +34,8 @@ export interface Deck {
   synced: boolean;
   /** 已发布到市场的时间（null = 未发布） */
   published_at?: string | null;
+  /** 封面图 */
+  cover_image?: string;
 }
 
 /** 单次学习会话 */
