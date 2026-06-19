@@ -114,6 +114,16 @@ export function fetchCards(deckId: string): Promise<Card[]> {
   return request<Card[]>(`/api/decks/${deckId}/cards`);
 }
 
+export interface CardPreview {
+  front_text: string;
+  image_url: string;
+}
+
+/** 获取牌组卡片预览（公开，无需登录） */
+export function fetchDeckCardPreviews(deckId: string): Promise<{ cards: CardPreview[] }> {
+  return request<{ cards: CardPreview[] }>(`/api/decks/${deckId}/cards/preview`);
+}
+
 export function createCard(
   deckId: string,
   frontText: string,

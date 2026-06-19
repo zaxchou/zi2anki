@@ -26,6 +26,7 @@ import {
 import type { MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import EditDeckDialog from '@/components/market/EditDeckDialog';
+import DeckDetailDialog from '@/components/market/DeckDetailDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -77,6 +78,9 @@ const MarketPage: React.FC = () => {
 
   // 编辑弹窗
   const [editDeck, setEditDeck] = useState<MarketplaceDeck | null>(null);
+
+  // 详情弹窗
+  const [detailDeck, setDetailDeck] = useState<MarketplaceDeck | null>(null);
 
   /** 加载市场牌组 */
   const loadDecks = useCallback(async () => {
@@ -278,6 +282,7 @@ const MarketPage: React.FC = () => {
           {filteredDecks.map((deck) => (
             <Box
               key={deck.deck_id}
+              onClick={() => setDetailDeck(deck)}
               sx={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -286,6 +291,7 @@ const MarketPage: React.FC = () => {
                 bgcolor: 'background.paper',
                 border: 1,
                 borderColor: 'divider',
+                cursor: 'pointer',
                 transition: 'box-shadow 0.15s, transform 0.15s',
                 '&:hover': {
                   boxShadow: 3,
@@ -346,11 +352,10 @@ const MarketPage: React.FC = () => {
                     position: 'absolute',
                     bottom: 4,
                     right: 4,
-                    bgcolor: 'rgba(0,0,0,0.35)',
-                    color: deck.is_subscribed ? '#4caf50' : 'rgba(255,255,255,0.85)',
+                    bgcolor: deck.is_subscribed ? 'rgba(76,175,80,0.85)' : 'primary.main',
+                    color: '#fff',
                     '&:hover': {
-                      bgcolor: 'rgba(0,0,0,0.55)',
-                      color: deck.is_subscribed ? '#4caf50' : '#fff',
+                      bgcolor: deck.is_subscribed ? 'rgba(76,175,80,1)' : 'primary.dark',
                     },
                     '&.Mui-disabled': {
                       bgcolor: 'rgba(0,0,0,0.2)',
@@ -422,6 +427,14 @@ const MarketPage: React.FC = () => {
         publishMode={false}
         onClose={() => setEditDeck(null)}
         onSaved={() => { setEditDeck(null); loadDecks(); }}
+      />
+
+      {/* 详情弹窗 */}
+      <DeckDetailDialog
+        open={!!detailDeck}
+        deck={detailDeck}
+        onClose={() => setDetailDeck(null)}
+        onSubscribed={loadDecks}
       />
     </Box>
   );

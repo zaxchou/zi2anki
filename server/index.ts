@@ -38,6 +38,26 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
 // 挂载 auth 路由（不需要鉴权）
 app.use('/api/auth', authRouter);
 
+// 公开预览端点（市场牌组卡片预览，无需登录）
+app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
+  try {
+    const { deckId } = req.params;
+    const db = getDb();
+    const { rows } = await db.query(
+      `SELECT c.front_text, c.image_url
+       FROM cards c
+       WHERE c.deck_id = $1
+       ORDER BY c.created_at ASC
+       LIMIT 50`,
+      [deckId]
+    );
+    res.json({ cards: rows });
+  } catch (err) {
+    console.error('GET /decks/:deckId/cards/preview error:', err);
+    res.status(500).json({ error: 'Failed to fetch card previews' });
+  }
+});
+
 // JWT 鉴权中间件（之后的所有 /api/* 都需要鉴权）
 app.use('/api', authMiddleware);
 
