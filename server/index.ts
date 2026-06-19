@@ -39,6 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
 app.use('/api/auth', authRouter);
 
 // 公开预览端点（市场牌组卡片预览，无需登录）
+// 仅暴露已发布到市场的牌组，避免泄露私有/未发布牌组内容。
 app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
   try {
     const { deckId } = req.params;
@@ -46,7 +47,8 @@ app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
     const { rows } = await db.query(
       `SELECT c.front_text, c.image_url
        FROM cards c
-       WHERE c.deck_id = $1
+       JOIN marketplace_decks md ON md.deck_id = c.deck_id
+       WHERE c.deck_id = $1 AND md.published_at IS NOT NULL
        ORDER BY c.created_at ASC
        LIMIT 50`,
       [deckId]
