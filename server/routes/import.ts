@@ -7,6 +7,7 @@ import multer from 'multer';
 import Database from 'better-sqlite3';
 import JSZip from 'jszip';
 import { getDb, getUploadsDir } from '../db.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const importRouter = Router();
 
@@ -148,7 +149,7 @@ interface PreparedCard {
 }
 
 // POST /api/import —— 导入 APKG 文件
-importRouter.post('/import', (req: Request, res: Response) => {
+importRouter.post('/import', requireAdmin, (req: Request, res: Response) => {
   importUpload(req, res, async (uploadErr) => {
     if (uploadErr) {
       console.error('[import] Upload error:', uploadErr);
@@ -424,13 +425,13 @@ importRouter.post('/import', (req: Request, res: Response) => {
           const now = nowISO();
           await client.query(
             `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                                next_review, last_review, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11)`,
+                                next_review, last_review, user_id, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12)`,
             [
               cardId, deckId,
               pc.frontText, pc.backText, pc.imageUrl,
               pc.ease, pc.interval, pc.repetitions,
-              pc.nextReview, now, now,
+              pc.nextReview, req.user!.userId, now, now,
             ]
           );
         }

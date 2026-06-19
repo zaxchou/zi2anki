@@ -42,7 +42,7 @@ const CoverPlaceholder: React.FC<{ name: string }> = ({ name }) => (
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      bgcolor: 'grey.100',
+      bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'grey.100',
       color: 'grey.400',
       fontSize: 28,
       fontWeight: 600,

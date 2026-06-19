@@ -32,6 +32,8 @@ export interface Deck {
   created_at: string;
   updated_at: string;
   synced: boolean;
+  /** 已发布到市场的时间（null = 未发布） */
+  published_at?: string | null;
 }
 
 /** 单次学习会话 */

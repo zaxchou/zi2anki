@@ -166,12 +166,12 @@ const DashboardPage: React.FC = () => {
                         <Chip
                           label={deck.card_count > 0 ? ((deck.new_count ?? deck.card_count) < deck.card_count ? `${reviewProgress}%` : '新牌组') : '空'}
                           size="small"
-                          sx={{
+                          sx={(t) => ({
                             fontSize: 11,
                             height: 22,
-                            bgcolor: reviewProgress > 0 ? 'primary.main' : 'grey.200',
-                            color: reviewProgress > 0 ? '#fff' : 'text.secondary',
-                          }}
+                            bgcolor: reviewProgress > 0 ? 'primary.main' : (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'grey.200'),
+                            color: reviewProgress > 0 ? '#fff' : (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.7)' : 'text.secondary'),
+                          })}
                         />
                       </Box>
                     </Box>

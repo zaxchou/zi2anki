@@ -23,10 +23,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import StoreIcon from '@mui/icons-material/Store';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useDeckStore } from '@/stores/useDeckStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import EditDeckDialog from '@/components/market/EditDeckDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
+import { publishDeck, unpublishDeck } from '@/lib/api';
 
 /**
  * 牌组管理页面。
@@ -36,6 +40,8 @@ const DecksPage: React.FC = () => {
   const navigate = useNavigate();
   const { decks, loading, error, loadDecks, createDeck, renameDeck, deleteDeck, clearError } =
     useDeckStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
 
   const [newDeckName, setNewDeckName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -47,6 +53,40 @@ const DecksPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState('');
+
+  // 发布相关
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [unpubConfirmDeck, setUnpubConfirmDeck] = useState<Deck | null>(null);
+  const [unpublishing, setUnpublishing] = useState(false);
+
+  /** 发布到市场 */
+  const handlePublish = useCallback(async (deck: Deck) => {
+    if (publishingId) return;
+    setPublishingId(deck.id);
+    try {
+      await publishDeck(deck.id, { calligrapher: '', dynasty: '', style: '', description: '', cover_image: '', featured: false });
+      await loadDecks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发布失败');
+    } finally {
+      setPublishingId(null);
+    }
+  }, [publishingId, loadDecks]);
+
+  /** 确认撤回 */
+  const handleConfirmUnpublish = useCallback(async () => {
+    if (!unpubConfirmDeck || unpublishing) return;
+    setUnpublishing(true);
+    try {
+      await unpublishDeck(unpubConfirmDeck.id);
+      setUnpubConfirmDeck(null);
+      await loadDecks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '撤回失败');
+    } finally {
+      setUnpublishing(false);
+    }
+  }, [unpubConfirmDeck, unpublishing, loadDecks]);
 
   useEffect(() => {
     loadDecks();
@@ -119,7 +159,11 @@ const DecksPage: React.FC = () => {
       )}
 
       {/* 创建牌组输入区 */}
-      <Card variant="outlined" className="p-4" sx={{ borderRadius: 2 }}>
+      <Card variant="outlined" className="p-4" sx={(theme) => ({
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+        borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.23)' : undefined,
+      })}>
         <Box className="flex gap-2">
           <TextField
             label="新牌组名称"
@@ -152,15 +196,45 @@ const DecksPage: React.FC = () => {
           description="点击上方按钮创建你的第一个书法记忆牌组"
         />
       ) : (
-        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <Card variant="outlined" sx={(theme) => ({
+          borderRadius: 2,
+          borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.23)' : undefined,
+        })}>
           <List disablePadding>
-            {decks.map((deck, index) => (
+            {decks.map((deck, index) => {
+              const isPublished = !!deck.published_at;
+              return (
               <ListItem
                 key={deck.id}
                 divider={index < decks.length - 1}
                 disablePadding
                 secondaryAction={
                   <Box className="flex items-center">
+                    {isAdmin && (
+                      <IconButton
+                        edge="end"
+                        aria-label={isPublished ? '撤回' : '发布'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isPublished) {
+                            setUnpubConfirmDeck(deck);
+                          } else {
+                            handlePublish(deck);
+                          }
+                        }}
+                        size="small"
+                        disabled={publishingId === deck.id}
+                        sx={{ color: isPublished ? 'success.main' : 'action.disabled' }}
+                      >
+                        {publishingId === deck.id ? (
+                          <CircularProgress size={16} />
+                        ) : isPublished ? (
+                          <CheckCircleIcon fontSize="small" />
+                        ) : (
+                          <StoreIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    )}
                     <IconButton
                       edge="end"
                       aria-label={`重命名 ${deck.name}`}
@@ -202,7 +276,8 @@ const DecksPage: React.FC = () => {
                   />
                 </ListItemButton>
               </ListItem>
-            ))}
+              );
+            })}
           </List>
         </Card>
       )}
@@ -225,6 +300,27 @@ const DecksPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
+
+      {/* 撤回确认对话框 */}
+      <Dialog
+        open={!!unpubConfirmDeck}
+        onClose={() => { if (!unpublishing) setUnpubConfirmDeck(null); }}
+      >
+        <DialogTitle>从市场撤回</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            确定要将「{unpubConfirmDeck?.name ?? ''}」从市场中撤下吗？撤回后其他用户将无法订阅此牌组，但已有订阅数据不受影响。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnpubConfirmDeck(null)} disabled={unpublishing} color="inherit">
+            取消
+          </Button>
+          <Button onClick={handleConfirmUnpublish} disabled={unpublishing} color="error" variant="contained">
+            {unpublishing ? '撤回中...' : '确认撤回'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

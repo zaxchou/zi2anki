@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
 import JSZip from 'jszip';
 import { getDb, getUploadsDir } from '../db.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const exportRouter = Router();
 
@@ -26,7 +27,7 @@ function uuidToNumeric(uuid: string): number {
 }
 
 // GET /api/export/:deckId —— 导出指定牌组为 APKG
-exportRouter.get('/export/:deckId', async (req: Request, res: Response) => {
+exportRouter.get('/export/:deckId', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
@@ -321,7 +322,7 @@ exportRouter.get('/export/:deckId', async (req: Request, res: Response) => {
 });
 
 // GET /api/export —— 导出全部牌组为 APKG
-exportRouter.get('/export', async (req: Request, res: Response) => {
+exportRouter.get('/export', requireAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const { rows: decks } = await db.query('SELECT id, name FROM decks WHERE user_id = $1 ORDER BY created_at ASC', [req.user!.userId]) as unknown as { rows: Array<Record<string, unknown>> };

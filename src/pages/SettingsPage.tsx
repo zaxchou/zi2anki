@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   Link,
 } from '@mui/material';
@@ -32,7 +33,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import LockIcon from '@mui/icons-material/Lock';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { fetchDecks, exportDeck, exportAllDecks, importApkgFile, changePassword } from '@/lib/api';
+import { fetchDecks, exportDeck, exportAllDecks, importApkgFile, changePassword, publishDeck } from '@/lib/api';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Deck } from '@/types';
 
@@ -58,6 +59,35 @@ const SettingsPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importProgress, setImportProgress] = useState(0);
   const importingRef = useRef(false);
+
+  // 导入后自动发布
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [importedDecks, setImportedDecks] = useState<Array<{ id: string; name: string }>>([]);
+  const [publishingDecks, setPublishingDecks] = useState(false);
+
+  const handlePublishAll = useCallback(async () => {
+    if (importedDecks.length === 0) return;
+    setPublishingDecks(true);
+    let successCount = 0;
+    for (const d of importedDecks) {
+      try {
+        await publishDeck(d.id, { calligrapher: '', dynasty: '', style: '', description: '', cover_image: '', featured: false });
+        successCount++;
+      } catch { /* 单个失败不影响其他 */ }
+    }
+    setPublishingDecks(false);
+    setPublishDialogOpen(false);
+    setSnackbar({
+      open: true,
+      message: `已成功将 ${successCount}/${importedDecks.length} 个牌组发布到市场`,
+      severity: successCount > 0 ? 'success' : 'error',
+    });
+  }, [importedDecks]);
+
+  const handleSkipPublish = useCallback(() => {
+    setPublishDialogOpen(false);
+    setImportedDecks([]);
+  }, []);
 
   // 通知
   const [snackbar, setSnackbar] = useState<{
@@ -128,6 +158,9 @@ const SettingsPage: React.FC = () => {
         });
         // 重新加载牌组列表
         fetchDecks().then(setDecks).catch(() => {});
+        // 询问是否发布到市场
+        setImportedDecks(result.decks.map((d) => ({ id: d.id, name: d.name })));
+        setPublishDialogOpen(true);
       } else {
         const errMsg = result.errors.map((e) => e.message).join('; ');
         setSnackbar({ open: true, message: `导入失败：${errMsg}`, severity: 'error' });
@@ -337,6 +370,19 @@ const SettingsPage: React.FC = () => {
               )}
             </ListItem>
           </List>
+
+          <Divider />
+
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Link
+              component={RouterLink}
+              to="/decks"
+              underline="hover"
+              sx={{ fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+            >
+              前往牌组管理 →
+            </Link>
+          </Box>
         </Card>
       )}
 
@@ -427,6 +473,35 @@ const SettingsPage: React.FC = () => {
             }}
           >
             {pwdLoading ? <CircularProgress size={20} color="inherit" /> : '确认修改'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 导入后自动发布确认 */}
+      <Dialog open={publishDialogOpen} onClose={handleSkipPublish} maxWidth="xs" fullWidth>
+        <DialogTitle>发布到市场</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            已成功导入 {importedDecks.length} 个牌组。是否要将它们发布到市场中？
+            发布后其他用户可以在市场中浏览和订阅这些牌组。
+            {importedDecks.length > 0 && (
+              <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                {importedDecks.map((d) => (
+                  <Typography component="li" variant="body2" key={d.id}>{d.name}</Typography>
+                ))}
+              </Box>
+            )}
+          </DialogContentText>
+          <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
+            导入的牌组也可以稍后在卡牌管理页面中随时发布。
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleSkipPublish} disabled={publishingDecks} color="inherit">
+            暂不发布
+          </Button>
+          <Button onClick={handlePublishAll} disabled={publishingDecks} variant="contained">
+            {publishingDecks ? <CircularProgress size={20} color="inherit" /> : '发布全部'}
           </Button>
         </DialogActions>
       </Dialog>

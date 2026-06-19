@@ -14,6 +14,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   TextField,
   Alert,
@@ -53,6 +54,8 @@ import {
   getImageUrl,
   updateCard,
   updateDeckLimits,
+  fetchMarketplaceDeck,
+  unpublishDeck,
 } from '@/lib/api';
 import type { Card, Deck, MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -189,6 +192,29 @@ const CardManagePage: React.FC = () => {
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [publishedDeck, setPublishedDeck] = useState<MarketplaceDeck | null>(null);
 
+  // 从市场撤回
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const loadAbortedRef = useRef(false);
+
+  const handleUnpublishClick = useCallback(() => {
+    setUnpublishConfirmOpen(true);
+  }, []);
+
+  const handleConfirmUnpublish = useCallback(async () => {
+    if (!deckId) return;
+    setUnpublishing(true);
+    try {
+      await unpublishDeck(deckId);
+      setPublishedDeck(null);
+      setUnpublishConfirmOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '撤回失败');
+    } finally {
+      setUnpublishing(false);
+    }
+  }, [deckId]);
+
   // 加载牌组和卡片数据
   const loadData = useCallback(async () => {
     if (!deckId) {
@@ -219,6 +245,14 @@ const CardManagePage: React.FC = () => {
       setTotalPages(Math.ceil(cardsData.length / PAGE_SIZE) || 1);
       setEditingNewLimit(deckData.daily_new_card_limit ?? 20);
       setEditingReviewLimit(deckData.daily_review_limit ?? 200);
+
+      // 检查牌组是否已发布到市场
+      loadAbortedRef.current = false;
+      fetchMarketplaceDeck(deckId).then((data) => {
+        if (!loadAbortedRef.current) setPublishedDeck(data);
+      }).catch(() => {
+        // 未发布，保持 publishedDeck = null
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载卡片失败');
     } finally {
@@ -228,6 +262,7 @@ const CardManagePage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    return () => { loadAbortedRef.current = true; };
   }, [loadData]);
 
   /** 刷新卡片计数 */
@@ -681,14 +716,26 @@ const CardManagePage: React.FC = () => {
         )}
         <Box sx={{ flex: 1 }} />
         {deck && isAdmin && (
-          <Button
-            variant="outlined"
-            startIcon={<StoreIcon />}
-            onClick={() => setPublishDialogOpen(true)}
-            sx={{ textTransform: 'none', fontWeight: 600 }}
-          >
-            {publishedDeck ? '编辑市场信息' : '发布到市场'}
-          </Button>
+          <>
+            <Button
+              variant="outlined"
+              startIcon={<StoreIcon />}
+              onClick={() => setPublishDialogOpen(true)}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              {publishedDeck ? '编辑' : '发布'}
+            </Button>
+            {publishedDeck && (
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleUnpublishClick}
+                sx={{ textTransform: 'none', fontWeight: 600, ml: 1 }}
+              >
+                撤回
+              </Button>
+            )}
+          </>
         )}
         {deck && (
           <Button
@@ -1434,6 +1481,27 @@ const CardManagePage: React.FC = () => {
           }}
         />
       )}
+
+      {/* 从市场撤回确认弹窗 */}
+      <Dialog
+        open={unpublishConfirmOpen}
+        onClose={() => { if (!unpublishing) setUnpublishConfirmOpen(false); }}
+      >
+        <DialogTitle>从市场撤回</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            确定要将该牌组从市场中撤下吗？撤回后其他用户将无法订阅此牌组，但已有订阅数据不受影响。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnpublishConfirmOpen(false)} disabled={unpublishing} color="inherit">
+            取消
+          </Button>
+          <Button onClick={handleConfirmUnpublish} disabled={unpublishing} color="error" variant="contained">
+            {unpublishing ? '撤回中...' : '确认撤回'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

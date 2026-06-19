@@ -36,6 +36,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
     const { rows } = await db.query(
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
         md.cover_image,
+        md.published_at,
         COALESCE((
           SELECT COUNT(*) FROM cards c
             LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
@@ -68,6 +69,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
       new_count: number;
       due_count: number;
       cover_image: string | null;
+      published_at: string | null;
       created_at: string;
       updated_at: string;
     }>;

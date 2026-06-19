@@ -280,11 +280,11 @@ marketplaceRouter.post('/marketplace/decks/:deckId/publish', requireAdmin, async
         (deck_id, calligrapher, dynasty, style, description, cover_image, featured, sort_order, published_at, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9)
        ON CONFLICT (deck_id) DO UPDATE SET
-         calligrapher = EXCLUDED.calligrapher,
-         dynasty = EXCLUDED.dynasty,
-         style = EXCLUDED.style,
-         description = EXCLUDED.description,
-         cover_image = EXCLUDED.cover_image,
+         calligrapher = COALESCE(NULLIF(EXCLUDED.calligrapher, ''), marketplace_decks.calligrapher),
+         dynasty = COALESCE(NULLIF(EXCLUDED.dynasty, ''), marketplace_decks.dynasty),
+         style = COALESCE(NULLIF(EXCLUDED.style, ''), marketplace_decks.style),
+         description = COALESCE(NULLIF(EXCLUDED.description, ''), marketplace_decks.description),
+         cover_image = COALESCE(NULLIF(EXCLUDED.cover_image, ''), marketplace_decks.cover_image),
          featured = EXCLUDED.featured,
          sort_order = EXCLUDED.sort_order,
          published_at = EXCLUDED.published_at,
@@ -378,13 +378,13 @@ marketplaceRouter.put('/marketplace/decks/:deckId', requireAdmin, async (req: Re
   }
 });
 
-// DELETE /api/marketplace/decks/:deckId/publish —— Admin 下架
+// DELETE /api/marketplace/decks/:deckId/publish —— Admin 下架（软删除：仅清除发布时间，保留元数据）
 marketplaceRouter.delete('/marketplace/decks/:deckId/publish', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const db = getDb();
 
-    const result = await db.query('DELETE FROM marketplace_decks WHERE deck_id = $1', [deckId]);
+    const result = await db.query('UPDATE marketplace_decks SET published_at = NULL WHERE deck_id = $1', [deckId]);
     if (result.rowCount === 0) {
       res.status(404).json({ error: 'Marketplace deck not found' });
       return;
