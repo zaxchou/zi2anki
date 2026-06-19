@@ -31,6 +31,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import EditDeckDialog from '@/components/market/EditDeckDialog';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import { publishDeck, unpublishDeck } from '@/lib/api';
+import type { Deck } from '@/types';
 
 /**
  * 牌组管理页面。
@@ -38,13 +39,16 @@ import { publishDeck, unpublishDeck } from '@/lib/api';
  */
 const DecksPage: React.FC = () => {
   const navigate = useNavigate();
-  const { decks, loading, error, loadDecks, createDeck, renameDeck, deleteDeck, clearError } =
+  const { decks, loading, error, loadDecks, createDeck, deleteDeck, clearError } =
     useDeckStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
 
   const [newDeckName, setNewDeckName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // 发布/撤回操作的错误（独立于 store 的 error）
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // 编辑对话框状态
   const [editTarget, setEditTarget] = useState<{ id: string; name: string } | null>(null);
@@ -67,7 +71,7 @@ const DecksPage: React.FC = () => {
       await publishDeck(deck.id, { calligrapher: '', dynasty: '', style: '', description: '', cover_image: '', featured: false });
       await loadDecks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发布失败');
+      setActionError(err instanceof Error ? err.message : '发布失败');
     } finally {
       setPublishingId(null);
     }
@@ -82,7 +86,7 @@ const DecksPage: React.FC = () => {
       setUnpubConfirmDeck(null);
       await loadDecks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '撤回失败');
+      setActionError(err instanceof Error ? err.message : '撤回失败');
     } finally {
       setUnpublishing(false);
     }
@@ -155,6 +159,11 @@ const DecksPage: React.FC = () => {
       {error && (
         <Alert severity="error" onClose={() => clearError()}>
           {error}
+        </Alert>
+      )}
+      {actionError && (
+        <Alert severity="error" onClose={() => setActionError(null)}>
+          {actionError}
         </Alert>
       )}
 
