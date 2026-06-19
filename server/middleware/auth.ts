@@ -1,8 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// JWT 密钥：优先环境变量，开发环境默认值
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+// JWT 密钥：生产环境必须通过环境变量提供，否则拒绝启动；
+// 开发环境允许回退到固定默认值（仅本地使用）。
+const DEV_FALLBACK_SECRET = 'dev-secret-change-in-production';
+
+function resolveJwtSecret(): string {
+  const fromEnv = process.env.JWT_SECRET;
+  if (fromEnv && fromEnv.length > 0) {
+    return fromEnv;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '[FATAL] 生产环境未设置 JWT_SECRET 环境变量。' +
+      '使用已知默认密钥会允许任何人伪造管理员令牌，拒绝启动。'
+    );
+    process.exit(1);
+  }
+  console.warn('[警告] 未设置 JWT_SECRET，使用开发默认密钥（请勿用于生产）。');
+  return DEV_FALLBACK_SECRET;
+}
+
+const JWT_SECRET = resolveJwtSecret();
 
 // 扩展 Express Request 类型
 declare global {
