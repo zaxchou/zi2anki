@@ -94,7 +94,6 @@ const CardManagePage: React.FC = () => {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,6 +128,22 @@ const CardManagePage: React.FC = () => {
 
     return list;
   }, [cards, difficultyFilter, searchKeyword]);
+
+  /** 总页数（基于筛选后的列表，而非全量） */
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredCards.length / PAGE_SIZE)),
+    [filteredCards]
+  );
+
+  /** 筛选条件变化时回到第 1 页，避免停留在不存在的页码导致空白 */
+  useEffect(() => {
+    setPage(1);
+  }, [searchKeyword, difficultyFilter]);
+
+  /** 若当前页码超出范围（例如删除卡片后），收敛到最后一页 */
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   /** 当前页卡片 */
   const pagedCards = useMemo(() => {
@@ -242,7 +257,6 @@ const CardManagePage: React.FC = () => {
       setDeck(deckData);
       setCards(cardsData);
       setPage(1); // reset to page 1 when loading new deck
-      setTotalPages(Math.ceil(cardsData.length / PAGE_SIZE) || 1);
       setEditingNewLimit(deckData.daily_new_card_limit ?? 20);
       setEditingReviewLimit(deckData.daily_review_limit ?? 200);
 
