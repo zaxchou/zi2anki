@@ -1,4 +1,5 @@
 import { getImageUrl } from './api';
+import { groupResults } from '@/components/jizi/JiziPreview';
 import type { JiziMatchResult, JiziLayout } from '@/types/jizi';
 
 /**
@@ -9,6 +10,7 @@ export async function exportJiziPNG(
   results: JiziMatchResult[],
   selections: number[],
   layout: JiziLayout,
+  text?: string,
 ): Promise<void> {
   const { direction, fontSize, colCount, charGap, lineGap, background } = layout;
 
@@ -18,15 +20,12 @@ export async function exportJiziPNG(
   const cg = Math.round(fontSize * charGap);
   const lg = Math.round(fontSize * lineGap);
 
-  // 分组
-  const groups: JiziMatchResult[][] = [];
-  for (let i = 0; i < results.length; i += colCount) {
-    groups.push(results.slice(i, i + colCount));
-  }
-
+  // 分组：与预览一致（手动分行优先，否则按 colCount）
+  const groups = groupResults(results, colCount, text);
   const isVertical = direction.startsWith('vertical');
   const groupCount = groups.length;
-  const maxInGroup = colCount;
+  // 不同 group 长度可能不同（手动分行时），取最大长度作为画布尺寸基准
+  const maxInGroup = groups.reduce((m, g) => Math.max(m, g.items.length), 0);
 
   const width = isVertical
     ? groupCount * cell + (groupCount - 1) * lg
@@ -64,15 +63,13 @@ export async function exportJiziPNG(
   });
   const imgMap = await loadImages(Array.from(urlSet));
 
-  // 逐字绘制
+  // 逐字绘制：列/行从右到左/从下到上需要反转
   const needsReversed = direction.endsWith('rl');
   const orderedGroups = needsReversed ? [...groups].reverse() : groups;
 
   orderedGroups.forEach((group, gi) => {
-    const realGi = needsReversed ? groups.length - 1 - gi : gi;
-
-    group.forEach((result, ii) => {
-      const globalIndex = realGi * colCount + ii;
+    group.items.forEach((result, ii) => {
+      const globalIndex = group.offset + ii;
 
       let x: number, y: number;
       if (isVertical) {
@@ -106,18 +103,23 @@ export async function exportJiziPNG(
   });
 
   // 触发下载
-  canvas.toBlob(
-    (blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `jizi-${Date.now()}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    'image/png',
-  );
+  try {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `jizi-${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      'image/png',
+    );
+  } catch (err) {
+    // Canvas 被跨域图片污染会抛 SecurityError
+    throw new Error('导出失败：Canvas 跨域污染。请确认所有字图来自同源服务器。');
+  }
 }
 
 function loadImages(urls: string[]): Promise<Map<string, HTMLImageElement>> {

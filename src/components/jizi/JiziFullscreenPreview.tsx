@@ -23,6 +23,7 @@ export interface JiziFullscreenPreviewProps {
   onOpenPicker: (index: number) => void;
   onExport: () => void;
   exporting: boolean;
+  text?: string;
 }
 
 /** 全屏预览模式 —— 沉浸式查看集字作品 */
@@ -35,6 +36,7 @@ const JiziFullscreenPreview: React.FC<JiziFullscreenPreviewProps> = ({
   onOpenPicker,
   onExport,
   exporting,
+  text,
 }) => {
   // ESC 退出
   useEffect(() => {
@@ -106,6 +108,7 @@ const JiziFullscreenPreview: React.FC<JiziFullscreenPreviewProps> = ({
           selections={selections}
           layout={layout}
           onOpenPicker={onOpenPicker}
+          text={text}
         />
       </Box>
 

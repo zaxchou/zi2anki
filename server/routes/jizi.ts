@@ -66,16 +66,15 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     }>;
 
     if (scope === 'all') {
-      // 查询所有公开牌组的单字卡片
+      // 查询所有公开牌组（已发布到市场）的单字卡片
       rows = (await db.query(
         `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
                 d.name AS deck_name,
                 md.style, md.calligrapher
          FROM cards c
          JOIN decks d ON d.id = c.deck_id
-         LEFT JOIN marketplace_decks md ON md.deck_id = c.deck_id
+         JOIN marketplace_decks md ON md.deck_id = c.deck_id
          WHERE c.image_url != ''
-           AND d.is_public = 1
          ORDER BY c.created_at ASC`
       )).rows as typeof rows;
     } else {

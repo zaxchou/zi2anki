@@ -21,7 +21,8 @@ const JiziCell: React.FC<JiziCellProps> = ({
   onOpenPicker,
   darkMode,
 }) => {
-  const current = hits.length > 0 ? hits[selectedIndex % hits.length] : null;
+  const safeIndex = hits.length > 0 ? Math.min(Math.max(0, selectedIndex), hits.length - 1) : 0;
+  const current = hits.length > 0 ? hits[safeIndex] : null;
 
   const textColor = darkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary';
   const subColor = darkMode ? 'rgba(255,255,255,0.45)' : 'text.disabled';
@@ -100,7 +101,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
               pointerEvents: 'none',
             }}
           >
-            {(selectedIndex % hits.length) + 1}/{hits.length}
+            {safeIndex + 1}/{hits.length}
           </Typography>
         )}
       </Box>

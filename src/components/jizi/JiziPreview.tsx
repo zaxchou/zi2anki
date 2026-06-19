@@ -11,24 +11,30 @@ export interface JiziPreviewProps {
   text?: string;
 }
 
-/** 将 results 按文本换行分组（有空行时手动分行，否则按 colCount 自动分行） */
-function groupResults(results: JiziMatchResult[], colCount: number, text?: string): JiziMatchResult[][] {
-  // 如果有手动换行（文本中含空行），按空行分组
+/** 将 results 按文本换行分组（有空行时手动分行，否则按 colCount 自动分行）。
+ *  返回每个 group 同时携带其在原 results 中的起始偏移，供 globalIndex 计算。 */
+export function groupResults(
+  results: JiziMatchResult[],
+  colCount: number,
+  text?: string,
+): Array<{ items: JiziMatchResult[]; offset: number }> {
+  // 手动分行：文本中含空行
   if (text && /\n\s*\n/.test(text)) {
     const lines = text.split(/\n\s*\n/).filter((l) => l.trim().length > 0);
-    const groups: JiziMatchResult[][] = [];
+    const groups: Array<{ items: JiziMatchResult[]; offset: number }> = [];
     let offset = 0;
     for (const line of lines) {
       const chars = Array.from(line).filter((c) => /\p{Script=Han}/u.test(c));
-      groups.push(results.slice(offset, offset + chars.length));
+      const items = results.slice(offset, offset + chars.length);
+      if (items.length > 0) groups.push({ items, offset });
       offset += chars.length;
     }
-    return groups.filter((g) => g.length > 0);
+    if (groups.length > 0) return groups;
   }
   // 默认按 colCount 自动分行
-  const groups: JiziMatchResult[][] = [];
+  const groups: Array<{ items: JiziMatchResult[]; offset: number }> = [];
   for (let i = 0; i < results.length; i += colCount) {
-    groups.push(results.slice(i, i + colCount));
+    groups.push({ items: results.slice(i, i + colCount), offset: i });
   }
   return groups;
 }
@@ -98,25 +104,26 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
       }}
     >
       {orderedGroups.map((group, gi) => {
-        const realGi = needsReversed ? groups.length - 1 - gi : gi;
+        const isLastGroup = gi === orderedGroups.length - 1;
         return (
           <Box
-            key={gi}
+            key={group.offset}
             sx={{
               display: 'flex',
               flexDirection: isVertical ? 'column' : 'row',
-              mr: isVertical ? lg : 0,
-              mb: isVertical ? 0 : lg,
+              mr: isVertical && !isLastGroup ? lg : 0,
+              mb: !isVertical && !isLastGroup ? lg : 0,
             }}
           >
-            {group.map((result, ii) => {
-              const globalIndex = realGi * colCount + ii;
+            {group.items.map((result, ii) => {
+              const globalIndex = group.offset + ii;
+              const isLastCell = ii === group.items.length - 1;
               return (
                 <Box
                   key={globalIndex}
                   sx={{
-                    mb: isVertical ? cg : 0,
-                    mr: isVertical ? 0 : cg,
+                    mb: isVertical && !isLastCell ? cg : 0,
+                    mr: !isVertical && !isLastCell ? cg : 0,
                   }}
                 >
                   <JiziCell

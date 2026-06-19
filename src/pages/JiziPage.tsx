@@ -23,7 +23,8 @@ const JiziPage: React.FC = () => {
   const [text, setText] = useState('');
   const [layout, setLayout] = useState<JiziLayout>(DEFAULT_LAYOUT);
   const [results, setResults] = useState<JiziMatchResult[]>([]);
-  const [selections, setSelections] = useState<number[]>([]);
+  // selectedCardIds: 索引→用户主动选择的 card_id；缺失时回退到当前可见 hits[0]
+  const [selectedCardIds, setSelectedCardIds] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -42,9 +43,7 @@ const JiziPage: React.FC = () => {
     const trimmed = text.trim();
     if (!trimmed) {
       setResults([]);
-      setSelections([]);
-      setStyleFilter('');
-      setCalligrapherFilter('');
+      setSelectedCardIds({});
       return;
     }
     let cancelled = false;
@@ -55,7 +54,8 @@ const JiziPage: React.FC = () => {
         const resp = await fetchJiziMatch(trimmed, scope);
         if (cancelled) return;
         setResults(resp.results);
-        setSelections(resp.results.map(() => 0));
+        // 文字变化时清空过往选择（按 char 数组完全重置）
+        setSelectedCardIds({});
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : '匹配失败');
@@ -69,22 +69,6 @@ const JiziPage: React.FC = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [text, scope]);
-
-  /** 打开选择弹窗 */
-  const handleOpenPicker = useCallback((index: number) => {
-    setSwitcherIndex(index);
-    setSwitcherOpen(true);
-  }, []);
-
-  /** 弹窗选择 */
-  const handleSwitcherPick = useCallback((hitIndex: number) => {
-    setSelections((prev) => {
-      const next = [...prev];
-      next[switcherIndex] = hitIndex;
-      return next;
-    });
-    setSwitcherOpen(false);
-  }, [switcherIndex]);
 
   const hasResults = results.length > 0;
 
@@ -101,17 +85,58 @@ const JiziPage: React.FC = () => {
     }));
   }, [results, styleFilter, calligrapherFilter]);
 
+  // 当 results 变化时，若当前筛选值已不在可选列表中，自动清空（避免 MUI Select 警告）
+  useEffect(() => {
+    if (!results.length) return;
+    const allStyles = new Set<string>();
+    const allCalligraphers = new Set<string>();
+    results.forEach((r) => r.hits.forEach((h) => {
+      if (h.style) allStyles.add(h.style);
+      if (h.calligrapher) allCalligraphers.add(h.calligrapher);
+    }));
+    if (styleFilter && !allStyles.has(styleFilter)) setStyleFilter('');
+    if (calligrapherFilter && !allCalligraphers.has(calligrapherFilter)) setCalligrapherFilter('');
+  }, [results, styleFilter, calligrapherFilter]);
+
+  // 解析每个位置当前显示的 hit index（基于 filteredResults）
+  // 优先使用用户主动选择的 card_id；找不到则回退到 0
+  const selections = React.useMemo<number[]>(() => {
+    return filteredResults.map((r, i) => {
+      const cardId = selectedCardIds[i];
+      if (!cardId) return 0;
+      const idx = r.hits.findIndex((h) => h.card_id === cardId);
+      return idx >= 0 ? idx : 0;
+    });
+  }, [filteredResults, selectedCardIds]);
+
+  /** 打开选择弹窗 */
+  const handleOpenPicker = useCallback((index: number) => {
+    setSwitcherIndex(index);
+    setSwitcherOpen(true);
+  }, []);
+
+  /** 弹窗选择 */
+  const handleSwitcherPick = useCallback((hitIndex: number) => {
+    setSelectedCardIds((prev) => {
+      const result = filteredResults[switcherIndex];
+      const card = result?.hits[hitIndex];
+      if (!card) return prev;
+      return { ...prev, [switcherIndex]: card.card_id };
+    });
+    setSwitcherOpen(false);
+  }, [switcherIndex, filteredResults]);
+
   /** 导出 PNG */
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      await exportJiziPNG(filteredResults, selections, layout);
+      await exportJiziPNG(filteredResults, selections, layout, text);
     } catch (err) {
       setError(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
     }
-  }, [filteredResults, selections, layout]);
+  }, [filteredResults, selections, layout, text]);
 
   const missingCount = filteredResults.filter((r) => r.hits.length === 0).length;
 
@@ -228,6 +253,7 @@ const JiziPage: React.FC = () => {
         onOpenPicker={handleOpenPicker}
         onExport={handleExport}
         exporting={exporting}
+        text={text}
       />
     </Box>
   );
