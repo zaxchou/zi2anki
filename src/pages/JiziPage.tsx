@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
   Grid,
   Typography,
   CircularProgress,
@@ -16,7 +21,7 @@ import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
 import { fetchJiziMatch } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
 import { DEFAULT_LAYOUT } from '@/types/jizi';
-import type { JiziLayout, JiziMatchResult } from '@/types/jizi';
+import type { JiziLayout, JiziMatchResult, CharHit } from '@/types/jizi';
 
 /** 集字页面 */
 const JiziPage: React.FC = () => {
@@ -34,6 +39,9 @@ const JiziPage: React.FC = () => {
   const [scope, setScope] = useState<'mine' | 'all'>('mine');
   const [styleFilter, setStyleFilter] = useState('');
   const [calligrapherFilter, setCalligrapherFilter] = useState('');
+  // 风格统一：首字选中后弹出确认
+  const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
+  const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -124,7 +132,53 @@ const JiziPage: React.FC = () => {
       return { ...prev, [switcherIndex]: card.card_id };
     });
     setSwitcherOpen(false);
+
+    // 首字选完后提示用户是否参考该字风格自动集字
+    if (switcherIndex === 0) {
+      const card = filteredResults[0]?.hits[hitIndex];
+      if (card) {
+        setPendingStyleHit(card);
+        setStyleConfirmOpen(true);
+      }
+    }
   }, [switcherIndex, filteredResults]);
+
+  /** 确认按首字风格自动集字 */
+  const handleStyleConfirm = useCallback(() => {
+    if (!pendingStyleHit) {
+      setStyleConfirmOpen(false);
+      return;
+    }
+    const refDeck = pendingStyleHit.deck_id;
+    const refCalligrapher = pendingStyleHit.calligrapher;
+
+    setSelectedCardIds((prev) => {
+      const next: Record<number, string> = { ...prev };
+      filteredResults.forEach((r, i) => {
+        if (i === 0) return; // 首字已选
+        // 优先匹配同字帖（deck_id），其次同书家
+        const sameDeck = r.hits.find((h) => h.deck_id === refDeck);
+        if (sameDeck) {
+          next[i] = sameDeck.card_id;
+          return;
+        }
+        if (refCalligrapher) {
+          const sameCalligrapher = r.hits.find((h) => h.calligrapher === refCalligrapher);
+          if (sameCalligrapher) {
+            next[i] = sameCalligrapher.card_id;
+          }
+        }
+      });
+      return next;
+    });
+    setStyleConfirmOpen(false);
+    setPendingStyleHit(null);
+  }, [pendingStyleHit, filteredResults]);
+
+  const handleStyleCancel = useCallback(() => {
+    setStyleConfirmOpen(false);
+    setPendingStyleHit(null);
+  }, []);
 
   /** 导出 PNG */
   const handleExport = useCallback(async () => {
@@ -255,6 +309,34 @@ const JiziPage: React.FC = () => {
         exporting={exporting}
         text={text}
       />
+
+      {/* 风格统一确认对话框 */}
+      <Dialog open={styleConfirmOpen} onClose={handleStyleCancel} maxWidth="xs" fullWidth>
+        <DialogTitle>是否参考该字风格自动集字？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            将根据所选字的字帖
+            {pendingStyleHit?.deck_name && (
+              <Typography component="span" sx={{ mx: 0.5, fontWeight: 500, color: 'primary.main' }}>
+                《{pendingStyleHit.deck_name}》
+              </Typography>
+            )}
+            {pendingStyleHit?.calligrapher && (
+              <>
+                / 书家
+                <Typography component="span" sx={{ mx: 0.5, fontWeight: 500, color: 'primary.main' }}>
+                  {pendingStyleHit.calligrapher}
+                </Typography>
+              </>
+            )}
+            自动匹配后续所有字。无匹配的字保持原状。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleStyleCancel}>取消</Button>
+          <Button variant="contained" onClick={handleStyleConfirm}>确认</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

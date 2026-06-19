@@ -54,7 +54,7 @@ export const DEFAULT_LAYOUT: JiziLayout = {
   direction: 'vertical-rl',
   fontSize: 120,
   colCount: 6,
-  charGap: 0.15,
-  lineGap: 0.25,
+  charGap: 0.02,
+  lineGap: 0.02,
   background: 'xuan',
 };
