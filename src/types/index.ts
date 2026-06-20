@@ -36,6 +36,10 @@ export interface Deck {
   published_at?: string | null;
   /** 封面图 */
   cover_image?: string;
+  /** 文章全文（用于文章顺序学习） */
+  article_text?: string;
+  /** 学习模式：默认/文章顺序/随机 */
+  study_mode?: 'default' | 'sequential' | 'random';
 }
 
 /** 单次学习会话 */

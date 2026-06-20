@@ -59,6 +59,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
 
     const { rows } = await db.query(
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
+        d.article_text, d.study_mode,
         md.published_at,
         COALESCE(md.cover_image, (
           SELECT image_url FROM cards
@@ -254,9 +255,11 @@ decksRouter.put('/decks/:id/card-count', async (req: Request, res: Response) => 
 });
 
 // PUT /api/decks/:id/reset-progress —— 重置牌组所有卡片到初始状态
+// 安全保护：如果有超过 30 天前的学习记录，必须传 ?force=1 才能执行
 decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const force = req.query.force === '1';
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
 
@@ -264,6 +267,23 @@ decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response)
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
+    }
+
+    // 安全保护：有已学卡片（interval > 0）则需 force=1 确认
+    if (!force) {
+      const { rows: hasLearned } = await db.query(
+        `SELECT 1 FROM user_card_progress
+         WHERE user_id = $1 AND card_id IN (SELECT id FROM cards WHERE deck_id = $2) AND interval > 0
+         LIMIT 1`,
+        [req.user!.userId, id]
+      );
+      if (hasLearned.length > 0) {
+        res.status(409).json({
+          error: '该牌组已有学习进度，如需重置请使用 force=1',
+          hint: 'force=true',
+        });
+        return;
+      }
     }
 
     const now = nowISO();
@@ -321,6 +341,49 @@ decksRouter.put('/decks/:id/limits', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('PUT /decks/:id/limits error:', err);
     res.status(500).json({ error: 'Failed to update limits' });
+  }
+});
+
+// PUT /api/decks/:id/study-mode —— 更新学习模式
+decksRouter.put('/decks/:id/study-mode', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { study_mode } = req.body;
+    const validModes = ['default', 'sequential', 'random'];
+    if (!validModes.includes(study_mode)) {
+      res.status(400).json({ error: `Invalid study_mode: must be one of ${validModes.join(', ')}` });
+      return;
+    }
+    const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
+    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
+    if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
+    const now = nowISO();
+    await db.query('UPDATE decks SET study_mode = $1, updated_at = $2 WHERE id = $3', [study_mode, now, id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /decks/:id/study-mode error:', err);
+    res.status(500).json({ error: 'Failed to update study mode' });
+  }
+});
+
+// GET /api/decks/:id/has-studied —— 检查牌组是否有学习记录
+decksRouter.get('/decks/:id/has-studied', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    const { rows } = await db.query(
+      `SELECT EXISTS(
+        SELECT 1 FROM user_card_progress ucp
+          JOIN cards c ON c.id = ucp.card_id
+          WHERE c.deck_id = $1 AND ucp.user_id = $2
+      ) AS has_studied`,
+      [id, req.user!.userId]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /decks/:id/has-studied error:', err);
+    res.status(500).json({ error: 'Failed to check study progress' });
   }
 });
 

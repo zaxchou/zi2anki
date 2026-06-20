@@ -27,6 +27,7 @@ import {
   AccordionDetails,
   CardMedia,
   InputAdornment,
+  Stack,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -42,6 +43,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import StoreIcon from '@mui/icons-material/Store';
+import SortIcon from '@mui/icons-material/Sort';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/lib/constants';
@@ -56,6 +58,8 @@ import {
   updateDeckLimits,
   fetchMarketplaceDeck,
   unpublishDeck,
+  setArticleText,
+  updateStudyMode,
 } from '@/lib/api';
 import type { Card, Deck, MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -210,6 +214,17 @@ const CardManagePage: React.FC = () => {
   // 从市场撤回
   const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
+
+  // 文章顺序设置
+  const [articleDialogOpen, setArticleDialogOpen] = useState(false);
+  const [articleTextValue, setArticleTextValue] = useState('');
+  const [articleSetting, setArticleSetting] = useState(false);
+  const [articleError, setArticleError] = useState('');
+  const [articleResult, setArticleResult] = useState<{
+    matched: number;
+    unmatched: number;
+    total_cards: number;
+  } | null>(null);
   const loadAbortedRef = useRef(false);
 
   const handleUnpublishClick = useCallback(() => {
@@ -766,6 +781,21 @@ const CardManagePage: React.FC = () => {
             开始学习
           </Button>
         )}
+        {deck && isAdmin && deck.card_count > 0 && (
+          <Button
+            variant="text"
+            size="small"
+            startIcon={<SortIcon />}
+            onClick={() => {
+              setArticleTextValue(deck.article_text || '');
+              setArticleResult(null);
+              setArticleDialogOpen(true);
+            }}
+            sx={{ textTransform: 'none', ml: 0.5 }}
+          >
+            碑帖文本
+          </Button>
+        )}
       </Box>
 
       {/* 难度筛选（支持从分析页跳转） */}
@@ -824,9 +854,16 @@ const CardManagePage: React.FC = () => {
         sx={{ borderRadius: 2, '&:before': { display: 'none' } }}
       >
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body2" fontWeight={500}>
-            每日学习上限：新卡 {editingNewLimit} · 复习 {editingReviewLimit}
-          </Typography>
+          <Box className="flex items-center gap-2 w-full">
+            <Typography variant="body2" fontWeight={500}>
+              每日上限：新卡 {editingNewLimit} · 复习 {editingReviewLimit}
+            </Typography>
+            {deck && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', mr: 2 }}>
+                学习模式：{deck.study_mode === 'sequential' ? '碑帖文本' : deck.study_mode === 'random' ? '随机' : '默认'}
+              </Typography>
+            )}
+          </Box>
         </AccordionSummary>
         <AccordionDetails>
           <Box className="space-y-4">
@@ -841,6 +878,40 @@ const CardManagePage: React.FC = () => {
             <Button variant="contained" size="small" onClick={handleSaveLimits} disabled={savingLimits}>
               {savingLimits ? '保存中...' : '保存上限'}
             </Button>
+
+            {/* 学习模式 */}
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+              <Typography variant="body2" fontWeight={500} className="mb-1">
+                学习模式
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                设置学习时卡片的排序方式。有碑帖文本的牌组可选择「碑帖文本」。
+              </Typography>
+              <Stack direction="row" spacing={1}>
+                {(['default', 'sequential', 'random'] as const).map((mode) => {
+                  const disabled = mode === 'sequential' && !deck?.article_text;
+                  return (
+                    <Chip
+                      key={mode}
+                      label={mode === 'sequential' ? '碑帖文本' : mode === 'random' ? '随机' : '默认'}
+                      variant={deck?.study_mode === mode ? 'filled' : 'outlined'}
+                      color={deck?.study_mode === mode ? 'primary' : 'default'}
+                      onClick={async () => {
+                        if (disabled || !deck) return;
+                        const prev = deck.study_mode;
+                        setDeck({ ...deck, study_mode: mode });
+                        try {
+                          await updateStudyMode(deck.id, mode);
+                        } catch {
+                          setDeck({ ...deck, study_mode: prev });
+                        }
+                      }}
+                      sx={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
+                    />
+                  );
+                })}
+              </Stack>
+            </Box>
           </Box>
         </AccordionDetails>
       </Accordion>
@@ -1513,6 +1584,86 @@ const CardManagePage: React.FC = () => {
           </Button>
           <Button onClick={handleConfirmUnpublish} disabled={unpublishing} color="error" variant="contained">
             {unpublishing ? '撤回中...' : '确认撤回'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 文章顺序设置弹窗 */}
+      <Dialog
+        open={articleDialogOpen}
+        onClose={() => { if (!articleSetting) setArticleDialogOpen(false); }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>设置碑帖文本</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            粘贴完整的文章正文，系统会自动将卡片中的汉字与文章中的位置匹配。
+            匹配完成后，进入学习时可以选择"碑帖文本"模式。
+          </Typography>
+
+          <TextField
+            autoFocus
+            multiline
+            minRows={6}
+            maxRows={16}
+            fullWidth
+            value={articleTextValue}
+            onChange={(e) => {
+              setArticleTextValue(e.target.value);
+              setArticleResult(null);
+            }}
+            placeholder={"在此粘贴文章全文，例如：\n大唐三藏圣教序太宗文皇帝制"}
+            disabled={articleSetting}
+          />
+
+          {articleResult && (
+            <Alert
+              severity={articleResult.unmatched === 0 ? 'success' : 'warning'}
+              sx={{ mt: 2 }}
+            >
+              <Typography variant="body2">
+                匹配成功：{articleResult.matched} / {articleResult.total_cards} 张卡片
+              </Typography>
+              {articleResult.unmatched > 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  未匹配：{articleResult.unmatched} 张
+                </Typography>
+              )}
+            </Alert>
+          )}
+          {articleError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              <Typography variant="body2">{articleError}</Typography>
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setArticleDialogOpen(false)} disabled={articleSetting}>
+            关闭
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              if (!deckId || !articleTextValue.trim() || articleSetting) return;
+              setArticleSetting(true);
+              setArticleResult(null);
+              try {
+                const result = await setArticleText(deckId, articleTextValue.trim());
+                setArticleResult(result);
+                setArticleError('');
+                loadData();
+                setTimeout(() => setArticleDialogOpen(false), 1200);
+              } catch (err) {
+                setArticleError(err instanceof Error ? err.message : '保存失败');
+                console.error('setArticleText error:', err);
+              } finally {
+                setArticleSetting(false);
+              }
+            }}
+            disabled={!articleTextValue.trim() || articleSetting}
+          >
+            {articleSetting ? '保存中...' : '保存'}
           </Button>
         </DialogActions>
       </Dialog>

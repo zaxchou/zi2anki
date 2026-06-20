@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -11,10 +11,15 @@ import {
   DialogActions,
   Stack,
   Typography,
+  Slider,
+  Chip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ShuffleIcon from '@mui/icons-material/Shuffle';
+import SortIcon from '@mui/icons-material/Sort';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import { useStudyStore } from '@/stores/useStudyStore';
-import { fetchDecks, endStudySession as endStudySessionApi, getImageUrl } from '@/lib/api';
+import { fetchDecks, endStudySession as endStudySessionApi, getImageUrl, hasStudiedDeck, updateStudyMode, updateDeckLimits } from '@/lib/api';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
 import RatingButtons from '@/components/study/RatingButtons';
@@ -22,10 +27,11 @@ import StudyComplete from '@/components/study/StudyComplete';
 import { LoadingState } from '@/components/common/LoadingState';
 import type { Rating } from '@/types';
 
+type StudyMode = 'default' | 'sequential' | 'random';
+
 /**
  * 学习页面。
- * 管理单次学习会话的完整流程：加载 → 学习 → 完成。
- * 顶部"返回"按钮支持中断当前会话，已评分的卡会保留进度。
+ * 首次进牌组弹设置向导（新卡上限 + 复习上限 + 学习模式），之后直接启动。
  */
 const StudyPage: React.FC = () => {
   const { deckId } = useParams<{ deckId: string }>();
@@ -47,21 +53,42 @@ const StudyPage: React.FC = () => {
 
   const [flipped, setFlipped] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
-  // 学习计时（秒）：从 session.started_at 到现在的秒数
   const [elapsed, setElapsed] = useState(0);
 
-  // 加载牌组信息 → 获取牌组专属上限 → 启动学习
+  // 首次设置向导
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupNewLimit, setSetupNewLimit] = useState(20);
+  const [setupReviewLimit, setSetupReviewLimit] = useState(200);
+  const [setupMode, setSetupMode] = useState<StudyMode>('default');
+  const [hasArticle, setHasArticle] = useState(false);
+
+  // 加载并判断是否首次
   useEffect(() => {
     if (!deckId) return;
     const init = async () => {
-      const decks = await fetchDecks();
+      const [decks, { has_studied }] = await Promise.all([
+        fetchDecks(),
+        hasStudiedDeck(deckId!),
+      ]);
       const deck = decks.find((d) => d.id === deckId);
-      startSession(
-        deckId,
-        deck?.daily_new_card_limit,
-        deck?.daily_review_limit,
-        difficultyFilter || undefined
-      );
+      setHasArticle(!!deck?.article_text);
+
+      if (has_studied) {
+        // 已有学习记录 → 直接启动（从 deck 读已保存的设置）
+        await startSession(
+          deckId!,
+          deck?.daily_new_card_limit,
+          deck?.daily_review_limit,
+          difficultyFilter || undefined,
+          deck?.study_mode || 'default',
+        );
+      } else {
+        // 首次 → 弹向导
+        setSetupNewLimit(deck?.daily_new_card_limit ?? 20);
+        setSetupReviewLimit(deck?.daily_review_limit ?? 200);
+        setSetupMode(deck?.study_mode || 'default');
+        setSetupOpen(true);
+      }
     };
     init();
 
@@ -74,7 +101,19 @@ const StudyPage: React.FC = () => {
     };
   }, [deckId, startSession, reset]);
 
-  // 学习计时器 + 学时持久化（每10秒 + 页面关闭保底）
+  // 向导确认
+  const handleSetupConfirm = useCallback(async () => {
+    if (!deckId) return;
+    setSetupOpen(false);
+    // 保存设置到后端
+    await Promise.all([
+      updateDeckLimits(deckId, { daily_new_card_limit: setupNewLimit, daily_review_limit: setupReviewLimit }),
+      updateStudyMode(deckId, setupMode),
+    ]);
+    await startSession(deckId, setupNewLimit, setupReviewLimit, difficultyFilter || undefined, setupMode);
+  }, [deckId, setupNewLimit, setupReviewLimit, setupMode, difficultyFilter, startSession]);
+
+  // 学习计时器
   useEffect(() => {
     if (phase !== 'studying' || !session?.started_at || !session?.id) {
       setElapsed(0);
@@ -91,15 +130,11 @@ const StudyPage: React.FC = () => {
     tick();
     const timerId = setInterval(tick, 1000);
 
-    // 每10秒持久化 ended_at，页面关闭最多丢10秒
     const persistId = setInterval(async () => {
-      try {
-        await endStudySessionApi(sid, { ended_at: new Date().toISOString() });
-      } catch { /* 静默 */ }
+      try { await endStudySessionApi(sid, { ended_at: new Date().toISOString() }); } catch { /* 静默 */ }
     }, 10000);
     endStudySessionApi(sid, { ended_at: new Date().toISOString() }).catch(() => {});
 
-    // 页面关闭/刷新保底 —— fetch keepalive 保证请求完成
     const onUnload = () => {
       try {
         const raw = localStorage.getItem('auth-storage');
@@ -124,14 +159,12 @@ const StudyPage: React.FC = () => {
     };
   }, [phase, session?.started_at, session?.id]);
 
-  /** 格式化秒为 MM:SS */
   const fmtTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  /** 预加载当前卡片之后 3 张的图片，避免翻牌时白屏等待 */
   useEffect(() => {
     const PRELOAD_COUNT = 3;
     for (let i = 1; i <= PRELOAD_COUNT; i++) {
@@ -143,22 +176,14 @@ const StudyPage: React.FC = () => {
     }
   }, [queue, currentIndex]);
 
-  const handleFlip = useCallback(() => {
-    setFlipped((prev) => !prev);
-  }, []);
+  const handleFlip = useCallback(() => setFlipped((prev) => !prev), []);
 
-  /** 评分并翻回正面 */
-  const handleRate = useCallback(
-    async (rating: Rating) => {
-      setFlipped(false);
-      await rateCard(rating);
-    },
-    [rateCard]
-  );
+  const handleRate = useCallback(async (rating: Rating) => {
+    setFlipped(false);
+    await rateCard(rating);
+  }, [rateCard]);
 
-  /** 用户点"返回" → 弹确认对话框 */
   const handleRequestExit = useCallback(() => {
-    // 学习中且已学至少 1 张 → 弹确认；否则直接退出
     if (phase === 'studying' && (session?.cards_studied ?? 0) > 0) {
       setConfirmExit(true);
     } else {
@@ -166,18 +191,68 @@ const StudyPage: React.FC = () => {
     }
   }, [phase, session?.cards_studied]);
 
-  /** 确认退出：先结束会话（保留已评分的卡） → 回到来源页 */
   const handleConfirmExit = useCallback(async () => {
     setConfirmExit(false);
     if (phase === 'studying' && session) {
-      try {
-        await endSession();
-      } catch (err) {
-        console.error('[StudyPage] endSession 失败:', err);
-      }
+      try { await endSession(); } catch { /* ignore */ }
     }
     navigate(-1);
   }, [phase, session, endSession, navigate]);
+
+  // 首次设置弹窗
+  if (setupOpen) {
+    return (
+      <Dialog open maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 600 }}>
+          学习设置
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
+            <Box>
+              <Typography variant="body2" fontWeight={500} gutterBottom>
+                每日新卡上限：{setupNewLimit}
+              </Typography>
+              <Slider value={setupNewLimit} onChange={(_, v) => setSetupNewLimit(v as number)} min={1} max={100} step={1} valueLabelDisplay="auto" />
+            </Box>
+            <Box>
+              <Typography variant="body2" fontWeight={500} gutterBottom>
+                每日复习上限：{setupReviewLimit}
+              </Typography>
+              <Slider value={setupReviewLimit} onChange={(_, v) => setSetupReviewLimit(v as number)} min={1} max={500} step={1} valueLabelDisplay="auto" />
+            </Box>
+            <Box>
+              <Typography variant="body2" fontWeight={500} gutterBottom>
+                学习模式
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {([
+                  { value: 'default' as StudyMode, label: '默认', icon: <FormatListBulletedIcon /> },
+                  { value: 'sequential' as StudyMode, label: '碑帖文本', icon: <SortIcon /> },
+                  { value: 'random' as StudyMode, label: '随机', icon: <ShuffleIcon /> },
+                ]).map((opt) => {
+                  const disabled = opt.value === 'sequential' && !hasArticle;
+                  return (
+                    <Chip
+                      key={opt.value}
+                      icon={opt.icon}
+                      label={opt.label}
+                      variant={setupMode === opt.value ? 'filled' : 'outlined'}
+                      color={setupMode === opt.value ? 'primary' : 'default'}
+                      onClick={() => { if (!disabled) setSetupMode(opt.value); }}
+                      sx={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1 }}
+                    />
+                  );
+                })}
+              </Stack>
+            </Box>
+            <Button variant="contained" size="large" fullWidth onClick={handleSetupConfirm} sx={{ mt: 1 }}>
+              开始学习
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   // 加载状态
   if (phase === 'loading' || loading) {
@@ -188,23 +263,10 @@ const StudyPage: React.FC = () => {
   if (error) {
     return (
       <Box className="py-4">
-        <Alert severity="error" className="mb-4">
-          {error}
-        </Alert>
-        <Alert
-          severity="info"
-          action={
-            <Box
-              component="button"
-              onClick={() => startSession(deckId!)}
-              className="cursor-pointer bg-transparent border-0 underline text-blue-600"
-            >
-              重试
-            </Box>
-          }
-        >
-          加载学习内容失败
-        </Alert>
+        <Alert severity="error" className="mb-4">{error}</Alert>
+        <Alert severity="info" action={
+          <Box component="button" onClick={() => startSession(deckId!)} className="cursor-pointer bg-transparent border-0 underline text-blue-600">重试</Box>
+        }>加载学习内容失败</Alert>
       </Box>
     );
   }
@@ -214,87 +276,39 @@ const StudyPage: React.FC = () => {
     const currentCard = queue[currentIndex];
     return (
       <Box className="flex flex-col items-center gap-6 py-4 relative">
-        {/* 顶部：左-返回 + 右-计时 */}
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ position: 'absolute', left: 0, right: 0, top: 0 }}
-        >
-          <Button
-            onClick={handleRequestExit}
-            size="small"
-            startIcon={<ArrowBackIcon />}
-            sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 500 }}
-          >
-            返回
-          </Button>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ px: 1, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}
-          >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
+          <Button onClick={handleRequestExit} size="small" startIcon={<ArrowBackIcon />}
+            sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 500 }}>返回</Button>
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
             {fmtTime(elapsed)}
           </Typography>
         </Stack>
-
-        {/* 进度条 */}
         <Box sx={{ mt: 4, width: '100%' }}>
           <ProgressBar current={currentIndex + 1} total={queue.length} />
         </Box>
-
-        {/* 闪卡 */}
-        <FlashCard
-          key={currentCard.id}
-          card={currentCard}
-          flipped={flipped}
-          onFlip={handleFlip}
-        />
-
-        {/* 评分按钮 */}
+        <FlashCard key={currentCard.id} card={currentCard} flipped={flipped} onFlip={handleFlip} />
         <Box className="w-full max-w-lg mt-2">
-          <RatingButtons
-            onRate={handleRate}
-            disabled={!flipped}
-            card={currentCard ? {
-              ease: currentCard.ease,
-              interval: currentCard.interval,
-              repetitions: currentCard.repetitions,
-            } : undefined}
-          />
+          <RatingButtons onRate={handleRate} disabled={!flipped}
+            card={currentCard ? { ease: currentCard.ease, interval: currentCard.interval, repetitions: currentCard.repetitions } : undefined} />
         </Box>
-
-        {/* 中断确认对话框 */}
         <Dialog open={confirmExit} onClose={() => setConfirmExit(false)}>
           <DialogTitle>中断当前学习？</DialogTitle>
           <DialogContent>
-            <DialogContentText>
-              已完成 {session?.cards_studied ?? 0} 张卡片，进度会保留。
-              确认要离开吗？
-            </DialogContentText>
+            <DialogContentText>已完成 {session?.cards_studied ?? 0} 张卡片，进度会保留。确认要离开吗？</DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setConfirmExit(false)}>继续学习</Button>
-            <Button onClick={handleConfirmExit} color="error" variant="contained">
-              确认离开
-            </Button>
+            <Button onClick={handleConfirmExit} color="error" variant="contained">确认离开</Button>
           </DialogActions>
         </Dialog>
       </Box>
     );
   }
 
-  // 完成阶段
   if (phase === 'complete' && session) {
-    return (
-      <StudyComplete
-        session={session}
-        onBackToDashboard={handleConfirmExit}
-      />
-    );
+    return <StudyComplete session={session} onBackToDashboard={handleConfirmExit} />;
   }
 
-  // 兜底加载状态
   return <LoadingState message="正在准备学习..." />;
 };
 

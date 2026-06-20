@@ -63,7 +63,9 @@ async function initDb(): Promise<void> {
       daily_review_limit INTEGER DEFAULT 200,
       user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      article_text TEXT DEFAULT '',
+      study_mode TEXT DEFAULT 'default'
     );
 
     CREATE TABLE IF NOT EXISTS cards (
@@ -79,7 +81,8 @@ async function initDb(): Promise<void> {
       last_review TEXT,
       user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS study_sessions (
@@ -192,6 +195,12 @@ async function migrateSchema(db: pkg.Pool): Promise<void> {
   for (const sql of fkMigrations) {
     try { await db.query(sql); } catch { /* 已存在则忽略 */ }
   }
+
+  // 列迁移：decks.article_text + cards.sort_order + decks.study_mode
+  try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS article_text TEXT DEFAULT ''`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS study_mode TEXT DEFAULT 'default'`); } catch { /* ignore */ }
+  try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_sort_order ON cards(deck_id, sort_order)`); } catch { /* ignore */ }
 }
 
 /** 上传目录的绝对路径（项目根目录下的 uploads/） */

@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { getDb, getUploadsDir } from '../db.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const cardsRouter = Router();
 
@@ -539,11 +540,112 @@ cardsRouter.delete('/cards/:id', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/decks/:deckId/set-article-text —— 设置碑帖文本并计算卡片位置
+cardsRouter.post('/decks/:deckId/set-article-text', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { deckId } = req.params;
+    const { article_text } = req.body;
+
+    if (!article_text || typeof article_text !== 'string' || article_text.trim().length === 0) {
+      res.status(400).json({ error: 'article_text is required' });
+      return;
+    }
+
+    const db = getDb();
+
+    await db.query('UPDATE decks SET article_text = $1, updated_at = $2 WHERE id = $3',
+      [article_text.trim(), nowISO(), deckId]);
+
+    const { rows: cards } = await db.query(
+      'SELECT id, front_text FROM cards WHERE deck_id = $1 ORDER BY created_at ASC',
+      [deckId]
+    ) as { rows: Array<{ id: string; front_text: string }> };
+
+    function resolveBase(frontText: string): string {
+      return frontText.replace(/\s*\(?\d+\)?\s*$/, '').replace(/_\d+$/, '').trim();
+    }
+
+    // 去掉标点符号，只保留汉字用于匹配
+    const text = article_text.trim().replace(/[　-〿＀-￯.,!?;:，。！？；：、""''（）《》【】\[\]{}·…—\-~·\s]/g, '');
+
+    const charPositions = new Map<string, number[]>();
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (!charPositions.has(ch)) charPositions.set(ch, []);
+      charPositions.get(ch)!.push(i + 1);
+    }
+
+    // 两轮匹配：多字短语优先，单字次之
+    const updates: Array<{ id: string; sortOrder: number }> = [];
+    const usedIds = new Set<string>();
+    const usedPositions = new Set<number>();
+
+    for (const card of cards) {
+      const base = resolveBase(card.front_text);
+      if (base.length <= 1) continue;
+      for (let i = 0; i <= text.length - base.length; i++) {
+        let match = true;
+        for (let j = 0; j < base.length; j++) {
+          if (text[i + j] !== base[j] || usedPositions.has(i + j + 1)) { match = false; break; }
+        }
+        if (match) {
+          updates.push({ id: card.id, sortOrder: i + 1 });
+          for (let j = 0; j < base.length; j++) usedPositions.add(i + j + 1);
+          usedIds.add(card.id);
+          break;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      if (usedIds.has(card.id)) continue;
+      const base = resolveBase(card.front_text);
+      const key = base[0] || base;
+      const positions = charPositions.get(key);
+      if (!positions || positions.length === 0) continue;
+      const nextPos = positions.find(p => !usedPositions.has(p));
+      if (nextPos) {
+        updates.push({ id: card.id, sortOrder: nextPos });
+        usedPositions.add(nextPos);
+        usedIds.add(card.id);
+      }
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      for (const u of updates) {
+        await client.query('UPDATE cards SET sort_order = $1, updated_at = $2 WHERE id = $3',
+          [u.sortOrder, nowISO(), u.id]);
+      }
+      for (const card of cards) {
+        if (!usedIds.has(card.id)) {
+          await client.query('UPDATE cards SET sort_order = 0, updated_at = $1 WHERE id = $2',
+            [nowISO(), card.id]);
+        }
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    res.json({ matched: updates.length, unmatched: cards.length - updates.length, total_cards: cards.length });
+  } catch (err) {
+    console.error('POST /decks/:deckId/set-article-text error:', err);
+    res.status(500).json({ error: 'Failed to set article text' });
+  }
+});
+
 // GET /api/decks/:deckId/due-cards —— 获取到期卡片
+// ?mode=default|sequential|random （默认 default）
 cardsRouter.get('/decks/:deckId/due-cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const mode = (req.query.mode as string) || 'default';
 
     const db = getDb();
     const userId = req.user!.userId;
@@ -570,8 +672,17 @@ cardsRouter.get('/decks/:deckId/due-cards', async (req: Request, res: Response) 
                FROM cards c
                INNER JOIN user_card_progress ucp
                   ON ucp.user_id = $1 AND ucp.card_id = c.id
-               WHERE c.deck_id = $2 AND ucp.interval > 0 AND ucp.next_review <= $3
-               ORDER BY ucp.next_review ASC`;
+               WHERE c.deck_id = $2 AND ucp.interval > 0 AND ucp.next_review <= $3`;
+
+    // 排序模式
+    if (mode === 'random') {
+      sql += ' ORDER BY RANDOM()';
+    } else if (mode === 'sequential') {
+      sql += ' ORDER BY NULLIF(c.sort_order, 0) ASC NULLS LAST, ucp.next_review ASC';
+    } else {
+      sql += ' ORDER BY ucp.next_review ASC';
+    }
+
     const params: unknown[] = [userId, deckId, now];
 
     if (limit && limit > 0) {
@@ -588,10 +699,12 @@ cardsRouter.get('/decks/:deckId/due-cards', async (req: Request, res: Response) 
 });
 
 // GET /api/decks/:deckId/new-cards —— 获取新卡片
+// ?mode=default|sequential|random （默认 default）
 cardsRouter.get('/decks/:deckId/new-cards', async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const mode = (req.query.mode as string) || 'default';
 
     const db = getDb();
     const userId = req.user!.userId;
@@ -617,8 +730,17 @@ cardsRouter.get('/decks/:deckId/new-cards', async (req: Request, res: Response) 
                FROM cards c
                LEFT JOIN user_card_progress ucp
                   ON ucp.user_id = $1 AND ucp.card_id = c.id
-               WHERE c.deck_id = $2 AND (ucp.card_id IS NULL OR ucp.interval = 0)
-               ORDER BY c.created_at ASC`;
+               WHERE c.deck_id = $2 AND (ucp.card_id IS NULL OR ucp.interval = 0)`;
+
+    // 排序模式
+    if (mode === 'random') {
+      sql += ' ORDER BY RANDOM()';
+    } else if (mode === 'sequential') {
+      sql += ' ORDER BY NULLIF(c.sort_order, 0) ASC NULLS LAST, c.created_at ASC';
+    } else {
+      sql += ' ORDER BY c.created_at ASC';
+    }
+
     const params: unknown[] = [userId, deckId];
 
     if (limit && limit > 0) {

@@ -35,7 +35,7 @@ interface StudyStore {
   error: string | null;
 
   /** 初始化学习会话：加载到期卡片 + 新卡片，dailyReviewLimit 控制复习上限 */
-  startSession: (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string) => Promise<void>;
+  startSession: (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string, mode?: 'default' | 'sequential' | 'random') => Promise<void>;
   /** 对当前卡片评分并前进到下一张 */
   rateCard: (rating: Rating) => Promise<void>;
   /** 结束当前学习会话 */
@@ -57,7 +57,7 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
   loading: false,
   error: null,
 
-  startSession: async (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string) => {
+  startSession: async (deckId: string, dailyNewCardLimit?: number, dailyReviewLimit?: number, difficultyFilter?: string, mode?: 'default' | 'sequential' | 'random') => {
     set({ loading: true, error: null, deckId });
 
     try {
@@ -66,7 +66,7 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
 
       // 并行加载到期卡片和每日统计（用本牌组 deckId 查，避免跨牌组污染）
       const [dueCards, todayStats] = await Promise.all([
-        fetchDueCards(deckId, reviewLimit),
+        fetchDueCards(deckId, reviewLimit, mode),
         fetchDailyStats(todayLocal(), deckId),
       ]);
 
@@ -77,7 +77,7 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       // 加载新卡片
       let newCards: Card[] = [];
       if (remainingNewCards > 0) {
-        newCards = await fetchNewCards(deckId, remainingNewCards);
+        newCards = await fetchNewCards(deckId, remainingNewCards, mode);
       }
 
       // 合并队列：到期卡排在前面

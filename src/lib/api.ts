@@ -116,6 +116,33 @@ export function updateCardCountApi(
   });
 }
 
+/** 设置牌组学习模式 */
+export function updateStudyMode(
+  deckId: string,
+  mode: 'default' | 'sequential' | 'random'
+): Promise<{ success: boolean }> {
+  return request(`/api/decks/${deckId}/study-mode`, {
+    method: 'PUT',
+    body: JSON.stringify({ study_mode: mode }),
+  });
+}
+
+/** 检查牌组是否有学习记录 */
+export function hasStudiedDeck(deckId: string): Promise<{ has_studied: boolean }> {
+  return request(`/api/decks/${deckId}/has-studied`);
+}
+
+/** 设置牌组文章全文并计算卡片 sort_order（admin only） */
+export function setArticleText(
+  deckId: string,
+  articleText: string
+): Promise<{ matched: number; unmatched: number; unmatched_texts: string[]; total_cards: number }> {
+  return request(`/api/decks/${deckId}/set-article-text`, {
+    method: 'POST',
+    body: JSON.stringify({ article_text: articleText }),
+  });
+}
+
 // ===== 卡片 API =====
 
 export function fetchCards(deckId: string): Promise<Card[]> {
@@ -204,18 +231,26 @@ export function deleteCardApi(id: string): Promise<{ success: boolean }> {
 
 export function fetchDueCards(
   deckId: string,
-  limit?: number
+  limit?: number,
+  mode?: 'default' | 'sequential' | 'random'
 ): Promise<Card[]> {
-  const params = limit ? `?limit=${limit}` : '';
-  return request<Card[]>(`/api/decks/${deckId}/due-cards${params}`);
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (mode) params.set('mode', mode);
+  const qs = params.toString();
+  return request<Card[]>(`/api/decks/${deckId}/due-cards${qs ? `?${qs}` : ''}`);
 }
 
 export function fetchNewCards(
   deckId: string,
-  limit?: number
+  limit?: number,
+  mode?: 'default' | 'sequential' | 'random'
 ): Promise<Card[]> {
-  const params = limit ? `?limit=${limit}` : '';
-  return request<Card[]>(`/api/decks/${deckId}/new-cards${params}`);
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (mode) params.set('mode', mode);
+  const qs = params.toString();
+  return request<Card[]>(`/api/decks/${deckId}/new-cards${qs ? `?${qs}` : ''}`);
 }
 
 // ===== 学习会话 API =====
