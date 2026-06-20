@@ -196,7 +196,7 @@ const StudyPage: React.FC = () => {
     if (phase === 'studying' && session) {
       try { await endSession(); } catch { /* ignore */ }
     }
-    navigate(-1);
+    navigate('/');
   }, [phase, session, endSession, navigate]);
 
   // 首次设置弹窗
