@@ -8,7 +8,7 @@ import {
   fetchDueCards,
   fetchNewCards,
   fetchDailyStats,
-  upsertDailyStats,
+  incrementDailyStats,
   updateCard,
   createStudySession as createStudySessionApi,
   endStudySession as endStudySessionApi,
@@ -191,15 +191,14 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
         ratings: updatedRatings,
       };
 
-      // 更新每日统计（使用本地日期，不受 UTC 时区偏移影响）
-      // 传 deck_id：查本牌组的当日累计，避免跨牌组数据污染
+      // 原子增量更新每日统计（使用本地日期，不受 UTC 时区偏移影响）
+      // 传 deck_id：按本牌组累加，避免跨牌组数据污染
+      // 用后端 SQL 端累加，避免连续快速评分时"读后写"互相覆盖导致计数偏小
       const today = todayLocal();
-      const existingStats = await fetchDailyStats(today, session.deck_id);
-      await upsertDailyStats(today, {
+      await incrementDailyStats(today, {
         deck_id: session.deck_id,
-        cards_studied: (existingStats.cards_studied ?? 0) + 1,
-        new_cards_learned:
-          (existingStats.new_cards_learned ?? 0) + (wasNew ? 1 : 0),
+        cards_studied: 1,
+        new_cards_learned: wasNew ? 1 : 0,
       });
 
       // 前进到下一张卡片

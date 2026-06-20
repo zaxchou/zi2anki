@@ -272,6 +272,34 @@ studyRouter.put('/daily-stats/:date', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/daily-stats/:date/increment —— 原子增量更新每日统计
+// 用 INSERT ... ON CONFLICT DO UPDATE 在 SQL 端做累加，避免"读后写"竞态
+// （连续快速评分时多个请求并发，读取到的旧值会互相覆盖导致计数偏小）。
+studyRouter.post('/daily-stats/:date/increment', async (req: Request, res: Response) => {
+  try {
+    const { date } = req.params;
+    const cardsDelta = Number(req.body.cards_studied) || 0;
+    const newDelta = Number(req.body.new_cards_learned) || 0;
+    const deckId = (req.body.deck_id as string | undefined) || '';
+
+    const db = getDb();
+    const { rows } = await db.query(
+      `INSERT INTO daily_stats (date, user_id, deck_id, cards_studied, new_cards_learned)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (date, user_id, deck_id) DO UPDATE SET
+         cards_studied = daily_stats.cards_studied + EXCLUDED.cards_studied,
+         new_cards_learned = daily_stats.new_cards_learned + EXCLUDED.new_cards_learned
+       RETURNING date, cards_studied, new_cards_learned`,
+      [date, req.user!.userId, deckId, cardsDelta, newDelta]
+    );
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('POST /daily-stats/:date/increment error:', err);
+    res.status(500).json({ error: 'Failed to increment daily stats' });
+  }
+});
+
 // GET /api/due-counts —— 获取所有牌组的到期卡片计数（30s 内存缓存）
 studyRouter.get('/due-counts', async (req: Request, res: Response) => {
   try {

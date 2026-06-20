@@ -258,6 +258,17 @@ export function upsertDailyStats(
   });
 }
 
+/** 原子增量更新每日统计（SQL 端累加，避免读后写竞态） */
+export function incrementDailyStats(
+  date: string,
+  data: { deck_id?: string; cards_studied?: number; new_cards_learned?: number }
+): Promise<DailyStats> {
+  return request<DailyStats>(`/api/daily-stats/${date}/increment`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 /** 获取日期范围内的每日统计（用于计算打卡天数） */
 export function fetchDailyStatsRange(
   from: string,
