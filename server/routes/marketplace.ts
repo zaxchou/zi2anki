@@ -46,7 +46,11 @@ marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) 
     const search = (req.query.search as string | undefined) || '';
 
     let sql = `
-      SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
+      SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description,
+             COALESCE(md.cover_image, (
+               SELECT image_url FROM cards
+                 WHERE deck_id = md.deck_id AND image_url != '' ORDER BY created_at ASC LIMIT 1
+             ), '') AS cover_image,
              md.featured, md.sort_order, md.published_at, md.created_at,
              d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
              EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = $1 AND us.deck_id = md.deck_id) AS is_subscribed
@@ -76,22 +80,7 @@ marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) 
     sql += ' ORDER BY md.featured DESC, md.sort_order ASC, md.published_at DESC';
 
     const { rows } = await db.query(sql, params);
-    const result = rows as Array<Record<string, unknown>>;
-
-    // 封面回退：如果 market 未设封面，取牌组第一张有图的卡片
-    for (const r of result) {
-      if (!r.cover_image) {
-        const imgResult = await db.query(
-          `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
-          [r.deck_id as string]
-        );
-        if (imgResult.rows.length > 0) {
-          r.cover_image = imgResult.rows[0].image_url;
-        }
-      }
-    }
-
-    res.json(result);
+    res.json(rows);
   } catch (err) {
     console.error('GET /marketplace/decks error:', err);
     res.status(500).json({ error: 'Failed to fetch marketplace decks' });
@@ -213,14 +202,18 @@ marketplaceRouter.get('/marketplace/subscriptions', async (req: Request, res: Re
                 SELECT COUNT(*) FROM cards c
                   LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
                   WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
-              ), 0) AS new_count
+              ), 0) AS new_count,
+              COALESCE((
+                SELECT new_cards_learned FROM daily_stats
+                  WHERE user_id = $2 AND date = $3 AND deck_id = d.id
+              ), 0) AS learned_today
        FROM user_subscriptions us
        JOIN decks d ON d.id = us.deck_id
        LEFT JOIN marketplace_decks md ON md.deck_id = us.deck_id
-       WHERE us.user_id = $2
+       WHERE us.user_id = $4
        ORDER BY us.subscribed_at DESC`,
-      [userId, userId]
-    ) as Array<{
+      [userId, userId, today, userId]
+    ) as { rows: Array<{
       id: string;
       name: string;
       card_count: number;
@@ -229,21 +222,15 @@ marketplaceRouter.get('/marketplace/subscriptions', async (req: Request, res: Re
       created_at: string;
       updated_at: string;
       new_count: number;
-    }>;
+      learned_today: number;
+    }> };
 
     // 计算 new_available_today（与 GET /decks 一致的逻辑）
-    const result = await Promise.all(rows.map(async (d) => {
-      const { rows: dsRows } = await db.query(
-        `SELECT new_cards_learned FROM daily_stats
-         WHERE user_id = $1 AND date = $2 AND deck_id = $3`,
-        [userId, today, d.id]
-      );
-      const ds = dsRows[0] as { new_cards_learned: number } | undefined;
-      const learnedToday = ds?.new_cards_learned ?? 0;
-      const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
+    const result = rows.map((d) => {
+      const remainingByLimit = Math.max(0, d.daily_new_card_limit - (d.learned_today ?? 0));
       const newAvailableToday = Math.min(d.new_count, remainingByLimit);
       return { ...d, new_available_today: newAvailableToday };
-    }));
+    });
 
     res.json(result);
   } catch (err) {
