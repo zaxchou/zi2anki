@@ -79,7 +79,7 @@ const StudyComplete: React.FC<StudyCompleteProps> = ({ session, onBackToDashboar
         onClick={onBackToDashboard}
         sx={{ px: 6, py: 1.5, borderRadius: 2, fontSize: 16 }}
       >
-        返回 Zi2Anki
+        返回 背字帖
       </Button>
     </Box>
   );

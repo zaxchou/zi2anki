@@ -74,7 +74,7 @@ export const useAuthStore = create<AuthStore>()(
       },
     }),
     {
-      name: 'zi2anki-auth',
+      name: '背字帖-auth',
       partialize: (state) => ({ user: state.user, token: state.token }),
     }
   )

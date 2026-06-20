@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - link "中华珍宝馆" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img "中华珍宝馆" [ref=e7]
+        - generic [ref=e8]: 欢迎登录
+      - generic [ref=e11]:
+        - tablist [ref=e15]:
+          - tab "扫码登录" [selected] [ref=e16] [cursor=pointer]: 扫码登录
+          - tab "手机登录" [ref=e17] [cursor=pointer]: 手机登录
+        - tabpanel "扫码登录" [ref=e19]:
+          - generic [ref=e20]:
+            - img "扫码指导" [ref=e27]
+            - generic [ref=e29]: 打开 中华珍宝馆APP 扫描二维码
+        - generic [ref=e33]:
+          - generic [ref=e34] [cursor=pointer]:
+            - img "微信登录" [ref=e35]
+            - generic [ref=e36]: 微信登录
+          - link "下载APP" [ref=e37] [cursor=pointer]:
+            - /url: /app
+      - paragraph [ref=e40]:
+        - link "备案号：皖ICP备15001975号-5" [ref=e41] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn/
+  - status [ref=e47]: 请登录
+  - alert [ref=e48]

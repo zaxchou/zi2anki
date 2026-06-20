@@ -16,10 +16,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // "首次使用"提示：只出现一次（localStorage 标记）
-  const [showFirstRun] = useState(() => !localStorage.getItem('zi2anki-first-run-seen'));
+  const [showFirstRun] = useState(() => !localStorage.getItem('背字帖-first-run-seen'));
 
   const dismissFirstRun = useCallback(() => {
-    localStorage.setItem('zi2anki-first-run-seen', '1');
+    localStorage.setItem('背字帖-first-run-seen', '1');
   }, []);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
@@ -50,7 +50,7 @@ export default function LoginPage() {
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Typography variant="h4" sx={{ fontFamily: '"Noto Serif SC", serif', mb: 0.5 }}>
-              {'\u{1F58B}'} zi2anki
+              {'\u{1F58B}'} 背字帖
             </Typography>
             <Typography variant="body2" color="text.secondary">
               书法记忆卡

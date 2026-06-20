@@ -20,7 +20,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     icon: <DashboardIcon />,
-    label: 'Zi2Anki',
+    label: '背字帖',
     value: '/dashboard',
   },
   {

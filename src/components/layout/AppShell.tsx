@@ -12,8 +12,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 
 /** 路由路径 → 页面标题映射 */
 const ROUTE_TITLE_MAP: Record<string, string> = {
-  '/': 'Zi2Anki',
-  '/dashboard': 'Zi2Anki',
+  '/': '背字帖',
+  '/dashboard': '背字帖',
   '/decks': '牌组',
   '/analytics': '数据分析',
   '/settings': '设置',

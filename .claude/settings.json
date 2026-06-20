@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "npx claude-mem start; node \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/bun-runner.js\" \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs\" hook claude-code context"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/bun-runner.js\" \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs\" hook claude-code observation"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/bun-runner.js\" \"$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs\" hook claude-code summarize"
+          }
+        ]
+      }
+    ]
+  }
+}

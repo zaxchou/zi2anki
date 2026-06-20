@@ -31,7 +31,7 @@ const NotFoundPage: React.FC = () => {
         startIcon={<HomeIcon />}
         onClick={() => navigate('/dashboard')}
       >
-        返回 Zi2Anki
+        返回 背字帖
       </Button>
     </Box>
   );

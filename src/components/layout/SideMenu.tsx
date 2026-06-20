@@ -160,7 +160,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
               </Button>
             )}
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-              Zi2Anki · v1.0
+              背字帖 · v1.0
             </Typography>
           </Box>
         </Box>

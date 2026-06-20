@@ -42,7 +42,7 @@ export default function RegisterPage() {
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Typography variant="h4" sx={{ fontFamily: '"Noto Serif SC", serif', mb: 0.5 }}>
-              {'\u{1F58B}'} zi2anki
+              {'\u{1F58B}'} 背字帖
             </Typography>
             <Typography variant="body2" color="text.secondary">
               创建新账号
