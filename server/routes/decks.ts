@@ -32,33 +32,58 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
     const isAdmin = req.user!.role === 'admin';
     const subscribedOnly = req.query.subscribed === '1';
     const today = todayLocal();
+    const now = nowISO();
+
+    // 参数构建辅助：push 一个值并返回其占位符（$N），避免手动维护编号
+    const params: unknown[] = [];
+    const p = (v: unknown) => `$${params.push(v)}`;
+
+    // 所有每牌组派生字段（new_count / due_count / 今日已学 / 封面回退）
+    // 全部用相关子查询在 SQL 端一次性算出，消除原先 Promise.all 中的 2N 次查询。
+    const newCountP = p(userId);
+    const dueUserP = p(userId);
+    const dueNowP = p(now);
+    const learnedUserP = p(userId);
+    const learnedDateP = p(today);
+    const usJoinP = p(userId);
+
+    let whereClause: string;
+    if (subscribedOnly) {
+      whereClause = `us.user_id = ${p(userId)}`;
+    } else {
+      const ownerP = p(userId);
+      const subP = p(userId);
+      const adminP = p(isAdmin);
+      whereClause = `(d.user_id = ${ownerP} OR us.user_id = ${subP} OR ${adminP})`;
+    }
 
     const { rows } = await db.query(
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
-        md.cover_image,
         md.published_at,
+        COALESCE(md.cover_image, (
+          SELECT image_url FROM cards
+            WHERE deck_id = d.id AND image_url != '' ORDER BY created_at ASC LIMIT 1
+        ), '') AS cover_image,
         COALESCE((
           SELECT COUNT(*) FROM cards c
-            LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
+            LEFT JOIN user_card_progress ucp ON ucp.user_id = ${newCountP} AND ucp.card_id = c.id
             WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
         ), 0) AS new_count,
         COALESCE((
           SELECT COUNT(*) FROM cards c
-            INNER JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = $2
-            WHERE c.deck_id = d.id AND ucp.interval > 0 AND ucp.next_review <= $3
-        ), 0) AS due_count
+            INNER JOIN user_card_progress ucp ON ucp.card_id = c.id AND ucp.user_id = ${dueUserP}
+            WHERE c.deck_id = d.id AND ucp.interval > 0 AND ucp.next_review <= ${dueNowP}
+        ), 0) AS due_count,
+        COALESCE((
+          SELECT new_cards_learned FROM daily_stats
+            WHERE user_id = ${learnedUserP} AND date = ${learnedDateP} AND deck_id = d.id
+        ), 0) AS learned_today
         FROM decks d
         LEFT JOIN marketplace_decks md ON md.deck_id = d.id
-        LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = $4
-        WHERE ${subscribedOnly
-          ? 'us.user_id = $5'
-          : '(d.user_id = $5 OR us.user_id = $6)'
-        }
-          ${subscribedOnly ? '' : 'OR $7'}
+        LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = ${usJoinP}
+        WHERE ${whereClause}
         ORDER BY d.created_at DESC`,
-      subscribedOnly
-        ? [userId, userId, nowISO(), userId, userId]
-        : [userId, userId, nowISO(), userId, userId, userId, isAdmin]
+      params
     );
     const rawRows = rows as Array<{
       id: string;
@@ -68,38 +93,19 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
       daily_review_limit: number;
       new_count: number;
       due_count: number;
+      learned_today: number;
       cover_image: string | null;
       published_at: string | null;
       created_at: string;
       updated_at: string;
     }>;
 
-    // 今日可学新卡 = Σ min(牌组 new_count, daily_new_card_limit - 今日已学)
-    const result = await Promise.all(rawRows.map(async (d) => {
-      const dsResult = await db.query(
-        `SELECT new_cards_learned FROM daily_stats
-         WHERE user_id = $1 AND date = $2 AND deck_id = $3`,
-        [userId, today, d.id]
-      );
-      const ds = dsResult.rows[0] as { new_cards_learned: number } | undefined;
-      const learnedToday = ds?.new_cards_learned ?? 0;
-      const remainingByLimit = Math.max(0, d.daily_new_card_limit - learnedToday);
+    // 今日可学新卡 = min(牌组 new_count, daily_new_card_limit - 今日已学)
+    const result = rawRows.map((d) => {
+      const remainingByLimit = Math.max(0, d.daily_new_card_limit - (d.learned_today ?? 0));
       const newAvailableToday = Math.min(d.new_count, remainingByLimit);
-
-      // 封面图：如果有 market cover_image 则用，否则取牌组第一张卡片的缩略图
-      let coverImage = d.cover_image || '';
-      if (!coverImage) {
-        const imgResult = await db.query(
-          `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
-          [d.id]
-        );
-        if (imgResult.rows.length > 0) {
-          coverImage = imgResult.rows[0].image_url;
-        }
-      }
-
-      return { ...d, new_available_today: newAvailableToday, cover_image: coverImage };
-    }));
+      return { ...d, new_available_today: newAvailableToday, cover_image: d.cover_image || '' };
+    });
 
     res.json(result);
   } catch (err) {
