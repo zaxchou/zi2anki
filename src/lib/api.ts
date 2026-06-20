@@ -25,9 +25,19 @@ export function getImageUrl(imageUrl: string): string {
 
 // ===== 通用 fetch 封装 =====
 
+/**
+ * 处理 401（令牌失效/过期）：登出并跳转登录页。
+ * 返回一个可供调用方 throw 或 reject 的 Error，统一三处 fetch/xhr 入口的行为。
+ */
+function handleUnauthorized(): Error {
+  useAuthStore.getState().logout();
+  window.location.href = '/login';
+  return new Error('认证已过期，请重新登录');
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   // 自动携带认证 token
-  const { token, logout } = useAuthStore.getState();
+  const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...options?.headers as Record<string, string> };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -39,9 +49,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    logout();
-    window.location.href = '/login';
-    throw new Error('认证已过期，请重新登录');
+    throw handleUnauthorized();
   }
 
   if (!res.ok) {
@@ -159,9 +167,7 @@ export function batchImportCards(
     headers,
   }).then((res) => {
     if (res.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
-      throw new Error('认证已过期，请重新登录');
+      throw handleUnauthorized();
     }
     if (!res.ok) {
       return res.json().then((body) => {
@@ -414,9 +420,7 @@ export async function importApkgFile(
 
     xhr.onload = () => {
       if (xhr.status === 401) {
-        useAuthStore.getState().logout();
-        window.location.href = '/login';
-        reject(new Error('认证已过期'));
+        reject(handleUnauthorized());
         return;
       }
       const contentType = xhr.getResponseHeader('content-type') || '';
