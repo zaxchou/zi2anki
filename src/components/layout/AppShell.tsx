@@ -62,8 +62,8 @@ const AppShell: React.FC = () => {
   );
 
   return (
-    <Box className="flex flex-col min-h-screen">
-      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+    <Box className="flex flex-col" sx={{ height: '100dvh', overflow: 'hidden' }}>
+      <Box sx={{ display: { xs: 'block', md: 'none' }, flexShrink: 0 }}>
         <TopBar title={title}>
           {user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -82,15 +82,20 @@ const AppShell: React.FC = () => {
           )}
         </TopBar>
       </Box>
-      <Box sx={{ display: 'flex', flex: 1, position: 'relative' }}>
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {isPc && <SideMenu width={SIDE_MENU_WIDTH}>{sideMenuContent}</SideMenu>}
         <Box
           component="main"
           sx={{
             flex: 1,
             minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
             px: { xs: 2, md: 4 },
             py: 3,
+            pb: { xs: 'calc(56px + 16px)', md: 3 },
           }}
         >
           <Outlet />
