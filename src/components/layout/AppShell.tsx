@@ -62,7 +62,7 @@ const AppShell: React.FC = () => {
   );
 
   return (
-    <Box className="flex flex-col" sx={{ height: '100dvh', overflow: 'hidden' }}>
+    <Box className="flex flex-col" sx={{ minHeight: '100vh', height: '100dvh', overflow: 'hidden' }}>
       <Box sx={{ display: { xs: 'block', md: 'none' }, flexShrink: 0 }}>
         <TopBar title={title}>
           {user && (

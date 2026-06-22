@@ -255,7 +255,7 @@ decksRouter.put('/decks/:id/card-count', async (req: Request, res: Response) => 
 });
 
 // PUT /api/decks/:id/reset-progress —— 重置牌组所有卡片到初始状态
-// 安全保护：如果有超过 30 天前的学习记录，必须传 ?force=1 才能执行
+// 安全保护：有已学卡片（interval > 0）时必须传 ?force=1 才能执行
 decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -372,13 +372,29 @@ decksRouter.get('/decks/:id/has-studied', async (req: Request, res: Response) =>
   try {
     const { id } = req.params;
     const db = getDb();
+    const userId = req.user!.userId;
+    const isAdmin = req.user!.role === 'admin';
+
+    // 鉴权：必须是所有者、订阅者或 admin
+    if (!isAdmin) {
+      const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [id, userId])).rows[0];
+      const isSubscribed = (await db.query(
+        'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+        [userId, id]
+      )).rows[0];
+      if (!isOwner && !isSubscribed) {
+        res.status(404).json({ error: 'Deck not found' });
+        return;
+      }
+    }
+
     const { rows } = await db.query(
       `SELECT EXISTS(
         SELECT 1 FROM user_card_progress ucp
           JOIN cards c ON c.id = ucp.card_id
           WHERE c.deck_id = $1 AND ucp.user_id = $2
       ) AS has_studied`,
-      [id, req.user!.userId]
+      [id, userId]
     );
     res.json(rows[0]);
   } catch (err) {

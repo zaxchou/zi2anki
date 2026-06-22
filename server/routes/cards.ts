@@ -551,10 +551,13 @@ cardsRouter.post('/decks/:deckId/set-article-text', requireAdmin, async (req: Re
       return;
     }
 
-    const db = getDb();
+    const MAX_CHARS = 50000;
+    if (article_text.length > MAX_CHARS) {
+      res.status(400).json({ error: `article_text exceeds ${MAX_CHARS} character limit` });
+      return;
+    }
 
-    await db.query('UPDATE decks SET article_text = $1, updated_at = $2 WHERE id = $3',
-      [article_text.trim(), nowISO(), deckId]);
+    const db = getDb();
 
     const { rows: cards } = await db.query(
       'SELECT id, front_text FROM cards WHERE deck_id = $1 ORDER BY created_at ASC',
@@ -611,19 +614,41 @@ cardsRouter.post('/decks/:deckId/set-article-text', requireAdmin, async (req: Re
       }
     }
 
+    // 事务：统一写入 article_text + sort_order（避免部分成功部分失败）
     const client = await db.connect();
+    const now = nowISO();
     try {
       await client.query('BEGIN');
-      for (const u of updates) {
-        await client.query('UPDATE cards SET sort_order = $1, updated_at = $2 WHERE id = $3',
-          [u.sortOrder, nowISO(), u.id]);
+
+      await client.query('UPDATE decks SET article_text = $1, updated_at = $2 WHERE id = $3',
+        [article_text.trim(), now, deckId]);
+
+      // 批量更新已匹配的卡片
+      if (updates.length > 0) {
+        const ids = updates.map((_, i) => `$${i * 2 + 1}`);
+        const vals: unknown[] = [];
+        for (const u of updates) { vals.push(u.id, u.sortOrder); }
+        await client.query(
+          `UPDATE cards SET sort_order = v.sort_order, updated_at = $${updates.length * 2 + 1}
+           FROM (VALUES ${updates.map((_, i) => `($${i * 2 + 1}::text, $${i * 2 + 2}::int)`).join(',')}) AS v(id, sort_order)
+           WHERE cards.id = v.id`,
+          [...vals, now]
+        );
       }
-      for (const card of cards) {
-        if (!usedIds.has(card.id)) {
-          await client.query('UPDATE cards SET sort_order = 0, updated_at = $1 WHERE id = $2',
-            [nowISO(), card.id]);
+
+      // 未匹配的设 0
+      if (cards.length > updates.length) {
+        const unmatchedIds = cards.filter(c => !usedIds.has(c.id)).map((_, i) => `$${i + 1}`);
+        const unmatchedVals = cards.filter(c => !usedIds.has(c.id)).map(c => c.id);
+        if (unmatchedVals.length > 0) {
+          await client.query(
+            `UPDATE cards SET sort_order = 0, updated_at = $${unmatchedVals.length + 1}
+             WHERE id IN (${unmatchedIds.join(',')})`,
+            [...unmatchedVals, now]
+          );
         }
       }
+
       await client.query('COMMIT');
     } catch (txErr) {
       await client.query('ROLLBACK');

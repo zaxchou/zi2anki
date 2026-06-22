@@ -220,6 +220,7 @@ const CardManagePage: React.FC = () => {
   const [articleTextValue, setArticleTextValue] = useState('');
   const [articleSetting, setArticleSetting] = useState(false);
   const [articleError, setArticleError] = useState('');
+  const [modeError, setModeError] = useState('');
   const [articleResult, setArticleResult] = useState<{
     matched: number;
     unmatched: number;
@@ -900,10 +901,12 @@ const CardManagePage: React.FC = () => {
                         if (disabled || !deck) return;
                         const prev = deck.study_mode;
                         setDeck({ ...deck, study_mode: mode });
+                        setModeError('');
                         try {
                           await updateStudyMode(deck.id, mode);
-                        } catch {
+                        } catch (err) {
                           setDeck({ ...deck, study_mode: prev });
+                          setModeError(err instanceof Error ? err.message : '模式切换失败');
                         }
                       }}
                       sx={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
@@ -911,6 +914,11 @@ const CardManagePage: React.FC = () => {
                   );
                 })}
               </Stack>
+              {modeError && (
+                <Alert severity="error" sx={{ mt: 1 }} onClose={() => setModeError('')}>
+                  <Typography variant="body2">{modeError}</Typography>
+                </Alert>
+              )}
             </Box>
           </Box>
         </AccordionDetails>
@@ -1653,7 +1661,10 @@ const CardManagePage: React.FC = () => {
                 setArticleResult(result);
                 setArticleError('');
                 loadData();
-                setTimeout(() => setArticleDialogOpen(false), 1200);
+                // 全部匹配成功才自动关闭；有未匹配时保留弹窗让用户看警告
+                if (result.unmatched === 0) {
+                  setTimeout(() => setArticleDialogOpen(false), 1200);
+                }
               } catch (err) {
                 setArticleError(err instanceof Error ? err.message : '保存失败');
                 console.error('setArticleText error:', err);

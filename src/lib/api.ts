@@ -136,7 +136,7 @@ export function hasStudiedDeck(deckId: string): Promise<{ has_studied: boolean }
 export function setArticleText(
   deckId: string,
   articleText: string
-): Promise<{ matched: number; unmatched: number; unmatched_texts: string[]; total_cards: number }> {
+): Promise<{ matched: number; unmatched: number; total_cards: number }> {
   return request(`/api/decks/${deckId}/set-article-text`, {
     method: 'POST',
     body: JSON.stringify({ article_text: articleText }),

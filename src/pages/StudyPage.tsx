@@ -275,19 +275,21 @@ const StudyPage: React.FC = () => {
   if (phase === 'studying' && queue.length > 0 && currentIndex < queue.length) {
     const currentCard = queue[currentIndex];
     return (
-      <Box className="flex flex-col items-center gap-6 py-4 relative">
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
+      <Box className="flex flex-col items-center gap-6 py-4 relative" sx={{ height: '100%', overflow: 'hidden' }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
           <Button onClick={handleRequestExit} size="small" startIcon={<ArrowBackIcon />}
             sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 500 }}>返回</Button>
           <Typography variant="caption" color="text.secondary" sx={{ px: 1, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
             {fmtTime(elapsed)}
           </Typography>
         </Stack>
-        <Box sx={{ mt: 4, width: '100%' }}>
+        <Box sx={{ width: '100%', flexShrink: 0 }}>
           <ProgressBar current={currentIndex + 1} total={queue.length} />
         </Box>
-        <FlashCard key={currentCard.id} card={currentCard} flipped={flipped} onFlip={handleFlip} />
-        <Box className="w-full max-w-lg mt-2">
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', overflow: 'hidden' }}>
+          <FlashCard key={currentCard.id} card={currentCard} flipped={flipped} onFlip={handleFlip} />
+        </Box>
+        <Box className="w-full max-w-lg" sx={{ flexShrink: 0 }}>
           <RatingButtons onRate={handleRate} disabled={!flipped}
             card={currentCard ? { ease: currentCard.ease, interval: currentCard.interval, repetitions: currentCard.repetitions } : undefined} />
         </Box>
