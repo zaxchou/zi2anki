@@ -115,12 +115,15 @@ const AnalyticsPage: React.FC = () => {
     init();
   }, [loadDecks]);
 
-  // 自动选第一个牌组
+  // 自动选第一个牌组（无缓存 / 缓存的牌组在当前用户列表中不存在时）
   useEffect(() => {
-    if (ready && decks.length > 0 && !selectedDeck) {
-      const firstId = decks[0].id;
-      setSelectedDeck(firstId);
-      localStorage.setItem('analytics-last-deck', firstId);
+    if (ready && decks.length > 0) {
+      const isValid = decks.some((d) => d.id === selectedDeck);
+      if (!isValid) {
+        const firstId = decks[0].id;
+        setSelectedDeck(firstId);
+        localStorage.setItem('analytics-last-deck', firstId);
+      }
     }
   }, [ready, decks, selectedDeck]);
 
