@@ -180,10 +180,10 @@ const JiziInputPanel: React.FC<JiziInputPanelProps> = ({
           value={layout.direction}
           onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
         >
-          <ToggleButton value="vertical-rl">竖排⇦</ToggleButton>
-          <ToggleButton value="vertical-lr">竖排⇨</ToggleButton>
-          <ToggleButton value="horizontal-lr">横排⇩</ToggleButton>
-          <ToggleButton value="horizontal-rl">横排⇧</ToggleButton>
+          <ToggleButton value="vertical-rl">竖排右起</ToggleButton>
+          <ToggleButton value="vertical-lr">竖排左起</ToggleButton>
+          <ToggleButton value="horizontal-lr">横排左起</ToggleButton>
+          <ToggleButton value="horizontal-rl">横排右起</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 

@@ -191,7 +191,27 @@ studyRouter.get('/daily-stats/range', async (req: Request, res: Response) => {
        GROUP BY date ORDER BY date DESC`,
       [req.user!.userId, from, to]
     );
-    res.json(rows);
+
+    // 填充缺失日期（补 0）
+    const statsMap = new Map((rows as { date: string; cards_studied: number; new_cards_learned: number }[]).map((r) => [r.date, r]));
+    const filled: { date: string; cards_studied: number; new_cards_learned: number }[] = [];
+    const start = new Date(from);
+    const end = new Date(to);
+    const cur = new Date(start);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      const row = statsMap.get(dateStr);
+      filled.push({
+        date: dateStr,
+        cards_studied: row?.cards_studied ?? 0,
+        new_cards_learned: row?.new_cards_learned ?? 0,
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    res.json(filled);
   } catch (err) {
     console.error('GET /daily-stats/range error:', err);
     res.status(500).json({ error: 'Failed to fetch stats range' });

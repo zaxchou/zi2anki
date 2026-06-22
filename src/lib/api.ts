@@ -613,3 +613,45 @@ export function updateMarketDeck(deckId: string, data: {
     body: JSON.stringify(data),
   });
 }
+
+// ===== 管理员用户管理 API =====
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+}
+
+export function fetchAdminUsers(): Promise<AdminUser[]> {
+  return request<AdminUser[]>('/api/admin/users');
+}
+
+export function updateAdminUser(id: string, data: { username?: string; password?: string }): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteAdminUser(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, { method: 'DELETE' });
+}
+
+export interface UserStatsResponse {
+  user: { id: string; username: string };
+  stats: {
+    total_studied: number;
+    active_days: number;
+    total_new_learned: number;
+    total_sessions: number;
+    total_minutes: number;
+    cards: { new_count: number; learning_count: number; mature_count: number };
+  };
+  daily_stats: { date: string; cards_studied: number; new_cards_learned: number }[];
+  subscriptions: { id: string; name: string }[];
+}
+
+export function fetchUserStats(userId: string): Promise<UserStatsResponse> {
+  return request<UserStatsResponse>(`/api/admin/users/${userId}/stats`);
+}

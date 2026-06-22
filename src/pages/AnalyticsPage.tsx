@@ -36,11 +36,11 @@ const COLORS_DARK = {
   grid: '#3a3a3a',
 };
 
-type RangeKey = '7d' | '11d' | '30d' | '90d';
+type RangeKey = '7d' | '15d' | '30d' | '90d';
 
 const RANGE_OPTIONS: { key: RangeKey; label: string; days: number }[] = [
   { key: '7d', label: '近 7 天', days: 7 },
-  { key: '11d', label: '近 11 天', days: 11 },
+  { key: '15d', label: '近 15 天', days: 15 },
   { key: '30d', label: '近 30 天', days: 30 },
   { key: '90d', label: '近 90 天', days: 90 },
 ];
@@ -100,7 +100,7 @@ const AnalyticsPage: React.FC = () => {
   const textColor = dark ? '#bdbdbd' : '#555';
 
   const [selectedDeck, setSelectedDeck] = useState<string>(() => localStorage.getItem('analytics-last-deck') || '');
-  const [range, setRange] = useState<RangeKey>(() => (localStorage.getItem('analytics-last-range') as RangeKey) || '11d');
+  const [range, setRange] = useState<RangeKey>(() => (localStorage.getItem('analytics-last-range') as RangeKey) || '7d');
   const [data, setData] = useState<DailyExtraPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

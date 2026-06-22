@@ -57,7 +57,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   const dark = theme.palette.mode === 'dark';
   const isSidebar = variant === 'sidebar';
   const {
-    newCount, dueCount, activeDays, totalMinutes, activityData, loading,
+    newCount, dueCount, totalMinutes, activityData, loading,
   } = useDashboardStats();
   const decksLoading = useDeckStore((s) => s.loading);
   const [range, setRange] = useState<Range>('all');
@@ -72,7 +72,13 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
     return activityData.map((d) => (d.date < cutoffStr ? { ...d, cards_studied: 0, new_cards_learned: 0 } : d));
   }, [activityData, range]);
 
-  /** 累计学时小时数 */
+  /** 按 range 过滤后的学习天数 */
+  const filteredActiveDays = useMemo(
+    () => filteredActivity.filter((d) => d.cards_studied > 0).length,
+    [filteredActivity]
+  );
+
+  /** 累计学时小时数（全量） */
   const hours = useMemo(() => (totalMinutes / 60).toFixed(1), [totalMinutes]);
 
   const content = (
@@ -114,7 +120,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
       >
         <StatCard label="待学习" value={loading || decksLoading ? '-' : newCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
         <StatCard label="待复习" value={loading ? '-' : dueCount} unit="张" dark={dark} size={isSidebar ? 'sm' : 'md'} />
-        <StatCard label="学习" value={loading ? '-' : activeDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
+        <StatCard label="学习" value={loading ? '-' : filteredActiveDays} unit="天" dark={dark} size={isSidebar ? 'sm' : 'md'} />
       </Box>
 
       {/* 热力图 */}

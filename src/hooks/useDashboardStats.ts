@@ -49,15 +49,11 @@ function useDashboardData() {
     'dashboard-stats',
     async () => {
       const today = todayLocal();
-      const d30 = new Date();
-      d30.setDate(d30.getDate() - 30);
-      const thirtyDaysAgo = `${d30.getFullYear()}-${String(d30.getMonth() + 1).padStart(2, '0')}-${String(d30.getDate()).padStart(2, '0')}`;
       const allFrom = '2020-01-01';
 
-      const [dueCounts, todayStats, statsRange, allStats, studyTotal] = await Promise.all([
+      const [dueCounts, todayStats, allStats, studyTotal] = await Promise.all([
         fetchDueCounts(),
         fetchDailyStats(today),
-        fetchDailyStatsRange(thirtyDaysAgo, today),
         fetchDailyStatsRange(allFrom, today),
         fetchStudyTotal(),
       ]);
@@ -69,7 +65,7 @@ function useDashboardData() {
         totalStudied: allStats.reduce((s, d) => s + d.cards_studied, 0),
         activeDays: allStats.filter((d) => d.cards_studied > 0).length,
         totalMinutes: Math.round(studyTotal.total_minutes),
-        activityData: statsRange,
+        activityData: allStats,
       };
     },
     { ttl: 30_000 }

@@ -320,17 +320,20 @@ decksRouter.put('/decks/:id/limits', async (req: Request, res: Response) => {
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
 
-    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
+    const existing = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [id, req.user!.userId, isAdmin]
+    )).rows[0];
     if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
 
     const now = nowISO();
     if (typeof daily_new_card_limit === 'number') {
-      await db.query('UPDATE decks SET daily_new_card_limit = $1, updated_at = $2 WHERE id = $3 AND (user_id = $4 OR $5)',
-        [Math.max(1, Math.round(daily_new_card_limit)), now, id, req.user!.userId, isAdmin]);
+      await db.query('UPDATE decks SET daily_new_card_limit = $1, updated_at = $2 WHERE id = $3',
+        [Math.max(1, Math.round(daily_new_card_limit)), now, id]);
     }
     if (typeof daily_review_limit === 'number') {
-      await db.query('UPDATE decks SET daily_review_limit = $1, updated_at = $2 WHERE id = $3 AND (user_id = $4 OR $5)',
-        [Math.max(1, Math.round(daily_review_limit)), now, id, req.user!.userId, isAdmin]);
+      await db.query('UPDATE decks SET daily_review_limit = $1, updated_at = $2 WHERE id = $3',
+        [Math.max(1, Math.round(daily_review_limit)), now, id]);
     }
 
     const deckResult = await db.query(
@@ -356,7 +359,10 @@ decksRouter.put('/decks/:id/study-mode', async (req: Request, res: Response) => 
     }
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
-    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
+    const existing = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [id, req.user!.userId, isAdmin]
+    )).rows[0];
     if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
     const now = nowISO();
     await db.query('UPDATE decks SET study_mode = $1, updated_at = $2 WHERE id = $3', [study_mode, now, id]);

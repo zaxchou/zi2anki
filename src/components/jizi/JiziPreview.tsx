@@ -74,9 +74,14 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const groups = groupResults(results, colCount, text);
 
   const isVertical = direction.startsWith('vertical');
-  // 从右往左读 → 组反转：渲染顺序 [group2][group1]，从右往左读 group1→group2 即正确
-  const needsReversed = direction.endsWith('rl');
+  // 竖排从右往左读 → 列反转（渲染顺序 [col2][col1]）
+  const needsReversed = isVertical && direction.endsWith('rl');
   const orderedGroups = needsReversed ? [...groups].reverse() : groups;
+
+  // 横排从右往左读 → 每行内字反转（渲染顺序从右到左）
+  const horizontalRtl = !isVertical && direction.endsWith('rl');
+  // 整体对齐：竖排 rl=靠右, lr=靠左；横排 rl=靠右, lr=靠左
+  const alignEnd = direction.endsWith('rl');
 
   const bgColors: Record<string, string> = {
     xuan: '#f5ecd9',
@@ -92,7 +97,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
       sx={{
         display: 'flex',
         flexDirection: isVertical ? 'row' : 'column',
-        justifyContent: needsReversed ? 'flex-end' : 'flex-start',
+        justifyContent: isVertical ? (alignEnd ? 'flex-end' : 'flex-start') : 'flex-start',
+        alignItems: isVertical ? 'stretch' : (alignEnd ? 'flex-end' : 'flex-start'),
         bgcolor: bgColors[background] || '#ffffff',
         borderRadius: 1,
         p: 2,
@@ -116,8 +122,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
               mb: !isVertical && !isLastGroup ? lg : 0,
             }}
           >
-            {group.items.map((result, ii) => {
-              const globalIndex = group.offset + ii;
+            {(horizontalRtl ? [...group.items].reverse() : group.items).map((result, ii) => {
+              const globalIndex = group.offset + (horizontalRtl ? group.items.length - 1 - ii : ii);
               const isLastCell = ii === group.items.length - 1;
               return (
                 <Box

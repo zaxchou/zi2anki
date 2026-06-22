@@ -8,6 +8,7 @@ import StudyPage from '@/pages/StudyPage';
 import DecksPage from '@/pages/DecksPage';
 import CardManagePage from '@/pages/CardManagePage';
 import SettingsPage from '@/pages/SettingsPage';
+import UserManagePage from '@/pages/UserManagePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import MarketPage from '@/pages/MarketPage';
 import JiziPage from '@/pages/JiziPage';
@@ -85,6 +86,7 @@ function App() {
               <Route path="/market" element={<MarketPage />} />
               <Route path="/jizi" element={<JiziPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/users" element={<UserManagePage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
