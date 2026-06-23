@@ -86,8 +86,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
         initialOffset: { x: transform.x, y: transform.y },
       };
       setIsGesturing(true);
-    } else if (e.touches.length === 1 && transform.scale > 1) {
-      // 仅在已缩放时支持单指拖拽
+    } else if (e.touches.length === 1) {
+      // 单指拖拽（不限缩放级别，始终可拖动）
       wasMultiTouchRef.current = true;
       dragRef.current = {
         startX: e.touches[0].clientX,
@@ -116,7 +116,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
         x: touchRef.current.initialOffset.x + (mid.x - touchRef.current.initialMid.x),
         y: touchRef.current.initialOffset.y + (mid.y - touchRef.current.initialMid.y),
       });
-    } else if (e.touches.length === 1 && dragRef.current && transform.scale > 1) {
+    } else if (e.touches.length === 1 && dragRef.current) {
       e.preventDefault();
       dragRef.current.moved = true;
       const dx = e.touches[0].clientX - dragRef.current.startX;
