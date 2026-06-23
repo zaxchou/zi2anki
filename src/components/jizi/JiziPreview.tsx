@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import JiziCell from './JiziCell';
 import type { JiziMatchResult, JiziLayout } from '@/types/jizi';
 
@@ -53,6 +53,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   text,
 }) => {
   const { direction, fontSize, colCount, charGap, lineGap, background, compact } = layout;
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   // 双指缩放/平移
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
@@ -182,13 +184,13 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const alignEnd = direction.endsWith('rl');
 
   const bgColors: Record<string, string> = {
-    default: '#f0f0f0',
+    default: isDarkMode ? '#1a1a1a' : '#f0f0f0',
     xuan: '#f5ecd9',
     white: '#ffffff',
     ink: '#1a1a1a',
     vermilion: '#8b0000',
   };
-  const isDark = background === 'ink' || background === 'vermilion';
+  const isDark = background === 'ink' || background === 'vermilion' || (background === 'default' && isDarkMode);
 
   return (
     <Box
@@ -208,7 +210,9 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
         WebkitTouchCallout: 'none',
         backgroundImage:
           background === 'default'
-            ? 'linear-gradient(135deg, #e8e8e8 0%, #d4d4d4 50%, #c8c8c8 100%)'
+            ? isDarkMode
+              ? 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #111111 100%)'
+              : 'linear-gradient(135deg, #e8e8e8 0%, #d4d4d4 50%, #c8c8c8 100%)'
             : background === 'xuan'
             ? 'radial-gradient(ellipse at top, rgba(255,250,240,0.3), transparent 60%)'
             : 'none',
