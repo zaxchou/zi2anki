@@ -95,7 +95,6 @@ const AppShell: React.FC = () => {
             WebkitOverflowScrolling: 'touch',
             px: { xs: location.pathname.startsWith('/jizi') ? 0 : 2, md: location.pathname.startsWith('/jizi') ? 0 : 4 },
             py: location.pathname.startsWith('/jizi') ? 0 : 3,
-            pb: { xs: 'calc(56px + 16px)', md: 3 },
           }}
         >
           <Outlet />
