@@ -108,38 +108,80 @@ const JiziCell: React.FC<JiziCellProps> = ({
         )}
       </Box>
 
-      {/* 来源标注：书家 + 字帖（紧凑模式隐藏） */}
+      {/* 来源标注：字 + 书家 + 字帖（紧凑模式隐藏） */}
       {current && !compact && (
         <Box
           sx={{
             width: '100%',
-            mt: 0.3,
-            textAlign: 'center',
-            lineHeight: 1.3,
+            mt: 0.25,
+            display: 'flex',
+            borderTop: 1,
+            borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+            lineHeight: 1.2,
           }}
         >
-          <Typography
+          {/* 左列：字本身 30% */}
+          <Box
             sx={{
-              fontSize: Math.max(9, fontSize * 0.085),
-              color: textColor,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              width: '30%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRight: 1,
+              borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              py: 0.4,
             }}
           >
-            {current.calligrapher || '佚名'}
-          </Typography>
-          <Typography
+            <Typography
+              sx={{
+                fontSize: Math.max(16, fontSize * 0.22),
+                color: textColor,
+                fontFamily: 'serif',
+                fontWeight: 500,
+                lineHeight: 1,
+              }}
+            >
+              {char}
+            </Typography>
+          </Box>
+          {/* 右列：书家 + 字帖 两行 */}
+          <Box
             sx={{
-              fontSize: Math.max(8, fontSize * 0.075),
-              color: subColor,
+              width: '70%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              py: 0.3,
+              px: 0.5,
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
             }}
           >
-            {current.deck_name}
-          </Typography>
+            <Typography
+              sx={{
+                fontSize: Math.max(9, fontSize * 0.085),
+                color: textColor,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.2,
+              }}
+            >
+              {current.calligrapher || '佚名'}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: Math.max(8, fontSize * 0.07),
+                color: subColor,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.2,
+                mt: 0.1,
+              }}
+            >
+              {current.deck_name}
+            </Typography>
+          </Box>
         </Box>
       )}
     </Box>
