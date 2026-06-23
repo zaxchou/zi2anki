@@ -87,6 +87,7 @@ const JiziPage: React.FC = () => {
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
   const [activeTab, setActiveTab] = useState<JiziTab>(null);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -332,53 +333,75 @@ const JiziPage: React.FC = () => {
         </Fab>
       )}
 
-      {/* ===== 独立浮动按钮（半透明，位于 BottomNav 上方） ===== */}
-      <Box
+      {/* ===== 可收缩浮动工具按钮（左下角） ===== */}
+      {/* 展开/收缩切换按钮 */}
+      <Fab
+        size="small"
+        onClick={() => setToolsExpanded(!toolsExpanded)}
         sx={{
           position: 'absolute',
           left: 8,
-          right: 8,
           bottom: 64,
           zIndex: 10,
-          display: 'flex',
-          gap: 1,
-          justifyContent: 'center',
-          pointerEvents: 'none',
+          bgcolor: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(8px)',
+          color: 'text.secondary',
+          width: 36,
+          height: 36,
+          minHeight: 0,
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.85)' },
         }}
       >
-        {([
-          { label: '文字', value: 'text', icon: <EditIcon sx={{ fontSize: 18 }} /> },
-          { label: '选择', value: 'select', icon: <StyleIcon sx={{ fontSize: 18 }} /> },
-          { label: '排版', value: 'layout', icon: <DashboardIcon sx={{ fontSize: 18 }} /> },
-          { label: '预览', value: 'preview', icon: <VisibilityIcon sx={{ fontSize: 18 }} /> },
-        ] as const).map((btn) => (
-          <Paper
-            key={btn.value}
-            elevation={4}
-            onClick={() => setActiveTab(activeTab === btn.value ? null : btn.value)}
-            sx={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0.25,
-              width: 56,
-              height: 48,
-              borderRadius: 3,
-              bgcolor: activeTab === btn.value ? 'primary.main' : 'rgba(255,255,255,0.7)',
-              color: activeTab === btn.value ? '#fff' : 'text.secondary',
-              backdropFilter: 'blur(8px)',
-              transition: 'all 0.15s',
-              '&:hover': { bgcolor: activeTab === btn.value ? 'primary.dark' : 'rgba(255,255,255,0.85)' },
-            }}
-          >
-            {btn.icon}
-            <Typography sx={{ fontSize: 10, lineHeight: 1 }}>{btn.label}</Typography>
-          </Paper>
-        ))}
-      </Box>
+        {toolsExpanded ? <CloseIcon sx={{ fontSize: 18 }} /> : <EditIcon sx={{ fontSize: 18 }} />}
+      </Fab>
+
+      {/* 展开后的 4 个工具按钮 */}
+      {toolsExpanded && (
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 52,
+            bottom: 64,
+            zIndex: 10,
+            display: 'flex',
+            gap: 1,
+            pointerEvents: 'none',
+          }}
+        >
+          {([
+            { label: '文字', value: 'text', icon: <EditIcon sx={{ fontSize: 18 }} /> },
+            { label: '选择', value: 'select', icon: <StyleIcon sx={{ fontSize: 18 }} /> },
+            { label: '排版', value: 'layout', icon: <DashboardIcon sx={{ fontSize: 18 }} /> },
+            { label: '预览', value: 'preview', icon: <VisibilityIcon sx={{ fontSize: 18 }} /> },
+          ] as const).map((btn) => (
+            <Paper
+              key={btn.value}
+              elevation={4}
+              onClick={() => setActiveTab(activeTab === btn.value ? null : btn.value)}
+              sx={{
+                pointerEvents: 'auto',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.25,
+                width: 48,
+                height: 40,
+                borderRadius: 2,
+                bgcolor: activeTab === btn.value ? 'primary.main' : 'rgba(255,255,255,0.7)',
+                color: activeTab === btn.value ? '#fff' : 'text.secondary',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: activeTab === btn.value ? 'primary.dark' : 'rgba(255,255,255,0.85)' },
+              }}
+            >
+              {btn.icon}
+              <Typography sx={{ fontSize: 9, lineHeight: 1 }}>{btn.label}</Typography>
+            </Paper>
+          ))}
+        </Box>
+      )}
 
       {/* ===== Sheet: 文字 ===== */}
       <Drawer
