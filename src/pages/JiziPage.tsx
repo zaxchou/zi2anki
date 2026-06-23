@@ -42,8 +42,9 @@ import JiziSwitcherSheet from '@/components/jizi/JiziSwitcherSheet';
 import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
 import { fetchJiziMatch, getImageUrl } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
+import { useJiziStore } from '@/stores/useJiziStore';
 import { DEFAULT_LAYOUT } from '@/types/jizi';
-import type { JiziLayout, JiziMatchResult, CharHit, JiziDirection, JiziBackground } from '@/types/jizi';
+import type { JiziMatchResult, CharHit, JiziDirection, JiziBackground, JiziLayout } from '@/types/jizi';
 
 type JiziTab = 'text' | 'select' | 'layout' | 'preview' | null;
 
@@ -75,19 +76,14 @@ const SheetHeader: React.FC<{ title: string; onClose: () => void }> = ({ title, 
 
 const JiziPage: React.FC = () => {
   const theme = useTheme();
-  const [text, setText] = useState('');
-  const [layout, setLayout] = useState<JiziLayout>(DEFAULT_LAYOUT);
-  const [results, setResults] = useState<JiziMatchResult[]>([]);
-  const [selectedCardIds, setSelectedCardIds] = useState<Record<number, string>>({});
+  const store = useJiziStore();
+  const { text, results, selections: selectedCardIds, layout, scope, styleFilter, calligrapherFilter } = store;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherIndex, setSwitcherIndex] = useState(-1);
   const [exporting, setExporting] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [scope, setScope] = useState<'mine' | 'all'>('all');
-  const [styleFilter, setStyleFilter] = useState('');
-  const [calligrapherFilter, setCalligrapherFilter] = useState('');
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
   const [pendingStyleRefIndex, setPendingStyleRefIndex] = useState(0);
@@ -100,8 +96,8 @@ const JiziPage: React.FC = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = text.trim();
     if (!trimmed) {
-      setResults([]);
-      setSelectedCardIds({});
+      store.setResults([]);
+      store.setSelections({});
       return;
     }
     let cancelled = false;
@@ -111,12 +107,12 @@ const JiziPage: React.FC = () => {
       try {
         const resp = await fetchJiziMatch(trimmed, scope);
         if (cancelled) return;
-        setResults(resp.results);
-        setSelectedCardIds({});
+        store.setResults(resp.results);
+        store.setSelections({});
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : '匹配失败');
-        setResults([]);
+        store.setResults([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -151,8 +147,8 @@ const JiziPage: React.FC = () => {
       if (h.style) allStyles.add(h.style);
       if (h.calligrapher) allCalligraphers.add(h.calligrapher);
     }));
-    if (styleFilter && !allStyles.has(styleFilter)) setStyleFilter('');
-    if (calligrapherFilter && !allCalligraphers.has(calligrapherFilter)) setCalligrapherFilter('');
+    if (styleFilter && !allStyles.has(styleFilter)) store.setStyleFilter('');
+    if (calligrapherFilter && !allCalligraphers.has(calligrapherFilter)) store.setCalligrapherFilter('');
   }, [results, styleFilter, calligrapherFilter]);
 
   const selections = useMemo<number[]>(() => {
@@ -164,7 +160,7 @@ const JiziPage: React.FC = () => {
     });
   }, [filteredResults, selectedCardIds]);
 
-  const update = (patch: Partial<JiziLayout>) => setLayout({ ...layout, ...patch });
+  const update = (patch: Partial<JiziLayout>) => store.setLayout({ ...layout, ...patch });
 
   const handleOpenPicker = useCallback((index: number) => {
     setSwitcherIndex(index);
@@ -172,12 +168,11 @@ const JiziPage: React.FC = () => {
   }, []);
 
   const handleSwitcherPick = useCallback((hitIndex: number) => {
-    setSelectedCardIds((prev) => {
-      const result = filteredResults[switcherIndex];
-      const card = result?.hits[hitIndex];
-      if (!card) return prev;
-      return { ...prev, [switcherIndex]: card.card_id };
-    });
+    const result = filteredResults[switcherIndex];
+    const card = result?.hits[hitIndex];
+    if (card) {
+      useJiziStore.setState((s) => ({ selections: { ...s.selections, [switcherIndex]: card.card_id } }));
+    }
     setSwitcherOpen(false);
 
     // 找到第一个有匹配字的位置作为"风格基准字"
@@ -201,24 +196,23 @@ const JiziPage: React.FC = () => {
     const refDeck = pendingStyleHit.deck_id;
     const refCalligrapher = pendingStyleHit.calligrapher;
 
-    setSelectedCardIds((prev) => {
-      const next: Record<number, string> = { ...prev };
-      filteredResults.forEach((r, i) => {
-        if (i === pendingStyleRefIndex) return;
-        const sameDeck = r.hits.find((h) => h.deck_id === refDeck);
-        if (sameDeck) {
-          next[i] = sameDeck.card_id;
-          return;
+    const prev = useJiziStore.getState().selections;
+    const next: Record<number, string> = { ...prev };
+    filteredResults.forEach((r, i) => {
+      if (i === pendingStyleRefIndex) return;
+      const sameDeck = r.hits.find((h) => h.deck_id === refDeck);
+      if (sameDeck) {
+        next[i] = sameDeck.card_id;
+        return;
+      }
+      if (refCalligrapher) {
+        const sameCalligrapher = r.hits.find((h) => h.calligrapher === refCalligrapher);
+        if (sameCalligrapher) {
+          next[i] = sameCalligrapher.card_id;
         }
-        if (refCalligrapher) {
-          const sameCalligrapher = r.hits.find((h) => h.calligrapher === refCalligrapher);
-          if (sameCalligrapher) {
-            next[i] = sameCalligrapher.card_id;
-          }
-        }
-      });
-      return next;
+      }
     });
+    useJiziStore.setState({ selections: next });
     setStyleConfirmOpen(false);
     setPendingStyleHit(null);
   }, [pendingStyleHit, pendingStyleRefIndex, filteredResults]);
@@ -240,7 +234,7 @@ const JiziPage: React.FC = () => {
   }, [filteredResults, selections, layout, text]);
 
   const handleResetLayout = useCallback(() => {
-    setLayout(DEFAULT_LAYOUT);
+    store.setLayout({ ...DEFAULT_LAYOUT });
   }, []);
 
   const closeSheet = useCallback(() => setActiveTab(null), []);
@@ -397,11 +391,11 @@ const JiziPage: React.FC = () => {
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>集字内容</Typography>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                   {text && (
-                    <Button size="small" color="error" onClick={() => setText('')} sx={{ minWidth: 0, fontSize: 12, px: 1 }}>
+                    <Button size="small" color="error" onClick={() => store.setText('')} sx={{ minWidth: 0, fontSize: 12, px: 1 }}>
                       清空
                     </Button>
                   )}
-                  <JiziPresetButton onSelect={setText} />
+                  <JiziPresetButton onSelect={store.setText} />
                 </Box>
               </Box>
               <TextField
@@ -409,7 +403,7 @@ const JiziPage: React.FC = () => {
                 multiline
                 rows={4}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => store.setText(e.target.value)}
                 placeholder="输入诗句，如：春江潮水连海平"
                 variant="outlined"
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
@@ -441,14 +435,14 @@ const JiziPage: React.FC = () => {
                   size="small"
                   variant={scope === 'mine' ? 'filled' : 'outlined'}
                   color={scope === 'mine' ? 'primary' : 'default'}
-                  onClick={() => setScope('mine')}
+                  onClick={() => store.setScope('mine')}
                 />
                 <Chip
                   label="全部公开"
                   size="small"
                   variant={scope === 'all' ? 'filled' : 'outlined'}
                   color={scope === 'all' ? 'primary' : 'default'}
-                  onClick={() => setScope('all')}
+                  onClick={() => store.setScope('all')}
                 />
               </Box>
             </Box>
@@ -463,7 +457,7 @@ const JiziPage: React.FC = () => {
                     size="small"
                     variant={!styleFilter ? 'filled' : 'outlined'}
                     color={!styleFilter ? 'primary' : 'default'}
-                    onClick={() => setStyleFilter('')}
+                    onClick={() => store.setStyleFilter('')}
                   />
                   {filters.styles.map((s) => (
                     <Chip
@@ -472,7 +466,7 @@ const JiziPage: React.FC = () => {
                       size="small"
                       variant={styleFilter === s ? 'filled' : 'outlined'}
                       color={styleFilter === s ? 'primary' : 'default'}
-                      onClick={() => setStyleFilter(s)}
+                      onClick={() => store.setStyleFilter(s)}
                     />
                   ))}
                 </Box>
@@ -485,7 +479,7 @@ const JiziPage: React.FC = () => {
                 <InputLabel>书家</InputLabel>
                 <Select
                   value={calligrapherFilter || ''}
-                  onChange={(e) => setCalligrapherFilter(e.target.value)}
+                  onChange={(e) => store.setCalligrapherFilter(e.target.value)}
                   label="书家"
                 >
                   <MenuItem value="">全部书家</MenuItem>
