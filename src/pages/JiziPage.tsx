@@ -87,7 +87,7 @@ const JiziPage: React.FC = () => {
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
   const [activeTab, setActiveTab] = useState<JiziTab>(null);
-  const [toolsExpanded, setToolsExpanded] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(true);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
