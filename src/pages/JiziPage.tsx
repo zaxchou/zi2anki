@@ -338,32 +338,53 @@ const JiziPage: React.FC = () => {
         </Fab>
       )}
 
-      {/* ===== 浮动底部 Tab 栏（缩小尺寸，位于 BottomNav 上方） ===== */}
-      <Paper
-        elevation={6}
+      {/* ===== 独立浮动按钮（半透明，位于 BottomNav 上方） ===== */}
+      <Box
         sx={{
           position: 'absolute',
           left: 8,
           right: 8,
           bottom: 64,
-          borderRadius: 3,
-          overflow: 'hidden',
           zIndex: 10,
-          bgcolor: 'background.paper',
+          display: 'flex',
+          gap: 1,
+          justifyContent: 'center',
+          pointerEvents: 'none',
         }}
       >
-        <BottomNavigation
-          value={activeTab}
-          onChange={handleTabChange}
-          showLabels
-          sx={{ height: 48, '& .MuiBottomNavigationAction-root': { minWidth: 0, py: 0.5 } }}
-        >
-          <BottomNavigationAction label="文字" value="text" icon={<EditIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
-          <BottomNavigationAction label="选择" value="select" icon={<StyleIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
-          <BottomNavigationAction label="排版" value="layout" icon={<DashboardIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
-          <BottomNavigationAction label="预览" value="preview" icon={<VisibilityIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
-        </BottomNavigation>
-      </Paper>
+        {([
+          { label: '文字', value: 'text', icon: <EditIcon sx={{ fontSize: 18 }} /> },
+          { label: '选择', value: 'select', icon: <StyleIcon sx={{ fontSize: 18 }} /> },
+          { label: '排版', value: 'layout', icon: <DashboardIcon sx={{ fontSize: 18 }} /> },
+          { label: '预览', value: 'preview', icon: <VisibilityIcon sx={{ fontSize: 18 }} /> },
+        ] as const).map((btn) => (
+          <Paper
+            key={btn.value}
+            elevation={4}
+            onClick={() => setActiveTab(activeTab === btn.value ? null : btn.value)}
+            sx={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.25,
+              width: 56,
+              height: 48,
+              borderRadius: 3,
+              bgcolor: activeTab === btn.value ? 'primary.main' : 'rgba(255,255,255,0.7)',
+              color: activeTab === btn.value ? '#fff' : 'text.secondary',
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.15s',
+              '&:hover': { bgcolor: activeTab === btn.value ? 'primary.dark' : 'rgba(255,255,255,0.85)' },
+            }}
+          >
+            {btn.icon}
+            <Typography sx={{ fontSize: 10, lineHeight: 1 }}>{btn.label}</Typography>
+          </Paper>
+        ))}
+      </Box>
 
       {/* ===== Sheet: 文字 ===== */}
       <Drawer
@@ -378,7 +399,14 @@ const JiziPage: React.FC = () => {
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>集字内容</Typography>
-                <JiziPresetButton onSelect={setText} />
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  {text && (
+                    <Button size="small" color="error" onClick={() => setText('')} sx={{ minWidth: 0, fontSize: 12, px: 1 }}>
+                      清空
+                    </Button>
+                  )}
+                  <JiziPresetButton onSelect={setText} />
+                </Box>
               </Box>
               <TextField
                 fullWidth
