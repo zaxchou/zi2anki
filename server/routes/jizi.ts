@@ -4,11 +4,7 @@ import { getDb } from '../db.js';
 
 export const jiziRouter = Router();
 
-/** 简→繁规范化器（中国大陆简体 → 台湾繁体）。
- *  集字匹配时双向规范化：query 和 卡片字符都转为繁体 canonical，再做匹配。
- *  这样无论用户输入简体还是繁体、卡片是简体还是繁体，都能命中。
- *  注意：一个简体可能对应多个繁体（如"发"→"發"/"髮"），opencc 默认取最常用映射，
- *  这是可接受的取舍。 */
+/** 简→繁规范化器（中国大陆简体 → 台湾繁体）。 */
 const toTraditional = Converter({ from: 'cn', to: 'tw' });
 
 /** 清洗 front_text：去括号后缀、下划线数字、尾部纯数字，返回核心汉字 */
@@ -38,11 +34,15 @@ interface JiziMatchResult {
   hits: CharHit[];
 }
 
-// GET /api/jizi/match?text=春江花月夜
-jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
+// GET /api/jizi/match?text=春江花月夜&scope=all
+jiziRouter.get('/match', async (req: Request, res: Response) => {
   try {
     const text = (req.query.text as string || '').trim();
     const scope = (req.query.scope as string || '').trim() === 'all' ? 'all' : 'mine';
+    const userId = req.user?.userId;
+    // 未登录用户自动使用全部公开字库
+    const effectiveScope = !userId ? 'all' : scope;
+
     if (!text) {
       res.json({ results: [], meta: { scanned: 0, ms: 0, unique_chars: 0 } });
       return;
@@ -59,7 +59,6 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const userId = req.user?.userId;
     const t0 = Date.now();
 
     let rows: Array<{
@@ -73,8 +72,7 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
       calligrapher: string | null;
     }>;
 
-    if (scope === 'all') {
-      // 查询所有公开牌组（已发布到市场）的单字卡片
+    if (effectiveScope === 'all') {
       rows = (await db.query(
         `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
                 d.name AS deck_name,
@@ -86,7 +84,6 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
          ORDER BY c.created_at ASC`
       )).rows as typeof rows;
     } else {
-      // 默认：只查已订阅 + 自建
       rows = (await db.query(
         `SELECT c.id, c.deck_id, c.front_text, c.image_url, c.created_at,
                 d.name AS deck_name,
@@ -111,10 +108,8 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     for (const r of rows) {
       const cleaned = cleanFrontText(r.front_text);
       if (!cleaned) continue;
-      // 只使用单字卡片（字组如"江月"的图片包含多个字，用于集字会错误）
       const singleChars = Array.from(cleaned).filter((c) => /\p{Script=Han}/u.test(c));
       if (singleChars.length !== 1) continue;
-      // 卡片字符规范化为繁体 canonical（卡片本身可能是简体或繁体）
       const ch = toTraditional(singleChars[0]);
       let arr = map.get(ch);
       if (!arr) {
@@ -134,7 +129,6 @@ jiziRouter.get('/jizi/match', async (req: Request, res: Response) => {
     }
 
     const results: JiziMatchResult[] = chars.map((ch) => ({
-      // 返回用户原始输入的字符（保留 UI 显示一致性），但 lookup key 用规范化后的繁体
       char: ch,
       hits: (map.get(toTraditional(ch)) || []).sort((a, b) => a.sort_key - b.sort_key),
     }));
