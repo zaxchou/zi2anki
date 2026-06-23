@@ -63,7 +63,7 @@ const AppShell: React.FC = () => {
 
   return (
     <Box className="flex flex-col" sx={{ minHeight: '100vh', height: '100dvh', overflow: 'hidden' }}>
-      <Box sx={{ display: { xs: 'block', md: 'none' }, flexShrink: 0 }}>
+      <Box sx={{ display: { xs: location.pathname.startsWith('/jizi') ? 'none' : 'block', md: 'none' }, flexShrink: 0 }}>
         <TopBar title={title}>
           {user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -91,10 +91,10 @@ const AppShell: React.FC = () => {
             minWidth: 0,
             maxWidth: '100%',
             overflowX: 'hidden',
-            overflowY: 'auto',
+            overflowY: location.pathname.startsWith('/jizi') ? 'hidden' : 'auto',
             WebkitOverflowScrolling: 'touch',
-            px: { xs: 2, md: 4 },
-            py: 3,
+            px: { xs: location.pathname.startsWith('/jizi') ? 0 : 2, md: location.pathname.startsWith('/jizi') ? 0 : 4 },
+            py: location.pathname.startsWith('/jizi') ? 0 : 3,
             pb: { xs: 'calc(56px + 16px)', md: 3 },
           }}
         >

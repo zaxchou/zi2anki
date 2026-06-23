@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Drawer,
   Box,
@@ -20,35 +20,7 @@ export interface JiziSwitcherSheetProps {
   onClose: () => void;
 }
 
-/** 按 style 分组，每组内按 calligrapher 聚合 */
-function groupHits(hits: JiziMatchResult['hits']) {
-  const groups: { style: string; items: { calligrapher: string; deck_name: string; indices: number[] }[] }[] = [];
-  const styleMap = new Map<string, Map<string, number[]>>();
-
-  for (let i = 0; i < hits.length; i++) {
-    const h = hits[i];
-    const style = h.style || '未分类';
-    if (!styleMap.has(style)) styleMap.set(style, new Map());
-    const calligMap = styleMap.get(style)!;
-    const key = h.calligrapher || '佚名';
-    if (!calligMap.has(key)) calligMap.set(key, []);
-    calligMap.get(key)!.push(i);
-  }
-
-  for (const [style, calligMap] of styleMap) {
-    const items: { calligrapher: string; deck_name: string; indices: number[] }[] = [];
-    for (const [calligrapher, indices] of calligMap) {
-      // 取第一个 hit 的 deck_name 作为代表
-      const deck_name = hits[indices[0]].deck_name;
-      items.push({ calligrapher, deck_name, indices });
-    }
-    groups.push({ style, items });
-  }
-
-  return groups;
-}
-
-/** 底部 Sheet 变体选择器 —— 左列作者 / 右列按字体分类展示候选字 */
+/** 底部 Sheet —— 左列作者筛选 + 右列字体筛选 + 候选字网格 */
 const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
   open,
   result,
@@ -60,24 +32,68 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const groups = useMemo(() => groupHits(hits), [hits]);
-
-  // 所有不重复的作者（左列）
-  const allCalligraphers = useMemo(() => {
-    const set = new Set<string>();
-    hits.forEach((h) => set.add(h.calligrapher || '佚名'));
-    return Array.from(set);
+  // 所有不重复的作者和字体
+  const { allCalligraphers, allStyles } = useMemo(() => {
+    const cSet = new Set<string>();
+    const sSet = new Set<string>();
+    hits.forEach((h) => {
+      cSet.add(h.calligrapher || '佚名');
+      if (h.style) sSet.add(h.style);
+    });
+    return { allCalligraphers: Array.from(cSet), allStyles: Array.from(sSet).sort() };
   }, [hits]);
+
+  // 当前筛选状态
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
+  const [styleFilter, setStyleFilter] = useState<string | null>(null);
+
+  // 关闭时重置筛选
+  const handleClose = () => {
+    setAuthorFilter(null);
+    setStyleFilter(null);
+    onClose();
+  };
+
+  // 筛选后的 hits 及其对应的原始索引
+  const filteredEntries = useMemo(() => {
+    return hits
+      .map((h, i) => ({ hit: h, index: i }))
+      .filter(({ hit }) => {
+        if (authorFilter && (hit.calligrapher || '佚名') !== authorFilter) return false;
+        if (styleFilter && hit.style !== styleFilter) return false;
+        return true;
+      });
+  }, [hits, authorFilter, styleFilter]);
+
+  // 筛选后按 (style, calligrapher) 分组
+  const grouped = useMemo(() => {
+    const map = new Map<string, { calligrapher: string; deck_name: string; entries: typeof filteredEntries }>();
+    for (const entry of filteredEntries) {
+      const key = `${entry.hit.style || '未分类'}|${entry.hit.calligrapher || '佚名'}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          calligrapher: entry.hit.calligrapher || '佚名',
+          deck_name: entry.hit.deck_name,
+          entries: [],
+        });
+      }
+      map.get(key)!.entries.push(entry);
+    }
+    return Array.from(map.entries()).map(([k, v]) => ({
+      style: k.split('|')[0],
+      ...v,
+    }));
+  }, [filteredEntries]);
 
   return (
     <Drawer
       anchor="bottom"
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       PaperProps={{
         sx: {
-          maxHeight: isMobile ? '75vh' : '65vh',
-          height: isMobile ? '75vh' : '65vh',
+          maxHeight: isMobile ? '80vh' : '70vh',
+          height: isMobile ? '80vh' : '70vh',
           borderTopLeftRadius: 16,
           borderTopRightRadius: 16,
         },
@@ -102,14 +118,14 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
         <Typography variant="h6" component="span" sx={{ fontWeight: 600, fontSize: 16 }}>
           {result ? `「${result.char}」的 ${hits.length} 种写法` : '加载中...'}
         </Typography>
-        <IconButton onClick={onClose} size="small" edge="end">
+        <IconButton onClick={handleClose} size="small" edge="end">
           <CloseIcon />
         </IconButton>
       </Box>
 
-      {/* 主体：左列作者 + 右列候选字 */}
+      {/* 主体：左列作者筛选 + 右列内容 */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左列：作者列表 */}
+        {/* ===== 左列：作者筛选 ===== */}
         <Box
           sx={{
             width: isMobile ? 72 : 90,
@@ -121,18 +137,41 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
             py: 1,
           }}
         >
+          {/* 全部（清除作者筛选） */}
+          <Box
+            onClick={() => setAuthorFilter(null)}
+            sx={{
+              px: 1,
+              py: 0.75,
+              fontSize: 12,
+              fontWeight: authorFilter === null ? 700 : 400,
+              color: authorFilter === null ? 'primary.main' : 'text.secondary',
+              cursor: 'pointer',
+              borderBottom: 1,
+              borderColor: 'divider',
+              bgcolor: authorFilter === null ? 'action.selected' : 'transparent',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            全部
+          </Box>
           {allCalligraphers.map((name) => (
             <Box
               key={name}
+              onClick={() => setAuthorFilter(authorFilter === name ? null : name)}
               sx={{
                 px: 1,
                 py: 0.75,
                 fontSize: 12,
-                color: 'text.secondary',
+                fontWeight: authorFilter === name ? 700 : 400,
+                color: authorFilter === name ? 'primary.main' : 'text.secondary',
+                cursor: 'pointer',
                 borderBottom: 1,
                 borderColor: 'divider',
+                bgcolor: authorFilter === name ? 'action.selected' : 'transparent',
                 lineHeight: 1.3,
                 wordBreak: 'break-all',
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
               {name}
@@ -140,64 +179,65 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
           ))}
         </Box>
 
-        {/* 右列：按字体分组展示 */}
-        <Box
-          sx={{
-            flex: 1,
-            overflowY: 'auto',
-            px: 1.5,
-            py: 1,
-          }}
-        >
-          {groups.map((group) => (
-            <Box key={group.style} sx={{ mb: 2 }}>
-              {/* 字体分类标题 */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  mb: 1,
-                  position: 'sticky',
-                  top: 0,
-                  bgcolor: 'background.paper',
-                  zIndex: 1,
-                  py: 0.5,
-                }}
-              >
+        {/* ===== 右列：字体筛选 + 候选字网格 ===== */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* 字体筛选标签栏 */}
+          {allStyles.length > 0 && (
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 0.5,
+                px: 1.5,
+                py: 1,
+                borderBottom: 1,
+                borderColor: 'divider',
+                overflowX: 'auto',
+                flexShrink: 0,
+              }}
+            >
+              <Chip
+                label="全部字体"
+                size="small"
+                variant={styleFilter === null ? 'filled' : 'outlined'}
+                color={styleFilter === null ? 'primary' : 'default'}
+                onClick={() => setStyleFilter(null)}
+                sx={{ fontSize: 11, height: 24 }}
+              />
+              {allStyles.map((s) => (
                 <Chip
-                  label={group.style}
+                  key={s}
+                  label={s}
                   size="small"
-                  color="primary"
-                  variant="outlined"
-                  sx={{ fontSize: 11, height: 22, fontWeight: 600 }}
+                  variant={styleFilter === s ? 'filled' : 'outlined'}
+                  color={styleFilter === s ? 'primary' : 'default'}
+                  onClick={() => setStyleFilter(styleFilter === s ? null : s)}
+                  sx={{ fontSize: 11, height: 24 }}
                 />
-                <Typography variant="caption" color="text.secondary">
-                  {group.items.length} 位书家 · {group.items.reduce((s, it) => s + it.indices.length, 0)} 字
-                </Typography>
-              </Box>
+              ))}
+            </Box>
+          )}
 
-              {/* 每位书家的字 */}
-              {group.items.map((item) => (
-                <Box key={item.calligrapher} sx={{ mb: 1.5 }}>
-                  {/* 书家名 */}
+          {/* 候选字网格 */}
+          <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 1 }}>
+            {grouped.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 6 }}>
+                无匹配结果
+              </Typography>
+            ) : (
+              grouped.map((group) => (
+                <Box key={`${group.style}|${group.calligrapher}`} sx={{ mb: 2 }}>
+                  {/* 分组标题：字体 + 书家 */}
                   <Typography
                     variant="caption"
-                    sx={{ fontSize: 11, fontWeight: 500, color: 'text.secondary', display: 'block', mb: 0.5 }}
+                    sx={{ fontSize: 11, fontWeight: 500, color: 'text.secondary', display: 'block', mb: 0.75 }}
                   >
-                    {item.calligrapher} · {item.deck_name}
+                    <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{group.style}</Box>
+                    {' · '}{group.calligrapher}{' · '}{group.deck_name}
                   </Typography>
 
-                  {/* 候选字网格：一行 3 个 */}
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: 1,
-                    }}
-                  >
-                    {item.indices.map((i) => {
-                      const hit = hits[i];
+                  {/* 一行 3 个 */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                    {group.entries.map(({ hit, index: i }) => {
                       const isSelected = i === selectedIndex;
                       return (
                         <Box
@@ -232,15 +272,9 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
                     })}
                   </Box>
                 </Box>
-              ))}
-            </Box>
-          ))}
-
-          {groups.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 6 }}>
-              暂无匹配
-            </Typography>
-          )}
+              ))
+            )}
+          </Box>
         </Box>
       </Box>
     </Drawer>

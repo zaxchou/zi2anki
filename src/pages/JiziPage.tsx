@@ -1,34 +1,81 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
+  Typography,
   Button,
+  Drawer,
+  TextField,
+  Alert,
+  CircularProgress,
+  Chip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  ToggleButtonGroup,
+  ToggleButton,
+  Slider,
+  IconButton,
+  Fab,
+  Paper,
+  Stack,
+  Divider,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
-  Grid,
-  Typography,
-  CircularProgress,
-  Alert,
 } from '@mui/material';
+import BottomNavigation from '@mui/material/BottomNavigation';
+import BottomNavigationAction from '@mui/material/BottomNavigationAction';
+import EditIcon from '@mui/icons-material/Edit';
+import StyleIcon from '@mui/icons-material/Style';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
-import JiziInputPanel from '@/components/jizi/JiziInputPanel';
+import CloseIcon from '@mui/icons-material/Close';
+import JiziPresetButton from '@/components/jizi/JiziPresetButton';
 import JiziPreview from '@/components/jizi/JiziPreview';
 import JiziSwitcherSheet from '@/components/jizi/JiziSwitcherSheet';
 import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
-import { fetchJiziMatch } from '@/lib/api';
+import { fetchJiziMatch, getImageUrl } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
 import { DEFAULT_LAYOUT } from '@/types/jizi';
-import type { JiziLayout, JiziMatchResult, CharHit } from '@/types/jizi';
+import type { JiziLayout, JiziMatchResult, CharHit, JiziDirection, JiziBackground } from '@/types/jizi';
 
-/** 集字页面 */
+type JiziTab = 'text' | 'select' | 'layout' | 'preview' | null;
+
+/** 从匹配结果中提取去重的书体/书家列表 */
+function extractFilters(results: JiziMatchResult[]): { styles: string[]; calligraphers: string[] } {
+  const styleSet = new Set<string>();
+  const nameSet = new Set<string>();
+  results.forEach((r) => {
+    r.hits.forEach((h) => {
+      if (h.style) styleSet.add(h.style);
+      if (h.calligrapher) nameSet.add(h.calligrapher);
+    });
+  });
+  return {
+    styles: Array.from(styleSet).sort(),
+    calligraphers: Array.from(nameSet).sort(),
+  };
+}
+
+/** Sheet 顶部标题栏 */
+const SheetHeader: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{title}</Typography>
+    <IconButton size="small" onClick={onClose}>
+      <CloseIcon fontSize="small" />
+    </IconButton>
+  </Box>
+);
+
 const JiziPage: React.FC = () => {
   const [text, setText] = useState('');
   const [layout, setLayout] = useState<JiziLayout>(DEFAULT_LAYOUT);
   const [results, setResults] = useState<JiziMatchResult[]>([]);
-  // selectedCardIds: 索引→用户主动选择的 card_id；缺失时回退到当前可见 hits[0]
   const [selectedCardIds, setSelectedCardIds] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +86,12 @@ const JiziPage: React.FC = () => {
   const [scope, setScope] = useState<'mine' | 'all'>('all');
   const [styleFilter, setStyleFilter] = useState('');
   const [calligrapherFilter, setCalligrapherFilter] = useState('');
-  // 风格统一：首字选中后弹出确认
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
+  const [activeTab, setActiveTab] = useState<JiziTab>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** debounce 匹配 */
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = text.trim();
@@ -62,7 +108,6 @@ const JiziPage: React.FC = () => {
         const resp = await fetchJiziMatch(trimmed, scope);
         if (cancelled) return;
         setResults(resp.results);
-        // 文字变化时清空过往选择（按 char 数组完全重置）
         setSelectedCardIds({});
       } catch (err) {
         if (cancelled) return;
@@ -80,8 +125,7 @@ const JiziPage: React.FC = () => {
 
   const hasResults = results.length > 0;
 
-  // 前端筛选：书体 + 书家
-  const filteredResults = React.useMemo(() => {
+  const filteredResults = useMemo(() => {
     if (!styleFilter && !calligrapherFilter) return results;
     return results.map((r) => ({
       ...r,
@@ -93,7 +137,8 @@ const JiziPage: React.FC = () => {
     }));
   }, [results, styleFilter, calligrapherFilter]);
 
-  // 当 results 变化时，若当前筛选值已不在可选列表中，自动清空（避免 MUI Select 警告）
+  const filters = useMemo(() => extractFilters(results), [results]);
+
   useEffect(() => {
     if (!results.length) return;
     const allStyles = new Set<string>();
@@ -106,9 +151,7 @@ const JiziPage: React.FC = () => {
     if (calligrapherFilter && !allCalligraphers.has(calligrapherFilter)) setCalligrapherFilter('');
   }, [results, styleFilter, calligrapherFilter]);
 
-  // 解析每个位置当前显示的 hit index（基于 filteredResults）
-  // 优先使用用户主动选择的 card_id；找不到则回退到 0
-  const selections = React.useMemo<number[]>(() => {
+  const selections = useMemo<number[]>(() => {
     return filteredResults.map((r, i) => {
       const cardId = selectedCardIds[i];
       if (!cardId) return 0;
@@ -117,13 +160,13 @@ const JiziPage: React.FC = () => {
     });
   }, [filteredResults, selectedCardIds]);
 
-  /** 打开选择弹窗 */
+  const update = (patch: Partial<JiziLayout>) => setLayout({ ...layout, ...patch });
+
   const handleOpenPicker = useCallback((index: number) => {
     setSwitcherIndex(index);
     setSwitcherOpen(true);
   }, []);
 
-  /** 弹窗选择 */
   const handleSwitcherPick = useCallback((hitIndex: number) => {
     setSelectedCardIds((prev) => {
       const result = filteredResults[switcherIndex];
@@ -133,7 +176,6 @@ const JiziPage: React.FC = () => {
     });
     setSwitcherOpen(false);
 
-    // 首字选完后提示用户是否参考该字风格自动集字
     if (switcherIndex === 0) {
       const card = filteredResults[0]?.hits[hitIndex];
       if (card) {
@@ -143,7 +185,6 @@ const JiziPage: React.FC = () => {
     }
   }, [switcherIndex, filteredResults]);
 
-  /** 确认按首字风格自动集字 */
   const handleStyleConfirm = useCallback(() => {
     if (!pendingStyleHit) {
       setStyleConfirmOpen(false);
@@ -155,8 +196,7 @@ const JiziPage: React.FC = () => {
     setSelectedCardIds((prev) => {
       const next: Record<number, string> = { ...prev };
       filteredResults.forEach((r, i) => {
-        if (i === 0) return; // 首字已选
-        // 优先匹配同字帖（deck_id），其次同书家
+        if (i === 0) return;
         const sameDeck = r.hits.find((h) => h.deck_id === refDeck);
         if (sameDeck) {
           next[i] = sameDeck.card_id;
@@ -180,7 +220,6 @@ const JiziPage: React.FC = () => {
     setPendingStyleHit(null);
   }, []);
 
-  /** 导出 PNG */
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -192,103 +231,469 @@ const JiziPage: React.FC = () => {
     }
   }, [filteredResults, selections, layout, text]);
 
+  const handleResetLayout = useCallback(() => {
+    setLayout(DEFAULT_LAYOUT);
+  }, []);
+
+  const closeSheet = useCallback(() => setActiveTab(null), []);
+
+  const handleTabChange = (_: React.SyntheticEvent, v: JiziTab) => {
+    setActiveTab(v);
+  };
+
+  const handleOpenPickerFromList = useCallback((index: number) => {
+    closeSheet();
+    setTimeout(() => handleOpenPicker(index), 200);
+  }, [closeSheet, handleOpenPicker]);
+
   const missingCount = filteredResults.filter((r) => r.hits.length === 0).length;
+  const matchedCount = filteredResults.filter((r) => r.hits.length > 0).length;
 
   return (
-    <Box className="space-y-4 py-4">
-      {/* 顶部标题 + 导出 */}
-      <Box className="flex items-center justify-between">
-        <Box>
-          <Typography variant="h5" className="font-kai" sx={{ fontWeight: 600 }}>
-            集字
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            从字库中匹配汉字，拼成书法作品
-          </Typography>
+    <Box sx={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)} sx={{ position: 'absolute', top: 8, left: 8, right: 8, zIndex: 20 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* 加载指示器 */}
+      {loading && (
+        <Box sx={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 5 }}>
+          <CircularProgress size={20} />
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<FullscreenIcon />}
-            onClick={() => setFullscreenOpen(true)}
-            disabled={!hasResults}
-            sx={{ textTransform: 'none' }}
-          >
-            全屏预览
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-            onClick={handleExport}
-            disabled={!hasResults || exporting}
-            sx={{ textTransform: 'none' }}
-          >
-            {exporting ? '导出中...' : '导出 PNG'}
-          </Button>
+      )}
+
+      {/* 已匹配数（右上角小角标） */}
+      {hasResults && (
+        <Box sx={{
+          position: 'absolute',
+          top: 10,
+          right: 16,
+          zIndex: 5,
+          bgcolor: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(4px)',
+          px: 1.25, py: 0.25,
+          borderRadius: 1.5,
+          fontSize: 12,
+          color: 'text.secondary',
+          boxShadow: 1,
+          pointerEvents: 'none',
+        }}>
+          {matchedCount} / {results.length} 字
         </Box>
+      )}
+
+      {/* ===== 主预览区（无边全屏） ===== */}
+      <Box sx={{ position: 'absolute', inset: 0 }}>
+        <JiziPreview
+          results={filteredResults}
+          selections={selections}
+          layout={layout}
+          onOpenPicker={handleOpenPicker}
+          text={text}
+        />
+
+        {!hasResults && !loading && (
+          <Box sx={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'text.secondary', pointerEvents: 'none',
+          }}>
+            <Typography variant="body2">点击底部「文字」开始集字</Typography>
+          </Box>
+        )}
       </Box>
 
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      {/* 缺字提示（顶部） */}
+      {hasResults && missingCount > 0 && (
+        <Box sx={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          right: missingCount > 0 ? 100 : 8,
+          zIndex: 5,
+        }}>
+          <Alert severity="info" icon={false} sx={{ py: 0.25, fontSize: 12 }}>
+            {missingCount} 个字在当前筛选中无匹配
+          </Alert>
+        </Box>
+      )}
 
-      {/* 主体：左输入 / 右预览 */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
-          <JiziInputPanel
-            text={text}
-            onTextChange={setText}
-            layout={layout}
-            onLayoutChange={setLayout}
-            scope={scope}
-            onScopeChange={setScope}
-            results={results}
-            styleFilter={styleFilter}
-            onStyleFilterChange={setStyleFilter}
-            calligrapherFilter={calligrapherFilter}
-            onCalligrapherFilterChange={setCalligrapherFilter}
-          />
-        </Grid>
+      {/* ===== 悬浮导出按钮（位于底部 tab 之上） ===== */}
+      {hasResults && (
+        <Fab
+          color="primary"
+          size="small"
+          onClick={handleExport}
+          disabled={exporting}
+          sx={{
+            position: 'absolute',
+            right: 16,
+            bottom: 88,
+            zIndex: 5,
+          }}
+        >
+          {exporting ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
+        </Fab>
+      )}
 
-        <Grid item xs={12} md={8}>
-          <Box sx={{ position: 'relative' }}>
-            {loading && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  zIndex: 1,
-                }}
-              >
-                <CircularProgress size={20} />
+      {/* ===== 浮动底部 Tab 栏（缩小尺寸，位于 BottomNav 上方） ===== */}
+      <Paper
+        elevation={6}
+        sx={{
+          position: 'absolute',
+          left: 8,
+          right: 8,
+          bottom: 64,
+          borderRadius: 3,
+          overflow: 'hidden',
+          zIndex: 10,
+          bgcolor: 'background.paper',
+        }}
+      >
+        <BottomNavigation
+          value={activeTab}
+          onChange={handleTabChange}
+          showLabels
+          sx={{ height: 48, '& .MuiBottomNavigationAction-root': { minWidth: 0, py: 0.5 } }}
+        >
+          <BottomNavigationAction label="文字" value="text" icon={<EditIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
+          <BottomNavigationAction label="选择" value="select" icon={<StyleIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
+          <BottomNavigationAction label="排版" value="layout" icon={<DashboardIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
+          <BottomNavigationAction label="预览" value="preview" icon={<VisibilityIcon sx={{ fontSize: 18 }} />} sx={{ fontSize: 11 }} />
+        </BottomNavigation>
+      </Paper>
+
+      {/* ===== Sheet: 文字 ===== */}
+      <Drawer
+        anchor="bottom"
+        open={activeTab === 'text'}
+        onClose={closeSheet}
+        PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '70vh' } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <SheetHeader title="编辑文字" onClose={closeSheet} />
+          <Stack spacing={2}>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>集字内容</Typography>
+                <JiziPresetButton onSelect={setText} />
+              </Box>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="输入诗句，如：春江潮水连海平"
+                variant="outlined"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                支持中文汉字，标点自动忽略，最多 200 字
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+      </Drawer>
+
+      {/* ===== Sheet: 选择 ===== */}
+      <Drawer
+        anchor="bottom"
+        open={activeTab === 'select'}
+        onClose={closeSheet}
+        PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '85vh' } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <SheetHeader title="选择风格" onClose={closeSheet} />
+          <Stack spacing={2.5}>
+            {/* 字库范围 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字库范围</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Chip
+                  label="已订阅"
+                  size="small"
+                  variant={scope === 'mine' ? 'filled' : 'outlined'}
+                  color={scope === 'mine' ? 'primary' : 'default'}
+                  onClick={() => setScope('mine')}
+                />
+                <Chip
+                  label="全部公开"
+                  size="small"
+                  variant={scope === 'all' ? 'filled' : 'outlined'}
+                  color={scope === 'all' ? 'primary' : 'default'}
+                  onClick={() => setScope('all')}
+                />
+              </Box>
+            </Box>
+
+            {/* 书体筛选 */}
+            {filters.styles.length > 0 && (
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>书体</Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  <Chip
+                    label="全部"
+                    size="small"
+                    variant={!styleFilter ? 'filled' : 'outlined'}
+                    color={!styleFilter ? 'primary' : 'default'}
+                    onClick={() => setStyleFilter('')}
+                  />
+                  {filters.styles.map((s) => (
+                    <Chip
+                      key={s}
+                      label={s}
+                      size="small"
+                      variant={styleFilter === s ? 'filled' : 'outlined'}
+                      color={styleFilter === s ? 'primary' : 'default'}
+                      onClick={() => setStyleFilter(s)}
+                    />
+                  ))}
+                </Box>
               </Box>
             )}
-            <JiziPreview
-              results={filteredResults}
-              selections={selections}
-              layout={layout}
-              onOpenPicker={handleOpenPicker}
-              text={text}
-            />
-          </Box>
 
-          {/* 缺字提示 */}
-          {hasResults && missingCount > 0 && (
-            <Alert severity="info" sx={{ mt: 1.5 }} icon={false}>
-              {missingCount} 个字在当前筛选中无匹配
-            </Alert>
-          )}
+            {/* 书家筛选 */}
+            {filters.calligraphers.length > 0 && (
+              <FormControl size="small" fullWidth>
+                <InputLabel>书家</InputLabel>
+                <Select
+                  value={calligrapherFilter || ''}
+                  onChange={(e) => setCalligrapherFilter(e.target.value)}
+                  label="书家"
+                >
+                  <MenuItem value="">全部书家</MenuItem>
+                  {filters.calligraphers.map((name) => (
+                    <MenuItem key={name} value={name}>{name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
-          {/* 统计 */}
-          {hasResults && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              共 {results.length} 字 · {filteredResults.filter((r) => r.hits.length > 0).length} 字有匹配
-              · 点击文字可切换写法
+            {/* 逐字调整 */}
+            {hasResults && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>逐字调整</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    点击下方任一文字，可切换写法
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {filteredResults.map((r, i) => {
+                      const sel = selections[i] ?? 0;
+                      const hit = r.hits[sel];
+                      if (!hit) return null;
+                      return (
+                        <Box
+                          key={i}
+                          onClick={() => handleOpenPickerFromList(i)}
+                          sx={{
+                            position: 'relative',
+                            cursor: 'pointer',
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            width: 56,
+                            height: 56,
+                            bgcolor: 'action.hover',
+                            overflow: 'hidden',
+                            '&:hover': { borderColor: 'primary.main' },
+                          }}
+                        >
+                          <Box
+                            component="img"
+                            src={getImageUrl(hit.image_url)}
+                            alt={r.char}
+                            sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                            draggable={false}
+                          />
+                          {r.hits.length > 1 && (
+                            <Typography
+                              sx={{
+                                position: 'absolute',
+                                bottom: 1,
+                                right: 2,
+                                fontSize: 8,
+                                color: 'text.secondary',
+                                bgcolor: 'rgba(255,255,255,0.8)',
+                                px: 0.3,
+                                borderRadius: 0.5,
+                                lineHeight: 1.2,
+                              }}
+                            >
+                              {sel + 1}/{r.hits.length}
+                            </Typography>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </>
+            )}
+          </Stack>
+        </Box>
+      </Drawer>
+
+      {/* ===== Sheet: 排版 ===== */}
+      <Drawer
+        anchor="bottom"
+        open={activeTab === 'layout'}
+        onClose={closeSheet}
+        PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '85vh' } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <SheetHeader title="排版设置" onClose={closeSheet} />
+          <Stack spacing={2.5}>
+            {/* 方向 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>方向</Typography>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={layout.direction}
+                onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
+              >
+                <ToggleButton value="vertical-rl">竖排右起</ToggleButton>
+                <ToggleButton value="vertical-lr">竖排左起</ToggleButton>
+                <ToggleButton value="horizontal-lr">横排左起</ToggleButton>
+                <ToggleButton value="horizontal-rl">横排右起</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            {/* 字号 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字号</Typography>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={layout.fontSize}
+                onChange={(_, v: number | null) => v && update({ fontSize: v })}
+              >
+                <ToggleButton value={80}>小</ToggleButton>
+                <ToggleButton value={120}>中</ToggleButton>
+                <ToggleButton value={160}>大</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            {/* 列字数 / 行字数 */}
+            <FormControl size="small" fullWidth>
+              <InputLabel>{layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}</InputLabel>
+              <Select
+                value={layout.colCount}
+                label={layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}
+                onChange={(e) => update({ colCount: Number(e.target.value) })}
+              >
+                {[4, 6, 8, 10, 12, 14, 16, 18, 20].map((n) => (
+                  <MenuItem key={n} value={n}>{n} 字</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* 字距 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字距</Typography>
+              <Box sx={{ px: 1 }}>
+                <Slider
+                  size="small"
+                  min={0}
+                  max={0.4}
+                  step={0.02}
+                  value={layout.charGap}
+                  onChange={(_, v) => update({ charGap: v as number })}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                />
+              </Box>
+            </Box>
+
+            {/* 行距 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>行距</Typography>
+              <Box sx={{ px: 1 }}>
+                <Slider
+                  size="small"
+                  min={0}
+                  max={0.6}
+                  step={0.02}
+                  value={layout.lineGap}
+                  onChange={(_, v) => update({ lineGap: v as number })}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                />
+              </Box>
+            </Box>
+
+            {/* 背景 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>背景</Typography>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={layout.background}
+                onChange={(_, v: JiziBackground | null) => v && update({ background: v })}
+              >
+                <ToggleButton value="xuan">宣纸</ToggleButton>
+                <ToggleButton value="white">纯白</ToggleButton>
+                <ToggleButton value="ink">墨色</ToggleButton>
+                <ToggleButton value="vermilion">朱砂</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Button size="small" onClick={handleResetLayout} color="inherit">
+              恢复默认
+            </Button>
+          </Stack>
+        </Box>
+      </Drawer>
+
+      {/* ===== Sheet: 预览 ===== */}
+      <Drawer
+        anchor="bottom"
+        open={activeTab === 'preview'}
+        onClose={closeSheet}
+        PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16 } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <SheetHeader title="预览与导出" onClose={closeSheet} />
+          <Stack spacing={1.5}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<FullscreenIcon />}
+              onClick={() => {
+                closeSheet();
+                setFullscreenOpen(true);
+              }}
+              disabled={!hasResults}
+              sx={{ textTransform: 'none', py: 1.25 }}
+            >
+              全屏预览
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+              onClick={() => {
+                closeSheet();
+                handleExport();
+              }}
+              disabled={!hasResults || exporting}
+              sx={{ textTransform: 'none', py: 1.25 }}
+            >
+              {exporting ? '导出中...' : '导出 PNG'}
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', pt: 1 }}>
+              也可点击预览区右下角的导出按钮
             </Typography>
-          )}
-        </Grid>
-      </Grid>
+          </Stack>
+        </Box>
+      </Drawer>
 
-      {/* 切换弹窗 */}
+      {/* ===== 弹窗：变体选择（已有的 JiziSwitcherSheet） ===== */}
       <JiziSwitcherSheet
         open={switcherOpen}
         result={switcherIndex >= 0 ? filteredResults[switcherIndex] : null}
@@ -297,7 +702,7 @@ const JiziPage: React.FC = () => {
         onClose={() => setSwitcherOpen(false)}
       />
 
-      {/* 全屏预览 */}
+      {/* ===== 弹窗：全屏预览 ===== */}
       <JiziFullscreenPreview
         open={fullscreenOpen}
         onClose={() => setFullscreenOpen(false)}
@@ -310,7 +715,7 @@ const JiziPage: React.FC = () => {
         text={text}
       />
 
-      {/* 风格统一确认对话框 */}
+      {/* ===== 风格统一确认对话框 ===== */}
       <Dialog open={styleConfirmOpen} onClose={handleStyleCancel} maxWidth="xs" fullWidth>
         <DialogTitle>是否参考该字风格自动集字？</DialogTitle>
         <DialogContent>
