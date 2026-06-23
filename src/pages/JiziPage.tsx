@@ -26,14 +26,11 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-import BottomNavigation from '@mui/material/BottomNavigation';
-import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import EditIcon from '@mui/icons-material/Edit';
 import StyleIcon from '@mui/icons-material/Style';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
-import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import JiziPresetButton from '@/components/jizi/JiziPresetButton';
 import JiziPreview from '@/components/jizi/JiziPreview';
@@ -236,10 +233,6 @@ const JiziPage: React.FC = () => {
   }, []);
 
   const closeSheet = useCallback(() => setActiveTab(null), []);
-
-  const handleTabChange = (_: React.SyntheticEvent, v: JiziTab) => {
-    setActiveTab(v);
-  };
 
   const handleOpenPickerFromList = useCallback((index: number) => {
     closeSheet();
