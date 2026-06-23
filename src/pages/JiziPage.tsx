@@ -643,6 +643,19 @@ const JiziPage: React.FC = () => {
               </Box>
             </Box>
 
+            {/* 紧凑模式 */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>紧凑模式</Typography>
+              <Button
+                size="small"
+                variant={layout.compact ? 'contained' : 'outlined'}
+                onClick={() => update({ compact: !layout.compact })}
+                sx={{ minWidth: 60, textTransform: 'none' }}
+              >
+                {layout.compact ? '开' : '关'}
+              </Button>
+            </Box>
+
             {/* 背景 */}
             <Box>
               <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>背景</Typography>

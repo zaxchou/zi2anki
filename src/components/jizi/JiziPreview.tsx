@@ -52,7 +52,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   onOpenPicker,
   text,
 }) => {
-  const { direction, fontSize, colCount, charGap, lineGap, background } = layout;
+  const { direction, fontSize, colCount, charGap, lineGap, background, compact } = layout;
 
   // 双指缩放/平移
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
@@ -172,8 +172,8 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
     );
   }
 
-  const cg = Math.round(fontSize * charGap);
-  const lg = Math.round(fontSize * lineGap);
+  const cg = compact ? 0 : Math.round(fontSize * charGap);
+  const lg = compact ? 0 : Math.round(fontSize * lineGap);
   const groups = groupResults(results, colCount, text);
   const isVertical = direction.startsWith('vertical');
   const needsReversed = isVertical && direction.endsWith('rl');
@@ -256,6 +256,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
                       fontSize={fontSize}
                       onOpenPicker={() => handlePickSafe(globalIndex)}
                       darkMode={isDark}
+                      compact={compact}
                     />
                   </Box>
                 );

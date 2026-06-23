@@ -47,6 +47,7 @@ export interface JiziLayout {
   charGap: number;       // 字号倍数 0.05 | 0.15 | 0.30
   lineGap: number;       // 字号倍数 0.10 | 0.25 | 0.50
   background: JiziBackground;
+  compact: boolean;      // 紧凑模式：隐藏来源标注、缩短字距行距
 }
 
 /** 默认排版 */
@@ -57,4 +58,5 @@ export const DEFAULT_LAYOUT: JiziLayout = {
   charGap: 0.02,
   lineGap: 0.02,
   background: 'xuan',
+  compact: false,
 };

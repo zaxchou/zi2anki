@@ -10,6 +10,7 @@ export interface JiziCellProps {
   fontSize: number;
   onOpenPicker: () => void;
   darkMode?: boolean;
+  compact?: boolean;
 }
 
 /** 单字单元 —— 显示图片 + 来源标注（书家/字帖），点击弹窗选择写法 */
@@ -20,6 +21,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
   fontSize,
   onOpenPicker,
   darkMode,
+  compact,
 }) => {
   const safeIndex = hits.length > 0 ? Math.min(Math.max(0, selectedIndex), hits.length - 1) : 0;
   const current = hits.length > 0 ? hits[safeIndex] : null;
@@ -106,8 +108,8 @@ const JiziCell: React.FC<JiziCellProps> = ({
         )}
       </Box>
 
-      {/* 来源标注：书家 + 字帖 */}
-      {current && (
+      {/* 来源标注：书家 + 字帖（紧凑模式隐藏） */}
+      {current && !compact && (
         <Box
           sx={{
             width: '100%',
