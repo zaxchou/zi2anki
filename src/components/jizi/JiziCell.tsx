@@ -26,13 +26,13 @@ const JiziCell: React.FC<JiziCellProps> = ({
   const safeIndex = hits.length > 0 ? Math.min(Math.max(0, selectedIndex), hits.length - 1) : 0;
   const current = hits.length > 0 ? hits[safeIndex] : null;
 
-  const textColor = darkMode ? 'rgba(255,255,255,0.92)' : 'text.secondary';
-  const subColor = darkMode ? 'rgba(255,255,255,0.6)' : 'text.disabled';
+  const textColor = darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)';
+  const subColor = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)';
   const badgeColor = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
   const badgeBg = darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
   const emptyBg = darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
-  const missingColor = darkMode ? 'rgba(255,255,255,0.3)' : 'text.disabled';
-  const borderColor = darkMode ? 'rgba(255,255,255,0.15)' : 'divider';
+  const missingColor = darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
+  const borderColor = darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)';
 
   return (
     <Box
@@ -116,7 +116,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
             mt: 0.25,
             display: 'flex',
             borderTop: 1,
-            borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+            borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
             lineHeight: 1.2,
           }}
         >
@@ -128,7 +128,7 @@ const JiziCell: React.FC<JiziCellProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               borderRight: 1,
-              borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
               py: 0.4,
             }}
           >
