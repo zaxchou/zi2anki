@@ -88,6 +88,7 @@ const JiziPage: React.FC = () => {
   const [calligrapherFilter, setCalligrapherFilter] = useState('');
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
+  const [pendingStyleRefIndex, setPendingStyleRefIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<JiziTab>(null);
   const [toolsExpanded, setToolsExpanded] = useState(true);
 
@@ -177,10 +178,14 @@ const JiziPage: React.FC = () => {
     });
     setSwitcherOpen(false);
 
-    if (switcherIndex === 0) {
-      const card = filteredResults[0]?.hits[hitIndex];
+    // 找到第一个有匹配字的位置作为"风格基准字"
+    // 如果用户这次点选的正是这个基准字，就弹窗询问是否把它的风格统一到全文
+    const firstMatchIndex = filteredResults.findIndex((r) => r.hits.length > 0);
+    if (switcherIndex === firstMatchIndex && firstMatchIndex >= 0) {
+      const card = filteredResults[firstMatchIndex]?.hits[hitIndex];
       if (card) {
         setPendingStyleHit(card);
+        setPendingStyleRefIndex(firstMatchIndex);
         setStyleConfirmOpen(true);
       }
     }
@@ -197,7 +202,7 @@ const JiziPage: React.FC = () => {
     setSelectedCardIds((prev) => {
       const next: Record<number, string> = { ...prev };
       filteredResults.forEach((r, i) => {
-        if (i === 0) return;
+        if (i === pendingStyleRefIndex) return;
         const sameDeck = r.hits.find((h) => h.deck_id === refDeck);
         if (sameDeck) {
           next[i] = sameDeck.card_id;
@@ -214,7 +219,7 @@ const JiziPage: React.FC = () => {
     });
     setStyleConfirmOpen(false);
     setPendingStyleHit(null);
-  }, [pendingStyleHit, filteredResults]);
+  }, [pendingStyleHit, pendingStyleRefIndex, filteredResults]);
 
   const handleStyleCancel = useCallback(() => {
     setStyleConfirmOpen(false);
