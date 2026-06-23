@@ -182,6 +182,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
   const alignEnd = direction.endsWith('rl');
 
   const bgColors: Record<string, string> = {
+    default: '#f0f0f0',
     xuan: '#f5ecd9',
     white: '#ffffff',
     ink: '#1a1a1a',
@@ -206,7 +207,9 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
         WebkitUserSelect: 'none',
         WebkitTouchCallout: 'none',
         backgroundImage:
-          background === 'xuan'
+          background === 'default'
+            ? 'linear-gradient(135deg, #e8e8e8 0%, #d4d4d4 50%, #c8c8c8 100%)'
+            : background === 'xuan'
             ? 'radial-gradient(ellipse at top, rgba(255,250,240,0.3), transparent 60%)'
             : 'none',
       }}

@@ -37,7 +37,7 @@ export interface JiziMatchResponse {
 export type JiziDirection = 'vertical-rl' | 'vertical-lr' | 'horizontal-lr' | 'horizontal-rl';
 
 /** 背景类型 */
-export type JiziBackground = 'xuan' | 'white' | 'ink' | 'vermilion';
+export type JiziBackground = 'default' | 'xuan' | 'white' | 'ink' | 'vermilion';
 
 /** 排版参数 */
 export interface JiziLayout {
@@ -57,6 +57,6 @@ export const DEFAULT_LAYOUT: JiziLayout = {
   colCount: 6,
   charGap: 0.02,
   lineGap: 0.02,
-  background: 'xuan',
+  background: 'default',
   compact: false,
 };

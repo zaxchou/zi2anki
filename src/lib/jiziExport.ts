@@ -47,12 +47,21 @@ export async function exportJiziPNG(
 
   // 背景
   const bgColors: Record<string, string> = {
+    default: '#e6e6e6',
     xuan: '#f5ecd9',
     white: '#ffffff',
     ink: '#1a1a1a',
     vermilion: '#8b0000',
   };
-  ctx.fillStyle = bgColors[background] || '#ffffff';
+  if (background === 'default') {
+    const grad = ctx.createLinearGradient(0, 0, totalW, totalH);
+    grad.addColorStop(0, '#e8e8e8');
+    grad.addColorStop(0.5, '#d4d4d4');
+    grad.addColorStop(1, '#c8c8c8');
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = bgColors[background] || '#ffffff';
+  }
   ctx.fillRect(0, 0, totalW, totalH);
 
   // 预加载图片

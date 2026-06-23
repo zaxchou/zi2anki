@@ -726,6 +726,7 @@ const JiziPage: React.FC = () => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-around', px: 1 }}>
                 {([
+                  { value: 'default', label: '渐变', color: '#e0e0e0' },
                   { value: 'xuan', label: '宣纸', color: '#f5ecd9' },
                   { value: 'white', label: '纯白', color: '#ffffff' },
                   { value: 'ink', label: '墨色', color: '#1a1a1a' },
