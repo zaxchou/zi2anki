@@ -27,6 +27,7 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
 import StyleIcon from '@mui/icons-material/Style';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -73,6 +74,7 @@ const SheetHeader: React.FC<{ title: string; onClose: () => void }> = ({ title, 
 );
 
 const JiziPage: React.FC = () => {
+  const theme = useTheme();
   const [text, setText] = useState('');
   const [layout, setLayout] = useState<JiziLayout>(DEFAULT_LAYOUT);
   const [results, setResults] = useState<JiziMatchResult[]>([]);
@@ -279,7 +281,7 @@ const JiziPage: React.FC = () => {
         }}>
           {hasResults && (
             <Box sx={{
-              bgcolor: 'rgba(255,255,255,0.85)',
+              bgcolor: alpha(theme.palette.background.paper, 0.85),
               backdropFilter: 'blur(4px)',
               px: 1.25, py: 0.25,
               borderRadius: 1.5,
@@ -297,10 +299,10 @@ const JiziPage: React.FC = () => {
               onClick={() => setToolsExpanded(false)}
               sx={{
                 width: 36, height: 36, minHeight: 0,
-                bgcolor: 'rgba(255,255,255,0.7)',
+                bgcolor: alpha(theme.palette.background.paper, 0.7),
                 backdropFilter: 'blur(8px)',
                 color: 'text.secondary',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.85)' },
+                '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.85) },
               }}
             >
               <CloseIcon sx={{ fontSize: 18 }} />
@@ -326,11 +328,11 @@ const JiziPage: React.FC = () => {
                   width: 48,
                   height: 40,
                   borderRadius: 2,
-                  bgcolor: activeTab === btn.value ? 'primary.main' : 'rgba(255,255,255,0.7)',
+                  bgcolor: activeTab === btn.value ? 'primary.main' : alpha(theme.palette.background.paper, 0.7),
                   color: activeTab === btn.value ? '#fff' : 'text.secondary',
                   backdropFilter: 'blur(8px)',
                   transition: 'all 0.15s',
-                  '&:hover': { bgcolor: activeTab === btn.value ? 'primary.dark' : 'rgba(255,255,255,0.85)' },
+                  '&:hover': { bgcolor: activeTab === btn.value ? 'primary.dark' : alpha(theme.palette.background.paper, 0.85) },
                 }}
               >
                 {btn.icon}
@@ -349,10 +351,10 @@ const JiziPage: React.FC = () => {
             bottom: 44,
             zIndex: 10,
             width: 36, height: 36, minHeight: 0,
-            bgcolor: 'rgba(255,255,255,0.7)',
+            bgcolor: alpha(theme.palette.background.paper, 0.7),
             backdropFilter: 'blur(8px)',
             color: 'text.secondary',
-            '&:hover': { bgcolor: 'rgba(255,255,255,0.85)' },
+            '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.85) },
           }}
         >
           <ChevronRightIcon sx={{ fontSize: 20 }} />
@@ -540,7 +542,7 @@ const JiziPage: React.FC = () => {
                                 right: 2,
                                 fontSize: 8,
                                 color: 'text.secondary',
-                                bgcolor: 'rgba(255,255,255,0.8)',
+                                bgcolor: alpha(theme.palette.background.paper, 0.8),
                                 px: 0.3,
                                 borderRadius: 0.5,
                                 lineHeight: 1.2,
