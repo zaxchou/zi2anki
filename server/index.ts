@@ -61,6 +61,9 @@ app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
   }
 });
 
+// 公开路由：集字（无需登录）
+app.use('/api/jizi', jiziRouter);
+
 // JWT 鉴权中间件（之后的所有 /api/* 都需要鉴权）
 app.use('/api', authMiddleware);
 
@@ -73,7 +76,6 @@ app.use('/api', exportRouter);
 app.use('/api', importRouter);
 app.use('/api', marketplaceRouter);
 app.use('/api', adminRouter);
-app.use('/api', jiziRouter);
 
 // 生产模式：托管前端构建产物
 const distDir = path.join(__dirname, '..', 'dist');

@@ -76,6 +76,10 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          {/* 集字公开访问（不需要登录） */}
+          <Route element={<AppShell />}>
+            <Route path="/jizi" element={<JiziPage />} />
+          </Route>
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<DashboardPage />} />
@@ -84,7 +88,6 @@ function App() {
               <Route path="/decks" element={<DecksPage />} />
               <Route path="/decks/:deckId/cards" element={<CardManagePage />} />
               <Route path="/market" element={<MarketPage />} />
-              <Route path="/jizi" element={<JiziPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/users" element={<UserManagePage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
