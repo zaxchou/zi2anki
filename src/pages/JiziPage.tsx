@@ -566,8 +566,8 @@ const JiziPage: React.FC = () => {
           <SheetHeader title="排版设置" onClose={closeSheet} />
           <Stack spacing={2}>
             {/* —— 方向 + 字号 同一行 —— */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'stretch' }}>
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
                   方向
                 </Typography>
@@ -578,6 +578,7 @@ const JiziPage: React.FC = () => {
                   value={layout.direction}
                   onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
                   sx={{
+                    flex: 1,
                     '& .MuiToggleButton-root': {
                       flex: 1,
                       px: 0,
@@ -607,7 +608,7 @@ const JiziPage: React.FC = () => {
                   </ToggleButton>
                 </ToggleButtonGroup>
               </Box>
-              <Box sx={{ width: 120 }}>
+              <Box sx={{ width: 120, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
                   字号
                 </Typography>
@@ -618,7 +619,8 @@ const JiziPage: React.FC = () => {
                   value={layout.fontSize}
                   onChange={(_, v: number | null) => v && update({ fontSize: v })}
                   sx={{
-                    '& .MuiToggleButton-root': { flex: 1, px: 0, py: 0.95, fontSize: 12 },
+                    flex: 1,
+                    '& .MuiToggleButton-root': { flex: 1, px: 0, fontSize: 12 },
                   }}
                 >
                   <ToggleButton value={80}>小</ToggleButton>
