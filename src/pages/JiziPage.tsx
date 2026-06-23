@@ -15,6 +15,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Slider,
+  Switch,
   IconButton,
   Fab,
   Paper,
@@ -563,118 +564,205 @@ const JiziPage: React.FC = () => {
       >
         <Box sx={{ p: 2 }}>
           <SheetHeader title="排版设置" onClose={closeSheet} />
-          <Stack spacing={2.5}>
-            {/* 方向 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>方向</Typography>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={layout.direction}
-                onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
-              >
-                <ToggleButton value="vertical-rl">竖排右起</ToggleButton>
-                <ToggleButton value="vertical-lr">竖排左起</ToggleButton>
-                <ToggleButton value="horizontal-lr">横排左起</ToggleButton>
-                <ToggleButton value="horizontal-rl">横排右起</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            {/* 字号 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字号</Typography>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={layout.fontSize}
-                onChange={(_, v: number | null) => v && update({ fontSize: v })}
-              >
-                <ToggleButton value={80}>小</ToggleButton>
-                <ToggleButton value={120}>中</ToggleButton>
-                <ToggleButton value={160}>大</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            {/* 列字数 / 行字数 */}
-            <FormControl size="small" fullWidth>
-              <InputLabel>{layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}</InputLabel>
-              <Select
-                value={layout.colCount}
-                label={layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}
-                onChange={(e) => update({ colCount: Number(e.target.value) })}
-              >
-                {[4, 6, 8, 10, 12, 14, 16, 18, 20].map((n) => (
-                  <MenuItem key={n} value={n}>{n} 字</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* 字距 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字距</Typography>
-              <Box sx={{ px: 1 }}>
-                <Slider
+          <Stack spacing={2}>
+            {/* —— 方向 + 字号 同一行 —— */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                  方向
+                </Typography>
+                <ToggleButtonGroup
+                  exclusive
                   size="small"
-                  min={0}
-                  max={0.4}
-                  step={0.02}
-                  value={layout.charGap}
-                  onChange={(_, v) => update({ charGap: v as number })}
-                  valueLabelDisplay="auto"
-                  valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
-                />
+                  fullWidth
+                  value={layout.direction}
+                  onChange={(_, v: JiziDirection | null) => v && update({ direction: v })}
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      flex: 1,
+                      px: 0,
+                      py: 0.5,
+                      lineHeight: 1.1,
+                      fontSize: 11,
+                      flexDirection: 'column',
+                      gap: 0.25,
+                    },
+                  }}
+                >
+                  <ToggleButton value="vertical-rl" aria-label="竖排右起">
+                    <Box sx={{ fontSize: 14, fontFamily: 'monospace', letterSpacing: -1 }}>↓←</Box>
+                    竖右
+                  </ToggleButton>
+                  <ToggleButton value="vertical-lr" aria-label="竖排左起">
+                    <Box sx={{ fontSize: 14, fontFamily: 'monospace', letterSpacing: -1 }}>↓→</Box>
+                    竖左
+                  </ToggleButton>
+                  <ToggleButton value="horizontal-lr" aria-label="横排左起">
+                    <Box sx={{ fontSize: 14, fontFamily: 'monospace', letterSpacing: -1 }}>→↓</Box>
+                    横左
+                  </ToggleButton>
+                  <ToggleButton value="horizontal-rl" aria-label="横排右起">
+                    <Box sx={{ fontSize: 14, fontFamily: 'monospace', letterSpacing: -1 }}>←↓</Box>
+                    横右
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              <Box sx={{ width: 120 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                  字号
+                </Typography>
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  fullWidth
+                  value={layout.fontSize}
+                  onChange={(_, v: number | null) => v && update({ fontSize: v })}
+                  sx={{
+                    '& .MuiToggleButton-root': { flex: 1, px: 0, py: 0.95, fontSize: 12 },
+                  }}
+                >
+                  <ToggleButton value={80}>小</ToggleButton>
+                  <ToggleButton value={120}>中</ToggleButton>
+                  <ToggleButton value={160}>大</ToggleButton>
+                </ToggleButtonGroup>
               </Box>
             </Box>
 
-            {/* 行距 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>行距</Typography>
-              <Box sx={{ px: 1 }}>
+            <Divider sx={{ my: 0.5 }} />
+
+            {/* —— 每行/列字数 —— */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
+                {layout.direction.startsWith('vertical') ? '每列字数' : '每行字数'}
+              </Typography>
+              <Box sx={{ flex: 1, px: 0.5 }}>
                 <Slider
                   size="small"
-                  min={0}
-                  max={0.6}
-                  step={0.02}
-                  value={layout.lineGap}
-                  onChange={(_, v) => update({ lineGap: v as number })}
+                  min={4}
+                  max={20}
+                  step={2}
+                  marks
+                  value={layout.colCount}
+                  onChange={(_, v) => update({ colCount: v as number })}
                   valueLabelDisplay="auto"
-                  valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                  valueLabelFormat={(v) => `${v} 字`}
                 />
+              </Box>
+              <Typography variant="body2" sx={{ minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {layout.colCount}
+              </Typography>
+            </Box>
+
+            <Divider sx={{ my: 0.5 }} />
+
+            {/* —— 间距 + 紧凑模式 —— */}
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="caption" color="text.secondary">间距</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" color={layout.compact ? 'primary.main' : 'text.secondary'} sx={{ fontWeight: layout.compact ? 600 : 400 }}>
+                    紧凑模式
+                  </Typography>
+                  <Switch
+                    size="small"
+                    checked={layout.compact}
+                    onChange={(e) => update({ compact: e.target.checked })}
+                  />
+                </Box>
+              </Box>
+              <Box sx={{ opacity: layout.compact ? 0.4 : 1, pointerEvents: layout.compact ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32 }}>字距</Typography>
+                  <Box sx={{ flex: 1, px: 0.5 }}>
+                    <Slider
+                      size="small"
+                      min={0}
+                      max={0.4}
+                      step={0.02}
+                      value={layout.charGap}
+                      onChange={(_, v) => update({ charGap: v as number })}
+                      valueLabelDisplay="auto"
+                      valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ minWidth: 36, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {Math.round(layout.charGap * 100)}%
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32 }}>行距</Typography>
+                  <Box sx={{ flex: 1, px: 0.5 }}>
+                    <Slider
+                      size="small"
+                      min={0}
+                      max={0.6}
+                      step={0.02}
+                      value={layout.lineGap}
+                      onChange={(_, v) => update({ lineGap: v as number })}
+                      valueLabelDisplay="auto"
+                      valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ minWidth: 36, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {Math.round(layout.lineGap * 100)}%
+                  </Typography>
+                </Box>
               </Box>
             </Box>
 
-            {/* 紧凑模式 */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>紧凑模式</Typography>
-              <Button
-                size="small"
-                variant={layout.compact ? 'contained' : 'outlined'}
-                onClick={() => update({ compact: !layout.compact })}
-                sx={{ minWidth: 60, textTransform: 'none' }}
-              >
-                {layout.compact ? '开' : '关'}
+            <Divider sx={{ my: 0.5 }} />
+
+            {/* —— 背景：色块 —— */}
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                背景
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-around', px: 1 }}>
+                {([
+                  { value: 'xuan', label: '宣纸', color: '#f5ecd9' },
+                  { value: 'white', label: '纯白', color: '#ffffff' },
+                  { value: 'ink', label: '墨色', color: '#1a1a1a' },
+                  { value: 'vermilion', label: '朱砂', color: '#8b0000' },
+                ] as const).map((bg) => {
+                  const active = layout.background === bg.value;
+                  return (
+                    <Box
+                      key={bg.value}
+                      onClick={() => update({ background: bg.value as JiziBackground })}
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          bgcolor: bg.color,
+                          border: '2px solid',
+                          borderColor: active ? 'primary.main' : 'rgba(0,0,0,0.12)',
+                          boxShadow: active ? '0 0 0 2px rgba(25,118,210,0.2)' : 'inset 0 0 0 1px rgba(0,0,0,0.04)',
+                          transition: 'all 0.15s',
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ fontSize: 10, color: active ? 'primary.main' : 'text.secondary', fontWeight: active ? 600 : 400 }}>
+                        {bg.label}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
+              <Button size="small" onClick={handleResetLayout} sx={{ color: 'text.secondary', textTransform: 'none' }}>
+                恢复默认
               </Button>
             </Box>
-
-            {/* 背景 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>背景</Typography>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={layout.background}
-                onChange={(_, v: JiziBackground | null) => v && update({ background: v })}
-              >
-                <ToggleButton value="xuan">宣纸</ToggleButton>
-                <ToggleButton value="white">纯白</ToggleButton>
-                <ToggleButton value="ink">墨色</ToggleButton>
-                <ToggleButton value="vermilion">朱砂</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            <Button size="small" onClick={handleResetLayout} color="inherit">
-              恢复默认
-            </Button>
           </Stack>
         </Box>
       </Drawer>
