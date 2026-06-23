@@ -26,8 +26,8 @@ const JiziCell: React.FC<JiziCellProps> = ({
   const safeIndex = hits.length > 0 ? Math.min(Math.max(0, selectedIndex), hits.length - 1) : 0;
   const current = hits.length > 0 ? hits[safeIndex] : null;
 
-  const textColor = darkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary';
-  const subColor = darkMode ? 'rgba(255,255,255,0.45)' : 'text.disabled';
+  const textColor = darkMode ? 'rgba(255,255,255,0.92)' : 'text.secondary';
+  const subColor = darkMode ? 'rgba(255,255,255,0.6)' : 'text.disabled';
   const badgeColor = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
   const badgeBg = darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
   const emptyBg = darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
