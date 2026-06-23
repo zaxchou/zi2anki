@@ -164,6 +164,7 @@ const JiziPreview: React.FC<JiziPreviewProps> = ({
           justifyContent: 'center',
           color: 'text.secondary',
           fontSize: 14,
+          pb: 10,
         }}
       >
         输入文字后这里会显示集字预览
