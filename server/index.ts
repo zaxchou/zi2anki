@@ -61,7 +61,7 @@ app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
   }
 });
 
-// 公开路由：集字（无需登录）
+// 公开路由：集字（无需登录，必须在 authMiddleware 之前注册）
 app.use('/api/jizi', jiziRouter);
 
 // JWT 鉴权中间件（之后的所有 /api/* 都需要鉴权）

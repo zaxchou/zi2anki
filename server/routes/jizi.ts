@@ -1,11 +1,25 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { Converter } from 'opencc-js';
 import { getDb } from '../db.js';
+import { JWT_SECRET } from '../middleware/auth.js';
 
 export const jiziRouter = Router();
 
-/** 简→繁规范化器（中国大陆简体 → 台湾繁体）。 */
+// 简→繁规范化器
 const toTraditional = Converter({ from: 'cn', to: 'tw' });
+
+/** 解析请求中的用户 token（如果有） */
+function resolveUser(req: Request): { userId?: string } {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const payload = jwt.verify(authHeader.slice(7), JWT_SECRET) as { userId: string };
+      return { userId: payload.userId };
+    } catch { /* 静默忽略 */ }
+  }
+  return {};
+}
 
 /** 清洗 front_text：去括号后缀、下划线数字、尾部纯数字，返回核心汉字 */
 function cleanFrontText(raw: string): string {
@@ -39,7 +53,7 @@ jiziRouter.get('/match', async (req: Request, res: Response) => {
   try {
     const text = (req.query.text as string || '').trim();
     const scope = (req.query.scope as string || '').trim() === 'all' ? 'all' : 'mine';
-    const userId = req.user?.userId;
+    const { userId } = resolveUser(req);
     // 未登录用户自动使用全部公开字库
     const effectiveScope = !userId ? 'all' : scope;
 

@@ -33,6 +33,12 @@ declare global {
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // 公开路由跳过鉴权
+  if (req.path.startsWith('/jizi/')) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: '未提供认证令牌' });

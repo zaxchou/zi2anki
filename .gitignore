@@ -11,3 +11,4 @@ deploy.sh
 dist/
 node_modules/
 uploads/*
+dist-server/
