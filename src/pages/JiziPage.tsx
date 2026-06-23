@@ -315,24 +315,6 @@ const JiziPage: React.FC = () => {
         </Box>
       )}
 
-      {/* ===== 悬浮导出按钮（位于底部 tab 之上） ===== */}
-      {hasResults && (
-        <Fab
-          color="primary"
-          size="small"
-          onClick={handleExport}
-          disabled={exporting}
-          sx={{
-            position: 'absolute',
-            right: 16,
-            bottom: 88,
-            zIndex: 5,
-          }}
-        >
-          {exporting ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
-        </Fab>
-      )}
-
       {/* ===== 可收缩浮动工具按钮（左下角） ===== */}
       {/* 展开/收缩切换按钮 */}
       <Fab
