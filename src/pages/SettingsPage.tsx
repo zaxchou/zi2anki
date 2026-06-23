@@ -183,33 +183,6 @@ const SettingsPage: React.FC = () => {
     <Box className="space-y-4 py-4">
       <Typography variant="h5" className="font-kai">设置</Typography>
 
-      {user?.role === 'admin' && (
-        <Alert severity="info" sx={{ borderRadius: 2 }}>
-          <Typography variant="body2">
-            你正在使用默认管理员账号。建议{' '}
-            <Link
-              component="button"
-              underline="hover"
-              onClick={() => {
-                setOldPwd('');
-                setNewPwd('');
-                setConfirmPwd('');
-                setPwdError('');
-                setPwdDialogOpen(true);
-              }}
-              sx={{ cursor: 'pointer' }}
-            >
-              修改密码
-            </Link>
-            {' '}或{' '}
-            <Link component={RouterLink} to="/register" underline="hover">
-              注册个人账号
-            </Link>
-            。
-          </Typography>
-        </Alert>
-      )}
-
       {/* 账号管理 */}
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <List disablePadding>

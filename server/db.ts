@@ -1,7 +1,5 @@
 import pkg from 'pg';
 const { Pool } = pkg;
-import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -157,19 +155,6 @@ async function initDb(): Promise<void> {
   // 数据字典迁移：如果本地新增了列，这里用 IF NOT EXISTS 同步到线上
   // 规则：只同步结构（DDL），不同步数据（DML）。数据永远以线上为准。
   await migrateSchema(db);
-
-  // 创建默认管理员（仅全新初始化时）
-  const { rows: users } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
-  if (users[0].cnt === 0) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    const adminId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    await db.query(
-      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [adminId, 'admin', hash, 'admin', now]
-    );
-    console.log('🔐 已创建默认管理员账号 — 用户名: admin, 密码: admin123（请尽快修改）');
-  }
 
   console.log('[db] 数据库初始化完成');
 }

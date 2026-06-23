@@ -9,6 +9,18 @@ export const authRouter = Router();
 
 function uuid(): string { return crypto.randomUUID(); }
 
+// GET /api/auth/config — 查询系统状态（无需鉴权）
+authRouter.get('/config', async (_req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
+    res.json({ hasUsers: rows[0].cnt > 0 });
+  } catch (err) {
+    console.error('GET /auth/config error:', err);
+    res.status(500).json({ error: '无法获取系统状态' });
+  }
+});
+
 // POST /api/auth/register
 authRouter.post('/register', async (req: Request, res: Response) => {
   try {
@@ -34,19 +46,23 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       return;
     }
 
+    // 如果数据库中还没有用户，第一个注册者自动成为管理员
+    const { rows: userCount } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
+    const role = userCount[0].cnt === 0 ? 'admin' : 'user';
+
     // 创建用户
     const id = uuid();
     const passwordHash = bcrypt.hashSync(password, 10);
     const now = new Date().toISOString();
     await db.query(
       'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [id, cleanUsername, passwordHash, 'user', now]
+      [id, cleanUsername, passwordHash, role, now]
     );
 
     // 签发 JWT
-    const token = jwt.sign({ userId: id, username: cleanUsername, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: id, username: cleanUsername, role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id, username: cleanUsername, role: 'user' } });
+    res.status(201).json({ token, user: { id, username: cleanUsername, role } });
   } catch (err) {
     console.error('POST /auth/register error:', err);
     res.status(500).json({ error: '注册失败' });
@@ -75,10 +91,11 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
+    const { rememberMe } = req.body;
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: rememberMe ? '365d' : '7d' }
     );
 
     res.json({ token, user: { id: user.id, username: user.username, role: user.role } });

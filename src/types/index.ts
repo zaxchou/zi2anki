@@ -87,6 +87,11 @@ export interface AuthResponse {
   user: User;
 }
 
+/** 系统配置（/api/auth/config 响应） */
+export interface AuthConfig {
+  hasUsers: boolean;
+}
+
 /** 用户设置 */
 export interface UserSettings {
   dailyNewCardLimit: number; // 默认 20

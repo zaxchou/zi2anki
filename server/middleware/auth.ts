@@ -34,7 +34,7 @@ declare global {
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // 公开路由跳过鉴权
-  if (req.path.startsWith('/jizi/')) {
+  if (req.path.startsWith('/jizi/') || req.path.startsWith('/auth/')) {
     next();
     return;
   }

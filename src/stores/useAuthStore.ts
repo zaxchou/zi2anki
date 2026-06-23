@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User } from '@/types';
+import type { User, AuthConfig } from '@/types';
 
 const API_BASE = '';
 
@@ -11,7 +11,9 @@ interface AuthStore {
   token: string | null;
   isLoading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  authConfig: AuthConfig | null;
+  fetchConfig: () => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -24,14 +26,25 @@ export const useAuthStore = create<AuthStore>()(
       token: null,
       isLoading: false,
       error: null,
+      authConfig: null,
 
-      login: async (username: string, password: string) => {
+      fetchConfig: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/auth/config`);
+          const data = await res.json();
+          set({ authConfig: data });
+        } catch {
+          // 静默失败，不影响登录流程
+        }
+      },
+
+      login: async (username: string, password: string, rememberMe = false) => {
         set({ isLoading: true, error: null });
         try {
           const res = await fetch(`${API_BASE}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify({ username, password, rememberMe }),
           });
           const data = await res.json();
           if (!res.ok) {

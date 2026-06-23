@@ -1,34 +1,31 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Card, CardContent, TextField, Button, Typography, Link, Alert,
   CircularProgress, InputAdornment, IconButton,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { FormControlLabel, Checkbox } from '@mui/material';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError, authConfig, fetchConfig } = useAuthStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // "首次使用"提示：只出现一次（localStorage 标记）
-  const [showFirstRun] = useState(() => !localStorage.getItem('背字帖-first-run-seen'));
-
-  const dismissFirstRun = useCallback(() => {
-    localStorage.setItem('背字帖-first-run-seen', '1');
-  }, []);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+
+  // 页面挂载时查询系统状态，判断是否为空数据库
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(username, password);
-      dismissFirstRun();
+      await login(username, password, rememberMe);
       navigate(from, { replace: true });
     } catch {
       // error 已由 store 保存
@@ -57,12 +54,15 @@ export default function LoginPage() {
             </Typography>
           </Box>
 
-          {showFirstRun && (
-            <Alert severity="info" sx={{ mb: 2 }} icon={false} onClose={dismissFirstRun}>
+          {authConfig && !authConfig.hasUsers && (
+            <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                <strong>🔐 首次使用？</strong><br />
-                系统已自动创建默认管理员账号，<br />
-                密码在<strong>启动终端</strong>中可见。
+                <strong>欢迎使用 背字帖</strong><br />
+                系统中还没有用户，请先{' '}
+                <Link component={RouterLink} to="/register" underline="hover">
+                  注册
+                </Link>{' '}
+                第一个管理员账号来开始使用。
               </Typography>
             </Alert>
           )}
@@ -103,13 +103,24 @@ export default function LoginPage() {
                 ),
               }}
             />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  size="small"
+                />
+              }
+              label={<Typography variant="body2">记住我</Typography>}
+              sx={{ mt: 0.5 }}
+            />
             <Button
               type="submit"
               fullWidth
               variant="contained"
               size="large"
               disabled={isLoading || !username || !password}
-              sx={{ mt: 2, mb: 1.5, py: 1.2 }}
+              sx={{ mt: 1, mb: 1.5, py: 1.2 }}
             >
               {isLoading ? <CircularProgress size={24} color="inherit" /> : '登录'}
             </Button>
