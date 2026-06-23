@@ -69,8 +69,8 @@ const BottomNav: React.FC = () => {
   return (
     <Paper
       sx={{
-        position: 'sticky',
-        bottom: 0,
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
         borderTop: 1,
         borderColor: 'divider',
       }}
