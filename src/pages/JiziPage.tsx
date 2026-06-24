@@ -945,9 +945,11 @@ const JiziPage: React.FC = () => {
               const id = deleteConfirmId;
               setDeleteConfirmId(null);
               if (id) {
-                deleteJiziHistory(id).then(() => {
-                  store.setHistory(history.filter((h) => h.id !== id));
-                }).catch(() => {});
+                deleteJiziHistory(id)
+                  .then(() => {
+                    store.setHistory(useJiziStore.getState().history.filter((h) => h.id !== id));
+                  })
+                  .catch((e) => console.error('delete history failed', e));
               }
             }}
           >
