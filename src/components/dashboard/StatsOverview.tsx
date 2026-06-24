@@ -56,14 +56,14 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ dueCount, newCardRemainin
   }, [activityData]);
 
   return (
-    <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'background.paper' }}>
+    <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'background.paper', boxShadow: '0px 0px 0px 1px rgba(0,0,0,0.08)' }}>
       {/* 顶部 3 张统计卡 */}
       <Box className="flex gap-3 mb-3">
         {statItems.map((item) => (
           <Box
             key={item.key}
             className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg"
-            sx={{ background: dark ? item.bgDark : item.bg }}
+            sx={{ background: dark ? item.bgDark : item.bg, borderRadius: 2 }}
           >
             <Box sx={{ color: dark ? item.colorDark : item.color, display: 'flex' }}>{item.icon}</Box>
             <Box className="flex-1 min-w-0">

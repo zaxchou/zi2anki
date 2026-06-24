@@ -250,11 +250,12 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
                           onClick={() => onPick(i)}
                           sx={{
                             cursor: 'pointer',
-                            border: isSelected ? 2 : 1,
-                            borderColor: isSelected ? 'primary.main' : 'divider',
+                            border: isSelected ? 2 : 0,
+                            borderColor: 'primary.main',
                             borderRadius: 1.5,
                             p: 0.75,
                             bgcolor: isSelected ? 'action.selected' : 'background.paper',
+                            boxShadow: (t) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(255,255,255,0.12)' : '0px 0px 0px 1px rgba(0,0,0,0.08)',
                             transition: 'all 0.12s',
                             '&:hover': { borderColor: 'primary.light' },
                           }}

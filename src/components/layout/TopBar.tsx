@@ -21,8 +21,7 @@ const TopBar: React.FC<TopBarProps> = ({ title, children }) => {
       sx={{
         backgroundColor: 'background.paper',
         color: 'text.primary',
-        borderBottom: 1,
-        borderColor: 'divider',
+        borderBottom: 0,
       }}
     >
       <Toolbar>

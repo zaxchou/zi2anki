@@ -154,8 +154,7 @@ const DeckDetailDialog: React.FC<DeckDetailDialogProps> = ({ open, deck, onClose
                   borderRadius: 1.5,
                   overflow: 'hidden',
                   bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'grey.50',
-                  border: 1,
-                  borderColor: 'divider',
+                  boxShadow: (t) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(255,255,255,0.12)' : '0px 0px 0px 1px rgba(0,0,0,0.08)',
                 }}
               >
                 {current?.cover_image ? (
@@ -257,8 +256,7 @@ const DeckDetailDialog: React.FC<DeckDetailDialogProps> = ({ open, deck, onClose
                         borderRadius: 1,
                         overflow: 'hidden',
                         bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'grey.50',
-                        border: 1,
-                        borderColor: 'divider',
+                        boxShadow: (t) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(255,255,255,0.12)' : '0px 0px 0px 1px rgba(0,0,0,0.08)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',

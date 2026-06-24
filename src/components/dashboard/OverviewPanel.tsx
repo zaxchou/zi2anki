@@ -15,7 +15,7 @@ interface StatCardProps {
 }
 const StatCard: React.FC<StatCardProps> = ({ label, value, unit, dark, size = 'md' }) => (
   <Box sx={{
-    border: '1px solid', borderColor: 'divider', borderRadius: 1.5,
+    boxShadow: '0px 0px 0px 1px rgba(0,0,0,0.08)', borderRadius: 1.5,
     p: size === 'sm' ? 1 : 1.25,
     bgcolor: dark ? '#1a1a1a' : '#fafafa',
     minWidth: 0,
@@ -144,7 +144,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ variant = 'page' }) => {
   }
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 1.5 }}>
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
       <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
         {content}
       </CardContent>

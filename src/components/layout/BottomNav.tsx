@@ -71,8 +71,7 @@ const BottomNav: React.FC = () => {
       sx={{
         position: 'fixed',
         bottom: 0, left: 0, right: 0,
-        borderTop: 1,
-        borderColor: 'divider',
+        borderTop: 0,
       }}
       elevation={0}
     >

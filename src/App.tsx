@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, useMediaQuery } from '@mui/material';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { buildThemeOptions } from '@/theme';
 import AppShell from '@/components/layout/AppShell';
 import DashboardPage from '@/pages/DashboardPage';
 import StudyPage from '@/pages/StudyPage';
@@ -29,43 +30,7 @@ function App() {
         : 'light';
 
   const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: resolvedMode,
-          primary: {
-            main: resolvedMode === 'dark' ? '#63d4cb' : '#3eb5a8',
-          },
-          secondary: {
-            main: resolvedMode === 'dark' ? '#8eddd6' : '#66c9bf',
-          },
-          background: {
-            default: resolvedMode === 'dark' ? '#121212' : '#f0faf9',
-            paper: resolvedMode === 'dark' ? '#1e1e1e' : '#ffffff',
-          },
-        },
-        typography: {
-          fontFamily: [
-            '"Noto Sans SC"',
-            '"Microsoft YaHei"',
-            '"Helvetica Neue"',
-            'Arial',
-            'sans-serif',
-          ].join(','),
-          h1: {
-            fontFamily: '"Noto Serif SC", "楷体", KaiTi, serif',
-          },
-          h2: {
-            fontFamily: '"Noto Serif SC", "楷体", KaiTi, serif',
-          },
-          h3: {
-            fontFamily: '"Noto Serif SC", "楷体", KaiTi, serif',
-          },
-        },
-        shape: {
-          borderRadius: 12,
-        },
-      }),
+    () => createTheme(buildThemeOptions(resolvedMode)),
     [resolvedMode]
   );
 

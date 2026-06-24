@@ -45,7 +45,7 @@ export interface SideMenuProps {
   children?: React.ReactNode;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ width = 260, children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -74,8 +74,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
         '& .MuiDrawer-paper': {
           width,
           boxSizing: 'border-box',
-          borderRight: 1,
-          borderColor: 'divider',
           bgcolor: 'background.paper',
           top: 0,
           height: '100%',
@@ -92,17 +90,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
                 <ListItemButton
                   selected={selected}
                   onClick={handleClick(item.value)}
-                  sx={{
-                    mx: 1,
-                    borderRadius: 2,
-                    py: 0.75,
-                    '&.Mui-selected': {
-                      bgcolor: 'primary.main',
-                      color: 'primary.contrastText',
-                      '&:hover': { bgcolor: 'primary.dark' },
-                      '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
-                    },
-                  }}
+                  sx={{ mx: 1, py: 0.5 }}
                 >
                   <ListItemIcon sx={{ minWidth: 36, color: selected ? 'inherit' : 'text.secondary' }}>
                     {item.icon}
@@ -134,7 +122,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ width = 280, children }) => {
           </Box>
         ) : null}
 
-        <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
+        <Box sx={{ p: 1.5, boxShadow: '0px 0px 0px 1px rgba(0,0,0,0.08)' }}>
           {/* 用户信息 */}
           {user && (
             <Box sx={{ mb: 1, textAlign: 'center' }}>
