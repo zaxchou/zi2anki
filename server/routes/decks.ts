@@ -210,6 +210,20 @@ decksRouter.delete('/decks/:id', requireAdmin, async (req: Request, res: Respons
       await client.query('DELETE FROM decks WHERE id = $1', [id]);
 
       await client.query('COMMIT');
+
+      // 删除后清理孤儿文件：移除 uploads/ 中未被任何卡片引用的文件
+      const allFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
+      const usedFiles = new Set(
+        (await db.query('SELECT image_url FROM cards WHERE image_url != \'\'')).rows
+          .map((r: any) => r.image_url.replace('/uploads/', ''))
+      );
+      let orphanCount = 0;
+      for (const f of allFiles) {
+        if (!usedFiles.has(f)) {
+          try { fs.unlinkSync(path.join(uploadsDir, f)); orphanCount++; } catch { /* ignore */ }
+        }
+      }
+      if (orphanCount > 0) console.log(`[decks] 清理 ${orphanCount} 个孤儿图片文件`);
     } catch (txErr) {
       await client.query('ROLLBACK');
       throw txErr;
