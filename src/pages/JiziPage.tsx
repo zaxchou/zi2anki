@@ -60,7 +60,9 @@ function extractFilters(results: JiziMatchResult[]): { styles: string[]; calligr
   const nameSet = new Set<string>();
   results.forEach((r) => {
     r.hits.forEach((h) => {
-      if (h.style) styleSet.add(h.style);
+      if (h.style) {
+        h.style.split(',').filter(Boolean).forEach((s) => styleSet.add(s.trim()));
+      }
       if (h.calligrapher) nameSet.add(h.calligrapher);
     });
   });
@@ -145,7 +147,10 @@ const JiziPage: React.FC = () => {
     return results.map((r) => ({
       ...r,
       hits: r.hits.filter((h) => {
-        if (styleFilter && h.style !== styleFilter) return false;
+        if (styleFilter) {
+          const styles = h.style ? h.style.split(',').map((s) => s.trim()) : [];
+          if (!styles.includes(styleFilter)) return false;
+        }
         if (calligrapherFilter && h.calligrapher !== calligrapherFilter) return false;
         return true;
       }),
@@ -491,27 +496,6 @@ const JiziPage: React.FC = () => {
         <Box sx={{ p: 2 }}>
           <SheetHeader title="选择风格" onClose={closeSheet} />
           <Stack spacing={2.5}>
-            {/* 字库范围 */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>字库范围</Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip
-                  label="已订阅"
-                  size="small"
-                  variant={scope === 'mine' ? 'filled' : 'outlined'}
-                  color={scope === 'mine' ? 'primary' : 'default'}
-                  onClick={() => store.setScope('mine')}
-                />
-                <Chip
-                  label="全部公开"
-                  size="small"
-                  variant={scope === 'all' ? 'filled' : 'outlined'}
-                  color={scope === 'all' ? 'primary' : 'default'}
-                  onClick={() => store.setScope('all')}
-                />
-              </Box>
-            </Box>
-
             {/* 书体筛选 */}
             {filters.styles.length > 0 && (
               <Box>

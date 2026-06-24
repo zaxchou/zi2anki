@@ -38,7 +38,9 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
     const sSet = new Set<string>();
     hits.forEach((h) => {
       cSet.add(h.calligrapher || '佚名');
-      if (h.style) sSet.add(h.style);
+      if (h.style) {
+        h.style.split(',').filter(Boolean).forEach((s) => sSet.add(s.trim()));
+      }
     });
     return { allCalligraphers: Array.from(cSet), allStyles: Array.from(sSet).sort() };
   }, [hits]);
@@ -60,7 +62,10 @@ const JiziSwitcherSheet: React.FC<JiziSwitcherSheetProps> = ({
       .map((h, i) => ({ hit: h, index: i }))
       .filter(({ hit }) => {
         if (authorFilter && (hit.calligrapher || '佚名') !== authorFilter) return false;
-        if (styleFilter && hit.style !== styleFilter) return false;
+        if (styleFilter) {
+          const styles = hit.style ? hit.style.split(',').map((s) => s.trim()) : [];
+          if (!styles.includes(styleFilter)) return false;
+        }
         return true;
       });
   }, [hits, authorFilter, styleFilter]);
