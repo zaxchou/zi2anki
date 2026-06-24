@@ -211,12 +211,14 @@ decksRouter.delete('/decks/:id', requireAdmin, async (req: Request, res: Respons
 
       await client.query('COMMIT');
 
-      // 删除后清理孤儿文件：移除 uploads/ 中未被任何卡片引用的文件
+      // 删除后清理孤儿文件：移除 uploads/ 中未被任何卡片或封面引用的文件
       const allFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
       const usedFiles = new Set(
         (await db.query('SELECT image_url FROM cards WHERE image_url != \'\'')).rows
           .map((r: any) => r.image_url.replace('/uploads/', ''))
       );
+      (await db.query('SELECT cover_image FROM marketplace_decks WHERE cover_image != \'\'')).rows
+        .forEach((r: any) => usedFiles.add(r.cover_image.replace('/uploads/', '')));
       let orphanCount = 0;
       for (const f of allFiles) {
         if (!usedFiles.has(f)) {
