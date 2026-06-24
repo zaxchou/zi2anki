@@ -585,6 +585,11 @@ export function saveJiziHistory(text: string): Promise<{ saved: boolean; id?: st
   });
 }
 
+/** 删除一条集字搜索记录 */
+export function deleteJiziHistory(id: string): Promise<{ success: boolean }> {
+  return request(`/api/jizi/history/${id}`, { method: 'DELETE' });
+}
+
 // ===== 字帖元数据管理 API (Admin) =====
 
 /** 上传市场牌组封面图 */

@@ -45,7 +45,7 @@ import JiziPresetButton from '@/components/jizi/JiziPresetButton';
 import JiziPreview from '@/components/jizi/JiziPreview';
 import JiziSwitcherSheet from '@/components/jizi/JiziSwitcherSheet';
 import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
-import { fetchJiziMatch, fetchJiziHistory, saveJiziHistory, getImageUrl } from '@/lib/api';
+import { fetchJiziMatch, fetchJiziHistory, saveJiziHistory, deleteJiziHistory, getImageUrl } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
 import { useJiziStore } from '@/stores/useJiziStore';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -459,6 +459,19 @@ const JiziPage: React.FC = () => {
                             primaryTypographyProps={{ fontSize: 13, noWrap: true }}
                             secondaryTypographyProps={{ fontSize: 11 }}
                           />
+                          <IconButton
+                            size="small"
+                            edge="end"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteJiziHistory(item.id).then(() => {
+                                store.setHistory(history.filter((h) => h.id !== item.id));
+                              }).catch(() => {});
+                            }}
+                            sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                          >
+                            <CloseIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
                         </ListItemButton>
                       );
                     })}

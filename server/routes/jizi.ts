@@ -225,3 +225,28 @@ jiziRouter.post('/history', async (req: Request, res: Response) => {
     res.status(500).json({ error: '保存历史失败' });
   }
 });
+
+// DELETE /api/jizi/history/:id — 删除一条搜索记录
+jiziRouter.delete('/history/:id', async (req: Request, res: Response) => {
+  try {
+    const { userId } = resolveUser(req);
+    if (!userId) {
+      res.status(401).json({ error: '请先登录' });
+      return;
+    }
+    const { id } = req.params;
+    const db = getDb();
+    const { rowCount } = await db.query(
+      `DELETE FROM jizi_history WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+    if (rowCount === 0) {
+      res.status(404).json({ error: '记录不存在' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/jizi/history/:id error:', err);
+    res.status(500).json({ error: '删除失败' });
+  }
+});
