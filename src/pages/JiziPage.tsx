@@ -466,7 +466,7 @@ const JiziPage: React.FC = () => {
                               e.stopPropagation();
                               setDeleteConfirmId(item.id);
                             }}
-                            sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: 11, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                            sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
                           >
                             删除
                           </Button>
