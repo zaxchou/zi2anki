@@ -93,6 +93,7 @@ const JiziPage: React.FC = () => {
   const [styleConfirmOpen, setStyleConfirmOpen] = useState(false);
   const [pendingStyleHit, setPendingStyleHit] = useState<CharHit | null>(null);
   const [pendingStyleRefIndex, setPendingStyleRefIndex] = useState(0);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<JiziTab>(null);
   const [toolsExpanded, setToolsExpanded] = useState(true);
 
@@ -464,9 +465,7 @@ const JiziPage: React.FC = () => {
                             edge="end"
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteJiziHistory(item.id).then(() => {
-                                store.setHistory(history.filter((h) => h.id !== item.id));
-                              }).catch(() => {});
+                              setDeleteConfirmId(item.id);
                             }}
                             sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
                           >
@@ -928,6 +927,32 @@ const JiziPage: React.FC = () => {
         <DialogActions>
           <Button onClick={handleStyleCancel}>取消</Button>
           <Button variant="contained" onClick={handleStyleConfirm}>确认</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ===== 删除历史确认对话框 ===== */}
+      <Dialog open={!!deleteConfirmId} onClose={() => setDeleteConfirmId(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>删除历史记录？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>删除后无法恢复。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmId(null)}>取消</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              const id = deleteConfirmId;
+              setDeleteConfirmId(null);
+              if (id) {
+                deleteJiziHistory(id).then(() => {
+                  store.setHistory(history.filter((h) => h.id !== id));
+                }).catch(() => {});
+              }
+            }}
+          >
+            删除
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
