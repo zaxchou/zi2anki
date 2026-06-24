@@ -43,7 +43,7 @@ export default function LoginPage() {
         p: 2,
       }}
     >
-      <Card sx={{ maxWidth: 400, width: '100%' }} elevation={8}>
+      <Card sx={{ maxWidth: 400, width: '100%', boxShadow: '0px 0px 0px 1px rgba(0,0,0,0.08)' }}>
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Typography variant="h4" sx={{ fontFamily: '"Noto Serif SC", serif', mb: 0.5 }}>

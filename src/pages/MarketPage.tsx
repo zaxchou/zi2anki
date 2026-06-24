@@ -176,6 +176,7 @@ const MarketPage: React.FC = () => {
           borderRadius: 1.5,
           overflow: 'hidden',
           bgcolor: (t: any) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'grey.100',
+          boxShadow: (t: any) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(255,255,255,0.12)' : '0px 0px 0px 1px rgba(0,0,0,0.08)',
         }}
       >
         {deck.cover_image ? (
@@ -331,8 +332,8 @@ const MarketPage: React.FC = () => {
                 background: (t: any) => t.palette.mode === 'dark'
                   ? 'linear-gradient(135deg, rgba(33,150,243,0.12) 0%, rgba(156,39,176,0.08) 100%)'
                   : 'linear-gradient(135deg, rgba(33,150,243,0.06) 0%, rgba(156,39,176,0.04) 100%)',
-                border: 1,
-                borderColor: (t: any) => t.palette.mode === 'dark' ? 'rgba(33,150,243,0.3)' : 'rgba(33,150,243,0.2)',
+                border: 0,
+                boxShadow: (t: any) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(33,150,243,0.3)' : '0px 0px 0px 1px rgba(33,150,243,0.2)',
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, mb: 1.5 }}>

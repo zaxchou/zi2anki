@@ -216,7 +216,7 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
                     width: 100, height: 70, borderRadius: 1, overflow: 'hidden',
                     bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'grey.100',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    border: 1, borderColor: 'divider',
+                    boxShadow: (t) => t.palette.mode === 'dark' ? '0px 0px 0px 1px rgba(255,255,255,0.12)' : '0px 0px 0px 1px rgba(0,0,0,0.08)',
                   }}
                 >
                   {coverImageUrl ? (

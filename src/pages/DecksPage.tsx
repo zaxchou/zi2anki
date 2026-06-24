@@ -168,11 +168,7 @@ const DecksPage: React.FC = () => {
       )}
 
       {/* 创建牌组输入区 */}
-      <Card variant="outlined" className="p-4" sx={(theme) => ({
-        borderRadius: 2,
-        bgcolor: 'background.paper',
-        borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.23)' : undefined,
-      })}>
+      <Card variant="outlined" className="p-4" sx={{ borderRadius: 2, bgcolor: 'background.paper' }}>
         <Box className="flex gap-2">
           <TextField
             label="新牌组名称"
@@ -205,10 +201,7 @@ const DecksPage: React.FC = () => {
           description="点击上方按钮创建你的第一个书法记忆牌组"
         />
       ) : (
-        <Card variant="outlined" sx={(theme) => ({
-          borderRadius: 2,
-          borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.23)' : undefined,
-        })}>
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
             {decks.map((deck, index) => {
               const isPublished = !!deck.published_at;
