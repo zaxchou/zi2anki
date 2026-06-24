@@ -80,6 +80,14 @@ app.use('/api', adminRouter);
 // 生产模式：托管前端构建产物
 const distDir = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distDir)) {
+  // hashed 资源文件（带内容 hash，永久缓存）
+  app.use('/assets', express.static(path.join(distDir, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+    etag: true,
+    lastModified: true,
+  }));
+  // 其他静态文件（不含 hash，走 ETag 协商缓存）
   app.use(express.static(distDir));
   // SPA fallback：所有非 /api 路由返回 index.html
   app.get(/^\/(?!api|uploads)/, (_req, res) => {
