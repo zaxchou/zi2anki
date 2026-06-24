@@ -135,6 +135,13 @@ async function initDb(): Promise<void> {
       subscribed_at TEXT NOT NULL,
       PRIMARY KEY (user_id, deck_id)
     );
+
+    CREATE TABLE IF NOT EXISTS jizi_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // 索引
@@ -148,6 +155,7 @@ async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sessions_deck ON study_sessions(deck_id);
     CREATE INDEX IF NOT EXISTS idx_subs_user ON user_subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_subs_deck ON user_subscriptions(deck_id);
+    CREATE INDEX IF NOT EXISTS idx_jizi_history_user_created ON jizi_history(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_market_featured ON marketplace_decks(featured, sort_order);
     CREATE INDEX IF NOT EXISTS idx_decks_user ON decks(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS one_admin ON users ((role)) WHERE role = 'admin';

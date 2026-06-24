@@ -565,6 +565,26 @@ export function fetchJiziMatch(text: string, scope: 'mine' | 'all' = 'mine'): Pr
   return request<JiziMatchResponse>(`/api/jizi/match?${qs}`);
 }
 
+/** 搜索历史条目 */
+export interface JiziHistoryItem {
+  id: string;
+  text: string;
+  created_at: string;
+}
+
+/** 获取集字搜索历史（需要登录） */
+export function fetchJiziHistory(): Promise<{ items: JiziHistoryItem[] }> {
+  return request<{ items: JiziHistoryItem[] }>('/api/jizi/history');
+}
+
+/** 保存集字搜索记录（需要登录） */
+export function saveJiziHistory(text: string): Promise<{ saved: boolean; id?: string; created_at?: string; reason?: string }> {
+  return request('/api/jizi/history', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
 // ===== 字帖元数据管理 API (Admin) =====
 
 /** 上传市场牌组封面图 */

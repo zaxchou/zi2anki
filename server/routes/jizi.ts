@@ -67,8 +67,8 @@ jiziRouter.get('/match', async (req: Request, res: Response) => {
       res.json({ results: [], meta: { scanned: 0, ms: 0, unique_chars: 0 } });
       return;
     }
-    if (chars.length > 200) {
-      res.status(400).json({ error: '单次最多 200 字' });
+    if (chars.length > 500) {
+      res.status(400).json({ error: '单次最多 500 字' });
       return;
     }
 
@@ -158,5 +158,70 @@ jiziRouter.get('/match', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('GET /api/jizi/match error:', err);
     res.status(500).json({ error: 'Failed to match chars' });
+  }
+});
+
+// GET /api/jizi/history — 获取最近 20 条搜索记录
+jiziRouter.get('/history', async (req: Request, res: Response) => {
+  try {
+    const { userId } = resolveUser(req);
+    if (!userId) {
+      res.status(401).json({ error: '请先登录' });
+      return;
+    }
+    const db = getDb();
+    const { rows } = await db.query(
+      `SELECT id, text, created_at
+       FROM jizi_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [userId]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    console.error('GET /api/jizi/history error:', err);
+    res.status(500).json({ error: '获取历史失败' });
+  }
+});
+
+// POST /api/jizi/history — 保存搜索记录（自动去重最近一条）
+jiziRouter.post('/history', async (req: Request, res: Response) => {
+  try {
+    const { userId } = resolveUser(req);
+    if (!userId) {
+      res.status(401).json({ error: '请先登录' });
+      return;
+    }
+    const { text } = req.body as { text?: string };
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      res.status(400).json({ error: '文本不能为空' });
+      return;
+    }
+    const trimmed = text.trim();
+    const db = getDb();
+
+    // 去重：如果最近一条相同则跳过
+    const { rows: recent } = await db.query(
+      `SELECT text FROM jizi_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId]
+    );
+    if (recent.length > 0 && recent[0].text === trimmed) {
+      res.json({ saved: false, reason: 'duplicate' });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.query(
+      `INSERT INTO jizi_history (id, user_id, text, created_at) VALUES ($1, $2, $3, $4)`,
+      [id, userId, trimmed, now]
+    );
+    res.json({ saved: true, id, created_at: now });
+  } catch (err) {
+    console.error('POST /api/jizi/history error:', err);
+    res.status(500).json({ error: '保存历史失败' });
   }
 });

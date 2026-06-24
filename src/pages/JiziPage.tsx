@@ -12,6 +12,10 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   ToggleButtonGroup,
   ToggleButton,
   Slider,
@@ -36,13 +40,15 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import HistoryIcon from '@mui/icons-material/History';
 import JiziPresetButton from '@/components/jizi/JiziPresetButton';
 import JiziPreview from '@/components/jizi/JiziPreview';
 import JiziSwitcherSheet from '@/components/jizi/JiziSwitcherSheet';
 import JiziFullscreenPreview from '@/components/jizi/JiziFullscreenPreview';
-import { fetchJiziMatch, getImageUrl } from '@/lib/api';
+import { fetchJiziMatch, fetchJiziHistory, saveJiziHistory, getImageUrl } from '@/lib/api';
 import { exportJiziPNG } from '@/lib/jiziExport';
 import { useJiziStore } from '@/stores/useJiziStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { DEFAULT_LAYOUT } from '@/types/jizi';
 import type { JiziMatchResult, CharHit, JiziDirection, JiziBackground, JiziLayout } from '@/types/jizi';
 
@@ -90,44 +96,46 @@ const JiziPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<JiziTab>(null);
   const [toolsExpanded, setToolsExpanded] = useState(true);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialFetchDone = useRef(false);
+  const historyFetched = useRef(false);
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+  const token = useAuthStore((s) => s.token);
+  const isLoggedIn = !!token;
+  const history = store.history;
+
+  const handleMatch = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed) {
-      store.setResults([]);
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await fetchJiziMatch(trimmed, scope);
+      store.setResults(resp.results);
       store.setSelections({});
-      return;
-    }
-    let cancelled = false;
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const resp = await fetchJiziMatch(trimmed, scope);
-        if (cancelled) return;
-        store.setResults(resp.results);
-        // 首次加载（从 sessionStorage 恢复）不清除已持久化的 selections；
-        // 后续用户修改文字/范围时才清除
-        if (initialFetchDone.current) {
-          store.setSelections({});
-        }
-        initialFetchDone.current = true;
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : '匹配失败');
-        store.setResults([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+      // 登录用户自动保存搜索记录
+      if (useAuthStore.getState().token && resp.results.length > 0) {
+        saveJiziHistory(trimmed).then((data) => {
+          if (data.saved) {
+            fetchJiziHistory().then((h) => store.setHistory(h.items)).catch(() => {});
+          }
+        }).catch(() => {});
       }
-    }, 400);
-    return () => {
-      cancelled = true;
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+      closeSheet();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '匹配失败');
+      store.setResults([]);
+    } finally {
+      setLoading(false);
+    }
   }, [text, scope]);
+
+  // 登录后拉取搜索历史
+  useEffect(() => {
+    if (!isLoggedIn || historyFetched.current) return;
+    historyFetched.current = true;
+    fetchJiziHistory()
+      .then((data) => store.setHistory(data.items))
+      .catch(() => {});
+  }, [isLoggedIn]);
 
   const hasResults = results.length > 0;
 
@@ -415,8 +423,48 @@ const JiziPage: React.FC = () => {
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                支持中文汉字，标点自动忽略，最多 200 字
+                支持中文汉字，标点自动忽略，最多 500 字
               </Typography>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleMatch}
+                disabled={loading || !text.trim()}
+                sx={{ mt: 1.5, textTransform: 'none', py: 1, borderRadius: 2 }}
+              >
+                {loading ? '集字中...' : '开始集字'}
+              </Button>
+              {isLoggedIn && history.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, color: 'text.secondary' }}>
+                    历史记录
+                  </Typography>
+                  <List dense disablePadding sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {history.map((item) => {
+                      const firstLine = item.text.split('\n')[0];
+                      const display = firstLine.length > 30 ? firstLine.slice(0, 30) + '…' : firstLine;
+                      const date = item.created_at.slice(0, 10);
+                      return (
+                        <ListItemButton
+                          key={item.id}
+                          onClick={() => { store.setText(item.text); }}
+                          sx={{ borderRadius: 1, px: 1, py: 0.5 }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 28 }}>
+                            <HistoryIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={display}
+                            secondary={date}
+                            primaryTypographyProps={{ fontSize: 13, noWrap: true }}
+                            secondaryTypographyProps={{ fontSize: 11 }}
+                          />
+                        </ListItemButton>
+                      );
+                    })}
+                  </List>
+                </Box>
+              )}
             </Box>
           </Stack>
         </Box>
