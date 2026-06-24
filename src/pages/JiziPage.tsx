@@ -460,17 +460,16 @@ const JiziPage: React.FC = () => {
                             primaryTypographyProps={{ fontSize: 13, noWrap: true }}
                             secondaryTypographyProps={{ fontSize: 11 }}
                           />
-                          <IconButton
+                          <Button
                             size="small"
-                            edge="end"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteConfirmId(item.id);
                             }}
-                            sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                            sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: 11, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
                           >
-                            <CloseIcon sx={{ fontSize: 14 }} />
-                          </IconButton>
+                            删除
+                          </Button>
                         </ListItemButton>
                       );
                     })}
