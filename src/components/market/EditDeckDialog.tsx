@@ -6,10 +6,6 @@ import {
   DialogActions,
   Button,
   TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Switch,
   FormControlLabel,
   Box,
@@ -17,6 +13,7 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  Chip,
 } from '@mui/material';
 import {
   fetchMarketplaceDeck,
@@ -28,8 +25,8 @@ import {
 } from '@/lib/api';
 import type { PublishDeckData, MarketplaceDeck } from '@/types';
 
-/** 书体选项（含空值=无） */
-const STYLE_OPTIONS = ['', '楷', '行', '草', '隶', '篆'] as const;
+/** 书体选项 */
+const STYLE_OPTIONS = ['楷', '行', '草', '隶', '篆'] as const;
 
 export interface EditDeckDialogProps {
   open: boolean;
@@ -57,7 +54,7 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
 }) => {
   const [calligrapher, setCalligrapher] = useState('');
   const [dynasty, setDynasty] = useState('');
-  const [style, setStyle] = useState<string>('');
+  const [style, setStyle] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [featured, setFeatured] = useState(false);
@@ -83,7 +80,7 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
       setIsPublished(true);
       setCalligrapher(data.calligrapher || '');
       setDynasty(data.dynasty || '');
-      setStyle(data.style || '');
+      setStyle(data.style ? data.style.split(',').filter(Boolean) : []);
       setDescription(data.description || '');
       setCoverImageUrl(data.cover_image || '');
       setFeatured(data.featured === 1);
@@ -100,7 +97,7 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
       // 重置状态
       setCalligrapher('');
       setDynasty('');
-      setStyle('');
+      setStyle([]);
       setDescription('');
       setCoverImageUrl('');
       setFeatured(false);
@@ -141,7 +138,7 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
     const payload: PublishDeckData = {
       calligrapher: calligrapher.trim(),
       dynasty: dynasty.trim(),
-      style,
+      style: style.join(','),
       description: description.trim(),
       cover_image: coverImageUrl.trim(),
       featured,
@@ -277,19 +274,30 @@ const EditDeckDialog: React.FC<EditDeckDialogProps> = ({
               disabled={saving}
             />
 
-            {/* 书体 */}
-            <FormControl fullWidth disabled={saving}>
-              <InputLabel>书体</InputLabel>
-              <Select
-                value={style}
-                label="书体"
-                onChange={(e) => setStyle(e.target.value)}
-              >
+            {/* 书体（多选） */}
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75, fontSize: 13 }}>
+                书体
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
                 {STYLE_OPTIONS.map((s) => (
-                  <MenuItem key={s} value={s}>{s || '无'}</MenuItem>
+                  <Chip
+                    key={s}
+                    label={s}
+                    size="small"
+                    color={style.includes(s) ? 'primary' : 'default'}
+                    variant={style.includes(s) ? 'filled' : 'outlined'}
+                    onClick={() => {
+                      setStyle((prev) =>
+                        prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                      );
+                    }}
+                    disabled={saving}
+                    sx={{ cursor: 'pointer' }}
+                  />
                 ))}
-              </Select>
-            </FormControl>
+              </Box>
+            </Box>
 
             {/* 简介 */}
             <TextField

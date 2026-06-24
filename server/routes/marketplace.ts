@@ -63,7 +63,7 @@ marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) 
 
     if (style) {
       paramIndex = params.length + 1;
-      sql += ` AND md.style = $${paramIndex}`;
+      sql += ` AND md.style LIKE '%' || $${paramIndex} || '%'`;
       params.push(style);
     }
     if (calligrapher) {

@@ -187,9 +187,9 @@ const DeckDetailDialog: React.FC<DeckDetailDialogProps> = ({ open, deck, onClose
                       {current.dynasty}
                     </Typography>
                   )}
-                  {current?.style && (
-                    <Chip label={current.style} size="small" variant="outlined" sx={{ fontSize: 11, height: 22 }} />
-                  )}
+                  {current?.style && current.style.split(',').filter(Boolean).map((s) => (
+                    <Chip key={s} label={s} size="small" variant="outlined" sx={{ fontSize: 11, height: 22 }} />
+                  ))}
                   {current?.card_count != null && (
                     <Typography variant="body2" color="text.secondary">
                       {current.card_count} 张字帖

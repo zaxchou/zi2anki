@@ -115,7 +115,7 @@ const MarketPage: React.FC = () => {
   const regularDecks = useMemo(() => {
     let list = decks.filter((d) => d.featured !== 1);
     if (styleFilter !== '全部') {
-      list = list.filter((d) => d.style === styleFilter);
+      list = list.filter((d) => d.style.includes(styleFilter));
     }
     if (calligrapherFilter !== '全部') {
       list = list.filter((d) => d.calligrapher === calligrapherFilter);
