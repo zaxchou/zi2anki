@@ -150,6 +150,7 @@ async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_subs_deck ON user_subscriptions(deck_id);
     CREATE INDEX IF NOT EXISTS idx_market_featured ON marketplace_decks(featured, sort_order);
     CREATE INDEX IF NOT EXISTS idx_decks_user ON decks(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS one_admin ON users ((role)) WHERE role = 'admin';
   `);
 
   // 数据字典迁移：如果本地新增了列，这里用 IF NOT EXISTS 同步到线上
@@ -181,11 +182,12 @@ async function migrateSchema(db: pkg.Pool): Promise<void> {
     try { await db.query(sql); } catch { /* 已存在则忽略 */ }
   }
 
-  // 列迁移：decks.article_text + cards.sort_order + decks.study_mode
+  // 列迁移：decks.article_text + cards.sort_order + decks.study_mode + marketplace_decks.cover_thumb
   try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS article_text TEXT DEFAULT ''`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS study_mode TEXT DEFAULT 'default'`); } catch { /* ignore */ }
   try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_sort_order ON cards(deck_id, sort_order)`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE marketplace_decks ADD COLUMN IF NOT EXISTS cover_thumb TEXT DEFAULT ''`); } catch { /* ignore */ }
 }
 
 /** 上传目录的绝对路径（项目根目录下的 uploads/） */

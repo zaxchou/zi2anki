@@ -91,6 +91,7 @@ const JiziPage: React.FC = () => {
   const [toolsExpanded, setToolsExpanded] = useState(true);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialFetchDone = useRef(false);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -108,7 +109,12 @@ const JiziPage: React.FC = () => {
         const resp = await fetchJiziMatch(trimmed, scope);
         if (cancelled) return;
         store.setResults(resp.results);
-        store.setSelections({});
+        // 首次加载（从 sessionStorage 恢复）不清除已持久化的 selections；
+        // 后续用户修改文字/范围时才清除
+        if (initialFetchDone.current) {
+          store.setSelections({});
+        }
+        initialFetchDone.current = true;
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : '匹配失败');

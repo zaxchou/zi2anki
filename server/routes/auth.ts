@@ -39,30 +39,44 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     const db = getDb();
     const cleanUsername = username.trim();
 
-    // 检查用户名唯一性
-    const existing = (await db.query('SELECT id FROM users WHERE username = $1', [cleanUsername])).rows[0];
-    if (existing) {
-      res.status(409).json({ error: '用户名已存在' });
-      return;
+    // 使用 SERIALIZABLE 事务防止并发注册时产生多个管理员
+    // 同时依赖 partial unique index one_admin 作为兜底
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+
+      // 检查用户名唯一性
+      const existing = (await client.query('SELECT id FROM users WHERE username = $1', [cleanUsername])).rows[0];
+      if (existing) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: '用户名已存在' });
+        return;
+      }
+
+      // 如果数据库中还没有用户，第一个注册者自动成为管理员
+      const { rows: userCount } = await client.query('SELECT COUNT(*)::int as cnt FROM users');
+      const role = userCount[0].cnt === 0 ? 'admin' : 'user';
+
+      // 创建用户
+      const id = uuid();
+      const passwordHash = bcrypt.hashSync(password, 10);
+      const now = new Date().toISOString();
+      await client.query(
+        'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [id, cleanUsername, passwordHash, role, now]
+      );
+
+      await client.query('COMMIT');
+
+      // 签发 JWT
+      const token = jwt.sign({ userId: id, username: cleanUsername, role }, JWT_SECRET, { expiresIn: '7d' });
+      res.status(201).json({ token, user: { id, username: cleanUsername, role } });
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
     }
-
-    // 如果数据库中还没有用户，第一个注册者自动成为管理员
-    const { rows: userCount } = await db.query('SELECT COUNT(*)::int as cnt FROM users');
-    const role = userCount[0].cnt === 0 ? 'admin' : 'user';
-
-    // 创建用户
-    const id = uuid();
-    const passwordHash = bcrypt.hashSync(password, 10);
-    const now = new Date().toISOString();
-    await db.query(
-      'INSERT INTO users (id, username, password_hash, role, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [id, cleanUsername, passwordHash, role, now]
-    );
-
-    // 签发 JWT
-    const token = jwt.sign({ userId: id, username: cleanUsername, role }, JWT_SECRET, { expiresIn: '7d' });
-
-    res.status(201).json({ token, user: { id, username: cleanUsername, role } });
   } catch (err) {
     console.error('POST /auth/register error:', err);
     res.status(500).json({ error: '注册失败' });

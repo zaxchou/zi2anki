@@ -50,7 +50,6 @@ export const useJiziStore = create<JiziStore>()(
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         text: state.text,
-        results: state.results,
         selections: state.selections,
         layout: state.layout,
         scope: state.scope,

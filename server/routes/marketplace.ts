@@ -47,7 +47,7 @@ marketplaceRouter.get('/marketplace/decks', async (req: Request, res: Response) 
 
     let sql = `
       SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description,
-             COALESCE(md.cover_image, (
+             COALESCE(md.cover_thumb, md.cover_image, (
                SELECT image_url FROM cards
                  WHERE deck_id = md.deck_id AND image_url != '' ORDER BY created_at ASC LIMIT 1
              ), '') AS cover_image,
@@ -95,7 +95,7 @@ marketplaceRouter.get('/marketplace/decks/:deckId', async (req: Request, res: Re
     const userId = req.user!.userId;
 
     const { rows } = await db.query(
-      `SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
+      `SELECT md.deck_id, md.calligrapher, md.dynasty, md.style, md.description, md.cover_image, md.cover_thumb,
               md.featured, md.sort_order, md.published_at, md.created_at,
               d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
               EXISTS(SELECT 1 FROM user_subscriptions us WHERE us.user_id = $1 AND us.deck_id = md.deck_id) AS is_subscribed
@@ -196,7 +196,7 @@ marketplaceRouter.get('/marketplace/subscriptions', async (req: Request, res: Re
     const { rows } = await db.query(
       `SELECT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit,
               d.created_at, d.updated_at,
-              md.calligrapher, md.dynasty, md.style, md.description, md.cover_image,
+              md.calligrapher, md.dynasty, md.style, md.description, COALESCE(md.cover_thumb, md.cover_image, '') AS cover_image,
               us.subscribed_at,
               COALESCE((
                 SELECT COUNT(*) FROM cards c
@@ -404,27 +404,37 @@ marketplaceRouter.post('/marketplace/decks/:deckId/cover', requireAdmin, (req: R
       return;
     }
 
-    // 用 sharp 生成缩略图（最大宽度 400px，质量 80），输出到新文件
+    // 用 sharp 生成封面图（最大宽度 400px，质量 80），输出到新文件
     const inputPath = path.join(getUploadsDir(), req.file.filename);
-    const outputName = `${crypto.randomUUID()}.jpg`;
-    const outputPath = path.join(getUploadsDir(), outputName);
+    const coverName = `${crypto.randomUUID()}.jpg`;
+    const coverPath = path.join(getUploadsDir(), coverName);
 
     await sharp(inputPath)
       .resize(400, undefined, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })
-      .toFile(outputPath);
+      .toFile(coverPath);
+
+    // 生成缩略图（最大宽度 120px，质量 70）
+    const thumbName = `${crypto.randomUUID()}.jpg`;
+    const thumbPath = path.join(getUploadsDir(), thumbName);
+
+    await sharp(inputPath)
+      .resize(120, undefined, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toFile(thumbPath);
 
     // 删除原始上传文件（Windows 可能锁文件，失败不阻塞）
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
 
     const db = getDb();
-    const imagePath = `/uploads/${outputName}`;
+    const coverImagePath = `/uploads/${coverName}`;
+    const coverThumbPath = `/uploads/${thumbName}`;
     await db.query(
-      'UPDATE marketplace_decks SET cover_image = $1 WHERE deck_id = $2',
-      [imagePath, deckId]
+      'UPDATE marketplace_decks SET cover_image = $1, cover_thumb = $2 WHERE deck_id = $3',
+      [coverImagePath, coverThumbPath, deckId]
     );
 
-    res.json({ success: true, cover_image: imagePath });
+    res.json({ success: true, cover_image: coverImagePath });
   } catch (err: any) {
     console.error('POST /marketplace/decks/:deckId/cover error:', err?.message || err);
     console.error('POST /marketplace/decks/:deckId/cover file:', req.file?.originalname, 'size:', req.file?.size);

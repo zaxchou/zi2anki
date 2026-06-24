@@ -61,7 +61,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
         d.article_text, d.study_mode,
         md.published_at,
-        COALESCE(md.cover_image, (
+        COALESCE(md.cover_thumb, md.cover_image, (
           SELECT image_url FROM cards
             WHERE deck_id = d.id AND image_url != '' ORDER BY created_at ASC LIMIT 1
         ), '') AS cover_image,
@@ -211,21 +211,36 @@ decksRouter.delete('/decks/:id', requireAdmin, async (req: Request, res: Respons
 
       await client.query('COMMIT');
 
-      // 删除后清理孤儿文件：移除 uploads/ 中未被任何卡片或封面引用的文件
-      const allFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
-      const usedFiles = new Set(
-        (await db.query('SELECT image_url FROM cards WHERE image_url != \'\'')).rows
-          .map((r: any) => r.image_url.replace('/uploads/', ''))
-      );
-      (await db.query('SELECT cover_image FROM marketplace_decks WHERE cover_image != \'\'')).rows
-        .forEach((r: any) => usedFiles.add(r.cover_image.replace('/uploads/', '')));
-      let orphanCount = 0;
-      for (const f of allFiles) {
-        if (!usedFiles.has(f)) {
-          try { fs.unlinkSync(path.join(uploadsDir, f)); orphanCount++; } catch { /* ignore */ }
+      // 删除后清理孤儿文件（独立 try/catch，不因清理失败导致 500）
+      try {
+        const allFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
+        const now = Date.now();
+        const GRACE_MS = 10_000; // 10 秒内写入的文件跳过（防止与并发导入竞态）
+        const usedFiles = new Set(
+          (await db.query('SELECT image_url FROM cards WHERE image_url != \'\'')).rows
+            .map((r: any) => r.image_url.replace('/uploads/', ''))
+        );
+        (await db.query('SELECT cover_image, cover_thumb FROM marketplace_decks WHERE cover_image != \'\' OR cover_thumb != \'\'')).rows
+          .forEach((r: any) => {
+            if (r.cover_image) usedFiles.add(r.cover_image.replace('/uploads/', ''));
+            if (r.cover_thumb) usedFiles.add(r.cover_thumb.replace('/uploads/', ''));
+          });
+        let orphanCount = 0;
+        for (const f of allFiles) {
+          if (!usedFiles.has(f)) {
+            const fp = path.join(uploadsDir, f);
+            // 跳过刚写入的文件（并发导入可能尚未 INSERT）
+            try {
+              const stat = fs.statSync(fp);
+              if (now - stat.mtimeMs < GRACE_MS) continue;
+            } catch { /* 文件不存在则跳过 */ continue; }
+            try { fs.unlinkSync(fp); orphanCount++; } catch { /* ignore */ }
+          }
         }
+        if (orphanCount > 0) console.log(`[decks] 清理 ${orphanCount} 个孤儿图片文件`);
+      } catch (cleanupErr) {
+        console.error('[decks] 孤儿文件清理失败（不影响删除操作）:', cleanupErr);
       }
-      if (orphanCount > 0) console.log(`[decks] 清理 ${orphanCount} 个孤儿图片文件`);
     } catch (txErr) {
       await client.query('ROLLBACK');
       throw txErr;

@@ -109,6 +109,7 @@ export interface MarketplaceDeck {
   style: string; // 楷/行/草/隶/篆
   description: string;
   cover_image: string;
+  cover_thumb?: string;
   featured: number; // 0 or 1
   card_count: number;
   is_subscribed: boolean;
