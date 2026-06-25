@@ -152,9 +152,6 @@ async function initDb(): Promise<void> {
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
     CREATE INDEX IF NOT EXISTS idx_cards_created ON cards(created_at);
-    CREATE INDEX IF NOT EXISTS idx_cards_source_key ON cards(source_key);
-    CREATE INDEX IF NOT EXISTS idx_cards_archived ON cards(archived_at);
-    CREATE INDEX IF NOT EXISTS idx_decks_source_key ON decks(source_key);
     CREATE INDEX IF NOT EXISTS idx_ucp_user_due ON user_card_progress(user_id, next_review, interval);
     CREATE INDEX IF NOT EXISTS idx_ucp_user_card ON user_card_progress(card_id);
     CREATE INDEX IF NOT EXISTS idx_daily_stats_user_date ON daily_stats(user_id, date);
