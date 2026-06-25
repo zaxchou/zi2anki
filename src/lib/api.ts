@@ -89,6 +89,10 @@ export function resetDeckProgress(id: string): Promise<{ success: boolean; reset
   return request(`/api/decks/${id}/reset-progress`, { method: 'PUT' });
 }
 
+export function forceResetDeckProgress(id: string): Promise<{ success: boolean; reset_count: number }> {
+  return request(`/api/decks/${id}/reset-progress?force=1`, { method: 'PUT' });
+}
+
 export function updateDeckName(id: string, name: string): Promise<Deck> {
   return request<Deck>(`/api/decks/${id}`, {
     method: 'PUT',

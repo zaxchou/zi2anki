@@ -21,7 +21,7 @@ import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { resetDeckProgress, getImageUrl, toggleDeckPause } from '@/lib/api';
+import { resetDeckProgress, forceResetDeckProgress, getImageUrl, toggleDeckPause } from '@/lib/api';
 import OverviewPanel from '@/components/dashboard/OverviewPanel';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -63,17 +63,33 @@ const DashboardPage: React.FC = () => {
   }, [pauseTarget, loadDecks]);
 
   /** 确认重置进度 */
-  /** 确认重置进度 */
   const handleConfirmReset = useCallback(async () => {
     if (!resetTarget) return;
     setResetError(null);
     try {
-      const res = await resetDeckProgress(resetTarget.id);
+      // 先尝试重置；如果有进度，带上 force=1 再试
+      let res = await resetDeckProgress(resetTarget.id);
       console.log('[Dashboard] 重置成功:', res);
       await loadDecks(true);
-    } catch (err) {
-      console.error('[Dashboard] 重置失败:', err);
-      setResetError(err instanceof Error ? err.message : '重置失败');
+      setResetTarget(null);
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('force=1') || msg.includes('409')) {
+        // 有学习进度，自动用 force 重试
+        try {
+          const res = await forceResetDeckProgress(resetTarget.id);
+          console.log('[Dashboard] 强制重置成功:', res);
+          await loadDecks(true);
+          setResetTarget(null);
+          return;
+        } catch (err2) {
+          console.error('[Dashboard] 强制重置失败:', err2);
+          setResetError(err2 instanceof Error ? err2.message : '强制重置失败');
+        }
+      } else {
+        console.error('[Dashboard] 重置失败:', err);
+        setResetError(msg || '重置失败');
+      }
     } finally {
       setResetTarget(null);
     }
