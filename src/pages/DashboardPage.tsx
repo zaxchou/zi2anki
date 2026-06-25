@@ -43,11 +43,26 @@ const DashboardPage: React.FC = () => {
 
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<{ id: string; name: string; paused: boolean } | null>(null);
 
   useEffect(() => {
     loadDecks(true);
   }, [loadDecks]);
 
+  /** 确认暂停/恢复 */
+  const handleConfirmPause = useCallback(async () => {
+    if (!pauseTarget) return;
+    try {
+      await toggleDeckPause(pauseTarget.id, pauseTarget.paused);
+      await loadDecks(true);
+    } catch (err) {
+      console.error('[Dashboard] 暂停/恢复失败:', err);
+    } finally {
+      setPauseTarget(null);
+    }
+  }, [pauseTarget, loadDecks]);
+
+  /** 确认重置进度 */
   /** 确认重置进度 */
   const handleConfirmReset = useCallback(async () => {
     if (!resetTarget) return;
@@ -246,16 +261,7 @@ const DashboardPage: React.FC = () => {
                     size="small"
                     color={deck.paused_at ? 'success' : 'warning'}
                     startIcon={deck.paused_at ? <PlayCircleIcon /> : <PauseCircleIcon />}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        await toggleDeckPause(deck.id, !deck.paused_at);
-                        const paused_at = deck.paused_at ? null : new Date().toISOString();
-                        useDeckStore.getState().decks = useDeckStore.getState().decks.map(d =>
-                          d.id === deck.id ? { ...d, paused_at } : d
-                        );
-                      } catch { /* ignore */ }
-                    }}
+                    onClick={(e) => { e.stopPropagation(); setPauseTarget({ id: deck.id, name: deck.name, paused: !deck.paused_at }); }}
                     sx={{ textTransform: 'none', minWidth: 0 }}
                   >
                     {deck.paused_at ? '恢复' : '暂停'}
@@ -285,6 +291,17 @@ const DashboardPage: React.FC = () => {
       message={resetError || `确定要重置「${resetTarget?.name ?? ''}」的所有学习进度吗？所有卡片将恢复到未学习状态，此操作不可撤销。`}
       onConfirm={handleConfirmReset}
       onCancel={() => { setResetTarget(null); setResetError(null); }}
+    />
+
+    {/* 暂停/恢复确认对话框 */}
+    <ConfirmDialog
+      open={!!pauseTarget}
+      title={pauseTarget?.paused ? '暂停学习' : '恢复学习'}
+      message={pauseTarget?.paused
+        ? `确定要暂停「${pauseTarget?.name ?? ''}」吗？暂停后不再推送新的学习和复习卡片，可随时恢复。`
+        : `确定要恢复「${pauseTarget?.name ?? ''}」吗？恢复后会继续推送到期卡片。`}
+      onConfirm={handleConfirmPause}
+      onCancel={() => setPauseTarget(null)}
     />
     </>
   );
