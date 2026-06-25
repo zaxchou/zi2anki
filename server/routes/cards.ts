@@ -95,7 +95,7 @@ cardsRouter.get('/decks/:deckId/cards', async (req: Request, res: Response) => {
     const cards = (await db.query(
       `SELECT id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
               next_review, last_review, created_at, updated_at
-       FROM cards WHERE deck_id = $1 ORDER BY created_at DESC`,
+       FROM cards WHERE deck_id = $1 AND archived_at IS NULL ORDER BY created_at DESC`,
       [deckId]
     )).rows;
 
@@ -154,7 +154,7 @@ cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => 
       );
 
       // 更新牌组卡片计数
-      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND archived_at IS NULL', [deckId]);
       const cnt = countResult.rows[0].cnt;
       await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
       await client.query('COMMIT');
@@ -264,7 +264,7 @@ cardsRouter.post(
         }
 
         // 更新牌组卡片计数
-        const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+        const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND archived_at IS NULL', [deckId]);
         const cnt = countResult.rows[0].cnt;
         await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
         await client.query('COMMIT');
@@ -328,7 +328,7 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Re
       }
 
       // 更新计数
-      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [deckId]);
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1 AND archived_at IS NULL', [deckId]);
       const cnt = countResult.rows[0].cnt;
       await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, deckId]);
       await client.query('COMMIT');
@@ -697,7 +697,7 @@ cardsRouter.get('/decks/:deckId/due-cards', async (req: Request, res: Response) 
                FROM cards c
                INNER JOIN user_card_progress ucp
                   ON ucp.user_id = $1 AND ucp.card_id = c.id
-               WHERE c.deck_id = $2 AND ucp.interval > 0 AND ucp.next_review <= $3`;
+               WHERE c.deck_id = $2 AND c.archived_at IS NULL AND ucp.interval > 0 AND ucp.next_review <= $3`;
 
     // 排序模式
     if (mode === 'random') {
@@ -755,7 +755,7 @@ cardsRouter.get('/decks/:deckId/new-cards', async (req: Request, res: Response) 
                FROM cards c
                LEFT JOIN user_card_progress ucp
                   ON ucp.user_id = $1 AND ucp.card_id = c.id
-               WHERE c.deck_id = $2 AND (ucp.card_id IS NULL OR ucp.interval = 0)`;
+               WHERE c.deck_id = $2 AND c.archived_at IS NULL AND (ucp.card_id IS NULL OR ucp.interval = 0)`;
 
     // 排序模式
     if (mode === 'random') {

@@ -63,7 +63,9 @@ async function initDb(): Promise<void> {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       article_text TEXT DEFAULT '',
-      study_mode TEXT DEFAULT 'default'
+      study_mode TEXT DEFAULT 'default',
+      source_key TEXT DEFAULT '',
+      content_version INTEGER DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS cards (
@@ -80,7 +82,9 @@ async function initDb(): Promise<void> {
       user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      sort_order INTEGER DEFAULT 0
+      sort_order INTEGER DEFAULT 0,
+      source_key TEXT DEFAULT '',
+      archived_at TEXT DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS study_sessions (
@@ -148,6 +152,9 @@ async function initDb(): Promise<void> {
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
     CREATE INDEX IF NOT EXISTS idx_cards_created ON cards(created_at);
+    CREATE INDEX IF NOT EXISTS idx_cards_source_key ON cards(source_key);
+    CREATE INDEX IF NOT EXISTS idx_cards_archived ON cards(archived_at);
+    CREATE INDEX IF NOT EXISTS idx_decks_source_key ON decks(source_key);
     CREATE INDEX IF NOT EXISTS idx_ucp_user_due ON user_card_progress(user_id, next_review, interval);
     CREATE INDEX IF NOT EXISTS idx_ucp_user_card ON user_card_progress(card_id);
     CREATE INDEX IF NOT EXISTS idx_daily_stats_user_date ON daily_stats(user_id, date);
@@ -194,7 +201,14 @@ async function migrateSchema(db: pkg.Pool): Promise<void> {
   try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS article_text TEXT DEFAULT ''`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS study_mode TEXT DEFAULT 'default'`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_key TEXT DEFAULT ''`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS content_version INTEGER DEFAULT 1`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS source_key TEXT DEFAULT ''`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS archived_at TEXT DEFAULT NULL`); } catch { /* ignore */ }
   try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_sort_order ON cards(deck_id, sort_order)`); } catch { /* ignore */ }
+  try { await db.query(`CREATE INDEX IF NOT EXISTS idx_decks_source_key ON decks(source_key)`); } catch { /* ignore */ }
+  try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_source_key ON cards(source_key)`); } catch { /* ignore */ }
+  try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_archived ON cards(archived_at)`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE marketplace_decks ADD COLUMN IF NOT EXISTS cover_thumb TEXT DEFAULT ''`); } catch { /* ignore */ }
 }
 

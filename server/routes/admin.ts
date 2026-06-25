@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { promises as fs } from 'node:fs';
 import { getDb, getUploadsDir } from '../db.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { buildContentPackage } from '../services/contentPackage.js';
 
 function toInt(value: unknown): number {
   return Number(value ?? 0);
@@ -25,6 +26,20 @@ export const adminRouter = Router();
 
 // 所有 admin 路由都需要管理员权限
 adminRouter.use(requireAdmin);
+
+// GET /api/admin/content/package/:deckId —— 导出单个牌组安全内容包
+adminRouter.get('/admin/content/package/:deckId', async (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const { buffer, filename } = await buildContentPackage(db, req.params.deckId);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.end(buffer);
+  } catch (err) {
+    console.error('GET /admin/content/package/:deckId error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : '导出内容包失败' });
+  }
+});
 
 // GET /api/admin/dashboard —— 后台数据运营快照（只读）
 adminRouter.get('/admin/dashboard', async (_req: Request, res: Response) => {
@@ -84,7 +99,7 @@ adminRouter.get('/admin/dashboard', async (_req: Request, res: Response) => {
           (SELECT COUNT(*)::int FROM cards) AS cards,
           (SELECT COUNT(*)::int FROM marketplace_decks WHERE published_at IS NOT NULL) AS marketplace_decks,
           (SELECT COUNT(*)::int FROM marketplace_decks WHERE featured = 1) AS featured_decks,
-          (SELECT COUNT(*)::int FROM cards WHERE image_url IS NOT NULL AND image_url != '') AS cards_with_image,
+          (SELECT COUNT(*)::int FROM cards WHERE image_url IS NOT NULL AND image_url != '' AND archived_at IS NULL) AS cards_with_image,
           (SELECT MAX(updated_at) FROM decks) AS latest_deck_updated_at,
           (SELECT MAX(created_at) FROM cards) AS latest_card_created_at
       `),
@@ -92,13 +107,14 @@ adminRouter.get('/admin/dashboard', async (_req: Request, res: Response) => {
         SELECT
           (SELECT COUNT(*)::int FROM decks WHERE card_count = 0) AS empty_decks,
           (SELECT COUNT(*)::int FROM users u WHERE NOT EXISTS (SELECT 1 FROM study_sessions ss WHERE ss.user_id = u.id)) AS users_never_studied,
-          (SELECT COUNT(*)::int FROM cards WHERE image_url IS NULL OR image_url = '') AS cards_without_image,
+          (SELECT COUNT(*)::int FROM cards WHERE (image_url IS NULL OR image_url = '') AND archived_at IS NULL) AS cards_without_image,
           (
             SELECT COUNT(*)::int
             FROM decks d
             LEFT JOIN (
               SELECT deck_id, COUNT(*)::int AS actual_count
               FROM cards
+              WHERE archived_at IS NULL
               GROUP BY deck_id
             ) c ON c.deck_id = d.id
             WHERE COALESCE(d.card_count, 0) != COALESCE(c.actual_count, 0)

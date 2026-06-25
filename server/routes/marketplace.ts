@@ -114,7 +114,7 @@ marketplaceRouter.get('/marketplace/decks/:deckId', async (req: Request, res: Re
     // 封面回退
     if (!row.cover_image) {
       const imgResult = await db.query(
-        `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' ORDER BY created_at ASC LIMIT 1`,
+        `SELECT image_url FROM cards WHERE deck_id = $1 AND image_url != '' AND archived_at IS NULL ORDER BY created_at ASC LIMIT 1`,
         [deckId]
       );
       if (imgResult.rows.length > 0) {
@@ -201,7 +201,7 @@ marketplaceRouter.get('/marketplace/subscriptions', async (req: Request, res: Re
               COALESCE((
                 SELECT COUNT(*) FROM cards c
                   LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
-                  WHERE c.deck_id = d.id AND (ucp.card_id IS NULL OR ucp.interval = 0)
+                  WHERE c.deck_id = d.id AND c.archived_at IS NULL AND (ucp.card_id IS NULL OR ucp.interval = 0)
               ), 0) AS new_count,
               COALESCE((
                 SELECT new_cards_learned FROM daily_stats

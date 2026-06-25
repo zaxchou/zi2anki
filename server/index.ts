@@ -49,7 +49,7 @@ app.get('/api/decks/:deckId/cards/preview', async (req, res) => {
       `SELECT c.front_text, c.image_url
        FROM cards c
        JOIN marketplace_decks md ON md.deck_id = c.deck_id
-       WHERE c.deck_id = $1 AND md.published_at IS NOT NULL
+       WHERE c.deck_id = $1 AND md.published_at IS NOT NULL AND c.archived_at IS NULL
        ORDER BY c.created_at ASC
        LIMIT 50`,
       [deckId]

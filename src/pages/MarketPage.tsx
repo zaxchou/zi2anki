@@ -107,34 +107,35 @@ const MarketPage: React.FC = () => {
     return ['全部', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-CN'))];
   }, [decks]);
 
-  /** 客户端筛选 */
-  const featuredDecks = useMemo(() => {
-    return decks.filter((d) => d.featured === 1);
-  }, [decks]);
-
-  const regularDecks = useMemo(() => {
-    let list = decks.filter((d) => d.featured !== 1);
+  const deckMatchesFilters = useCallback((deck: MarketplaceDeck): boolean => {
     if (styleFilter !== '全部') {
-      list = list.filter((d) => d.style.includes(styleFilter));
+      const styles = deck.style ? deck.style.split(',').map((s) => s.trim()) : [];
+      if (!styles.includes(styleFilter)) return false;
     }
-    if (calligrapherFilter !== '全部') {
-      list = list.filter((d) => d.calligrapher === calligrapherFilter);
-    }
+    if (calligrapherFilter !== '全部' && deck.calligrapher !== calligrapherFilter) return false;
+
+    if (showSubscribedOnly && !deck.is_subscribed) return false;
+
     const kw = searchKeyword.trim().toLowerCase();
     if (kw) {
-      list = list.filter(
-        (d) =>
-          d.name.toLowerCase().includes(kw) ||
-          d.calligrapher.toLowerCase().includes(kw) ||
-          d.description.toLowerCase().includes(kw) ||
-          d.dynasty.toLowerCase().includes(kw),
+      return (
+        deck.name.toLowerCase().includes(kw) ||
+        deck.calligrapher.toLowerCase().includes(kw) ||
+        deck.description.toLowerCase().includes(kw) ||
+        deck.dynasty.toLowerCase().includes(kw)
       );
     }
-    if (showSubscribedOnly) {
-      list = list.filter((d) => d.is_subscribed);
-    }
-    return list;
-  }, [decks, styleFilter, calligrapherFilter, searchKeyword, showSubscribedOnly]);
+    return true;
+  }, [styleFilter, calligrapherFilter, searchKeyword, showSubscribedOnly]);
+
+  /** 客户端筛选 */
+  const featuredDecks = useMemo(() => {
+    return decks.filter((d) => d.featured === 1 && deckMatchesFilters(d));
+  }, [decks, deckMatchesFilters]);
+
+  const regularDecks = useMemo(() => {
+    return decks.filter((d) => d.featured !== 1 && deckMatchesFilters(d));
+  }, [decks, deckMatchesFilters]);
 
   /** 订阅/退订 */
   const handleToggleSubscribe = useCallback(
@@ -206,7 +207,7 @@ const MarketPage: React.FC = () => {
           </Typography>
         )}
         {isAdmin && (
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); setEditDeck(deck); }}
+          <IconButton size="small" aria-label={`编辑 ${deck.name}`} onClick={(e) => { e.stopPropagation(); setEditDeck(deck); }}
             sx={{ width: 16, height: 16, ml: 0.25, opacity: 0.35, '&:hover': { opacity: 1 } }}>
             <EditIcon sx={{ fontSize: 10 }} />
           </IconButton>

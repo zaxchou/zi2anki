@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Divider,
   Grid,
@@ -61,6 +60,15 @@ function formatDateTime(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function isFutureDate(value: string | null): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  return date.getTime() > today.getTime();
 }
 
 function MetricCard({ label, value, helper, tone = 'default' }: MetricCardProps) {
@@ -169,11 +177,9 @@ const AdminDashboardPage: React.FC = () => {
             </Stack>
 
             {data && (
-              <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip size="small" label={`快照 ${formatDateTime(data.fetched_at)}`} variant="outlined" />
-                <Chip size="small" label="只读" color="success" variant="outlined" />
-                <Chip size="small" label="管理员" color="warning" variant="outlined" />
-              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                最后更新 {formatDateTime(data.fetched_at)}
+              </Typography>
             )}
 
             <Divider />
@@ -240,7 +246,14 @@ const AdminDashboardPage: React.FC = () => {
               <Grid item xs={6} sm={4} md={3}><MetricCard label="集字记录数" value={data.activity.total_jizi_requests} /></Grid>
               <Grid item xs={12} sm={4}><MetricCard label="最近学习" value={formatDateTime(data.activity.latest_study_at)} /></Grid>
               <Grid item xs={12} sm={4}><MetricCard label="最近集字" value={formatDateTime(data.activity.latest_jizi_at)} /></Grid>
-              <Grid item xs={12} sm={4}><MetricCard label="最近日统计" value={data.activity.latest_daily_stat_date ?? '--'} /></Grid>
+              <Grid item xs={12} sm={4}>
+                <MetricCard
+                  label="最近日统计"
+                  value={isFutureDate(data.activity.latest_daily_stat_date) ? '日期异常' : (data.activity.latest_daily_stat_date ?? '--')}
+                  helper={isFutureDate(data.activity.latest_daily_stat_date) ? data.activity.latest_daily_stat_date ?? undefined : undefined}
+                  tone={isFutureDate(data.activity.latest_daily_stat_date) ? 'warning' : 'default'}
+                />
+              </Grid>
             </SectionCard>
           )}
 
@@ -273,10 +286,6 @@ const AdminDashboardPage: React.FC = () => {
               </Grid>
             </SectionCard>
           )}
-
-          <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
-            只展示聚合数字，不暴露用户明细，不修改数据库；生产部署仍只走安全代码部署路径。
-          </Typography>
         </>
       ) : null}
     </Box>

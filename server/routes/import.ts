@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 import JSZip from 'jszip';
 import { getDb, getUploadsDir } from '../db.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { cardSourceKey, deckSourceKey } from '../services/contentKeys.js';
 
 export const importRouter = Router();
 
@@ -19,6 +20,10 @@ function uuid(): string {
 /** 当前 ISO 字符串 */
 function nowISO(): string {
   return new Date().toISOString();
+}
+
+function toInt(value: unknown): number {
+  return Number(value ?? 0);
 }
 
 // multer：内存存储，限制 500MB
@@ -398,6 +403,7 @@ importRouter.post('/import', requireAdmin, (req: Request, res: Response) => {
       // ========== 阶段三：PG 事务写入数据库 ==========
       const db = getDb();
       const deckIdCache = new Map<string, string>();
+      const deckSortCache = new Map<string, number>();
 
       const client = await db.connect();
       try {
@@ -406,39 +412,67 @@ importRouter.post('/import', requireAdmin, (req: Request, res: Response) => {
         for (const pc of preparedCards) {
           // 查找或创建牌组
           let deckId = deckIdCache.get(pc.deckName);
+          const deckKey = deckSourceKey(pc.deckName);
           if (!deckId) {
-            const { rows: existing } = await client.query('SELECT id FROM decks WHERE name = $1 AND user_id = $2', [pc.deckName, req.user!.userId]);
+            const { rows: existing } = await client.query(
+              `SELECT id FROM decks
+               WHERE user_id = $1 AND (source_key = $2 OR (source_key = '' AND name = $3))
+               ORDER BY created_at ASC LIMIT 1`,
+              [req.user!.userId, deckKey, pc.deckName]
+            );
             if (existing.length > 0) {
               deckId = existing[0].id;
+              await client.query('UPDATE decks SET source_key = $1 WHERE id = $2 AND (source_key IS NULL OR source_key = \'\')', [deckKey, deckId]);
             } else {
               deckId = uuid();
               const now = nowISO();
               await client.query(
-                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id) VALUES ($1, $2, 0, 20, 200, $3, $4, $5)',
-                [deckId, pc.deckName, now, now, req.user!.userId]
+                'INSERT INTO decks (id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at, user_id, source_key) VALUES ($1, $2, 0, 20, 200, $3, $4, $5, $6)',
+                [deckId, pc.deckName, now, now, req.user!.userId, deckKey]
               );
             }
+            const { rows: sortRows } = await client.query('SELECT COALESCE(MAX(sort_order), 0)::int AS max_sort FROM cards WHERE deck_id = $1', [deckId]);
+            deckSortCache.set(deckId, toInt(sortRows[0]?.max_sort));
             deckIdCache.set(pc.deckName, deckId);
           }
 
-          const cardId = uuid();
+          const nextSortOrder = (deckSortCache.get(deckId) ?? 0) + 1;
+          deckSortCache.set(deckId, nextSortOrder);
+          const cardKey = cardSourceKey(deckKey, nextSortOrder, pc.frontText);
           const now = nowISO();
-          await client.query(
-            `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
-                                next_review, last_review, user_id, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12)`,
-            [
-              cardId, deckId,
-              pc.frontText, pc.backText, pc.imageUrl,
-              pc.ease, pc.interval, pc.repetitions,
-              pc.nextReview, req.user!.userId, now, now,
-            ]
+          const { rows: existingCard } = await client.query(
+            'SELECT id FROM cards WHERE deck_id = $1 AND source_key = $2 LIMIT 1',
+            [deckId, cardKey]
           );
+          if (existingCard.length > 0) {
+            await client.query(
+              `UPDATE cards
+               SET front_text = $1, back_text = $2, image_url = $3, ease = $4, interval = $5, repetitions = $6,
+                   next_review = $7, updated_at = $8, sort_order = $9, archived_at = NULL
+               WHERE id = $10`,
+              [pc.frontText, pc.backText, pc.imageUrl, pc.ease, pc.interval, pc.repetitions,
+                pc.nextReview, now, nextSortOrder, existingCard[0].id]
+            );
+          } else {
+            const cardId = uuid();
+            await client.query(
+              `INSERT INTO cards (id, deck_id, front_text, back_text, image_url, ease, interval, repetitions,
+                                  next_review, last_review, user_id, created_at, updated_at, sort_order, source_key)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14)`,
+              [
+                cardId, deckId,
+                pc.frontText, pc.backText, pc.imageUrl,
+                pc.ease, pc.interval, pc.repetitions,
+                pc.nextReview, req.user!.userId, now, now,
+                nextSortOrder, cardKey,
+              ]
+            );
+          }
         }
 
         // 更新所有牌组的 card_count
         for (const [name, did] of deckIdCache) {
-          const { rows: countRows } = await client.query('SELECT COUNT(*)::int as cnt FROM cards WHERE deck_id = $1', [did]);
+          const { rows: countRows } = await client.query('SELECT COUNT(*)::int as cnt FROM cards WHERE deck_id = $1 AND archived_at IS NULL', [did]);
           await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [countRows[0].cnt, nowISO(), did]);
         }
 

@@ -35,7 +35,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import StorageIcon from '@mui/icons-material/Storage';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { fetchDecks, exportDeck, exportAllDecks, importApkgFile, changePassword, publishDeck } from '@/lib/api';
+import { fetchDecks, exportDeck, exportAllDecks, exportContentPackage, importApkgFile, changePassword, publishDeck } from '@/lib/api';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Deck } from '@/types';
 
@@ -126,6 +126,16 @@ const SettingsPage: React.FC = () => {
       exportDeck(selectedDeckId, deck?.name || 'deck');
     }
     setSnackbar({ open: true, message: '正在导出…', severity: 'info' });
+  };
+
+  const handleExportContentPackage = () => {
+    if (selectedDeckId === 'all') {
+      setSnackbar({ open: true, message: '内容包请选择单个牌组', severity: 'error' });
+      return;
+    }
+    const deck = decks.find((d) => d.id === selectedDeckId);
+    exportContentPackage(selectedDeckId, deck?.name || 'deck');
+    setSnackbar({ open: true, message: '正在导出内容包…', severity: 'info' });
   };
 
   // 导入
@@ -334,6 +344,14 @@ const SettingsPage: React.FC = () => {
                   onClick={handleExport}
                 >
                   导出
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={handleExportContentPackage}
+                  disabled={selectedDeckId === 'all'}
+                >
+                  内容包
                 </Button>
               </Box>
             </ListItem>

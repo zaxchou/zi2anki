@@ -416,7 +416,33 @@ export interface ImportResult {
   errors: Array<{ type: 'parse' | 'media' | 'db'; message: string }>;
 }
 
-/** 导出牌组为 APKG（触发浏览器下载） */
+/** 导出安全内容包（触发浏览器下载） */
+export function exportContentPackage(deckId: string, deckName: string): void {
+  const token = useAuthStore.getState().token;
+  fetch(`${API_BASE}/api/admin/content/package/${deckId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).then((res) => {
+    if (res.status === 401) throw handleUnauthorized();
+    if (!res.ok) {
+      return res.json().then((body) => {
+        throw new Error((body as { error?: string }).error || res.statusText);
+      });
+    }
+    return res.blob();
+  }).then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${deckName}.content.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch((err) => {
+    alert(err instanceof Error ? err.message : '导出内容包失败');
+  });
+}
+
 export function exportDeck(deckId: string, deckName: string): void {
   const safeName = deckName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
   const a = document.createElement('a');
