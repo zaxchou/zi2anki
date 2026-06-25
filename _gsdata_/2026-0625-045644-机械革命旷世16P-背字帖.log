@@ -1,7 +1,0 @@
-2026-06-25 04:56:45: -- 分析开始 On File Change Incremental
-2026-06-25 04:56:47: 变更：1， 冲突：0， 复制时间：0， 复制状态：0， 错误： 0, All: 63160
-2026-06-25 04:56:47: Left to Right: Copy File: 1 
-2026-06-25 04:56:47: == 同步开始由 On File Change Incremental
-2026-06-25 04:56:47: 覆盖复制 'Z:/projectC/calligraphy-memory/src/components/layout/SideMenu.tsx' -> 'D:/beizitie/src/components/layout/SideMenu.tsx' (4,969)
-2026-06-25 04:56:49: == 同步完成. 历时: 00:00:02, 速度: 0 字节/s, 完成: 1, 错误: 0
-2026-06-25 04:56:49: 

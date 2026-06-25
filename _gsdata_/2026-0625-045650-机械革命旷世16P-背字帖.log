@@ -1,8 +1,0 @@
-2026-06-25 04:56:51: -- 分析开始 On File Change Incremental
-2026-06-25 04:56:52: 变更：1， 冲突：0， 复制时间：0， 复制状态：0， 错误： 0, All: 63160
-2026-06-25 04:56:52: Left to Right: Copy File: 1 
-2026-06-25 04:56:52: == 同步开始由 On File Change Incremental
-2026-06-25 04:56:53: Z:/projectC/calligraphy-memory/src/components/dashboard/StatsOverview.tsx: Source file has changed between Analyze and Sync from '[file] size=3,726 accu-time=2026-06-25 04:56:49 attr=Archive cktype=0' to 'size=3,743 time=2026-06-25 04:56:52', noted in source file state
-2026-06-25 04:56:53: 覆盖复制 'Z:/projectC/calligraphy-memory/src/components/dashboard/StatsOverview.tsx' -> 'D:/beizitie/src/components/dashboard/StatsOverview.tsx' (3,726)
-2026-06-25 04:56:55: == 同步完成. 历时: 00:00:03, 速度: 3.65 KB/s, 完成: 1, 错误: 0
-2026-06-25 04:56:55: 

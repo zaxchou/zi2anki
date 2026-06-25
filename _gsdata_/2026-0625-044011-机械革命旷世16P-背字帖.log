@@ -1,9 +1,0 @@
-2026-06-25 04:40:12: -- 分析开始 On File Change Incremental
-2026-06-25 04:40:14: 变更：3， 冲突：0， 复制时间：0， 复制状态：0， 错误： 0, All: 63150
-2026-06-25 04:40:14: Left to Right: Copy File: 3 
-2026-06-25 04:40:14: == 同步开始由 On File Change Incremental
-2026-06-25 04:40:14: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/index' -> 'D:/beizitie/.git/index' (11,253)
-2026-06-25 04:40:15: 覆盖复制 'Z:/projectC/calligraphy-memory/server/index.ts' -> 'D:/beizitie/server/index.ts' (4,026)
-2026-06-25 04:40:15: 覆盖复制 'Z:/projectC/calligraphy-memory/src/pages/JiziPage.tsx' -> 'D:/beizitie/src/pages/JiziPage.tsx' (38,464)
-2026-06-25 04:40:17: == 同步完成. 历时: 00:00:03, 速度: 56.5 KB/s, 完成: 3, 错误: 0
-2026-06-25 04:40:17: 
