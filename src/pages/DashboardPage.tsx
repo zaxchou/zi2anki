@@ -15,11 +15,13 @@ import {
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsIcon from '@mui/icons-material/Settings';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
+import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useDeckStore } from '@/stores/useDeckStore';
-import { resetDeckProgress, getImageUrl } from '@/lib/api';
+import { resetDeckProgress, getImageUrl, toggleDeckPause } from '@/lib/api';
 import OverviewPanel from '@/components/dashboard/OverviewPanel';
 import { LoadingState, EmptyState } from '@/components/common/LoadingState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -195,13 +197,18 @@ const DashboardPage: React.FC = () => {
                   </Box>
                 </CardContent>
                 <Box className="px-4 pt-0 pb-1">
-                  <Typography variant="caption" color="text.secondary">
-                    新卡 {(deck as any).new_available_today ?? deck.daily_new_card_limit ?? 20} · 复习 {(deck as any).due_count ?? 0}
-                  </Typography>
+                  {deck.paused_at ? (
+                    <Chip label="已暂停" size="small" color="warning" variant="outlined" icon={<PauseCircleIcon />}
+                      sx={{ fontSize: 11, height: 22 }} />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      新卡 {(deck as any).new_available_today ?? deck.daily_new_card_limit ?? 20} · 复习 {(deck as any).due_count ?? 0}
+                    </Typography>
+                  )}
                 </Box>
                 <CardActions className="flex items-center px-4 pt-1 pb-3 gap-1">
                   <Box
-                    onClick={(e) => { e.stopPropagation(); navigate(`/study/${deck.id}`); }}
+                    onClick={(e) => { e.stopPropagation(); if (!deck.paused_at) navigate(`/study/${deck.id}`); }}
                     sx={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -211,16 +218,16 @@ const DashboardPage: React.FC = () => {
                       borderRadius: 99,
                       fontSize: 13,
                       fontWeight: 600,
-                      color: deck.card_count === 0 ? 'text.disabled' : 'primary.main',
-                      bgcolor: deck.card_count === 0 ? 'action.disabledBackground' : 'rgba(62,181,168,0.08)',
-                      cursor: deck.card_count === 0 ? 'not-allowed' : 'pointer',
+                      color: deck.card_count === 0 || deck.paused_at ? 'text.disabled' : 'primary.main',
+                      bgcolor: deck.card_count === 0 || deck.paused_at ? 'action.disabledBackground' : 'rgba(62,181,168,0.08)',
+                      cursor: deck.card_count === 0 || deck.paused_at ? 'not-allowed' : 'pointer',
                       transition: 'all 0.15s',
                       userSelect: 'none',
                       '&:hover': {
-                        bgcolor: deck.card_count === 0 ? 'action.disabledBackground' : 'primary.main',
-                        color: deck.card_count === 0 ? 'text.disabled' : '#fff',
+                        bgcolor: deck.card_count === 0 || deck.paused_at ? 'action.disabledBackground' : 'primary.main',
+                        color: deck.card_count === 0 || deck.paused_at ? 'text.disabled' : '#fff',
                       },
-                      pointerEvents: deck.card_count === 0 ? 'none' : 'auto',
+                      pointerEvents: deck.card_count === 0 || deck.paused_at ? 'none' : 'auto',
                     }}
                   >
                     <PlayArrowIcon sx={{ fontSize: 15 }} />
@@ -234,6 +241,24 @@ const DashboardPage: React.FC = () => {
                     sx={{ textTransform: 'none', minWidth: 0 }}
                   >
                     管理
+                  </Button>
+                  <Button
+                    size="small"
+                    color={deck.paused_at ? 'success' : 'warning'}
+                    startIcon={deck.paused_at ? <PlayCircleIcon /> : <PauseCircleIcon />}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await toggleDeckPause(deck.id, !deck.paused_at);
+                        const paused_at = deck.paused_at ? null : new Date().toISOString();
+                        useDeckStore.getState().decks = useDeckStore.getState().decks.map(d =>
+                          d.id === deck.id ? { ...d, paused_at } : d
+                        );
+                      } catch { /* ignore */ }
+                    }}
+                    sx={{ textTransform: 'none', minWidth: 0 }}
+                  >
+                    {deck.paused_at ? '恢复' : '暂停'}
                   </Button>
                   <Button
                     size="small"

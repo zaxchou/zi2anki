@@ -114,6 +114,17 @@ export async function buildContentPackage(db: DbLike, deckId: string): Promise<{
     });
   }
 
+  // 打包 market cover_image / cover_thumb（manifest 有路径但图片也要进包）
+  for (const coverField of [String(deck.cover_image || ''), String(deck.cover_thumb || '')]) {
+    const coverFilename = filenameFromImageUrl(coverField);
+    if (coverFilename && !uploadsFolder?.file(coverFilename)) {
+      const coverPath = path.join(uploadsDir, coverFilename);
+      if (fs.existsSync(coverPath)) {
+        uploadsFolder?.file(coverFilename, fs.readFileSync(coverPath));
+      }
+    }
+  }
+
   const published = Boolean(deck.published_at);
   const manifest: DeckContentPackage = {
     format_version: 1,

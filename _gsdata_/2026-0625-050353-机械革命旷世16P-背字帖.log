@@ -1,0 +1,22 @@
+2026-06-25 05:03:54: -- 分析开始 On File Change Incremental
+2026-06-25 05:03:57: 变更：16， 冲突：0， 复制时间：0， 复制状态：0， 错误： 0, All: 63200
+2026-06-25 05:03:57: Left to Right: Copy File: 16 
+2026-06-25 05:03:57: == 同步开始由 On File Change Incremental
+2026-06-25 05:03:57: 创建文件夹 'D:/beizitie/.git/objects/c6'
+2026-06-25 05:03:57: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/COMMIT_EDITMSG' -> 'D:/beizitie/.git/COMMIT_EDITMSG' (298)
+2026-06-25 05:03:57: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/index' -> 'D:/beizitie/.git/index' (11,333)
+2026-06-25 05:03:57: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/logs/HEAD' -> 'D:/beizitie/.git/logs/HEAD' (35,654)
+2026-06-25 05:03:57: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/logs/refs/heads/main' -> 'D:/beizitie/.git/logs/refs/heads/main' (34,351)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/04/7c4226ebe53f07b83222105c64e5d75ca9dbb0' -> 'D:/beizitie/.git/objects/04/7c4226ebe53f07b83222105c64e5d75ca9dbb0' (403)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/36/077d04d8ebf671f18d6236b21c7386751f1d48' -> 'D:/beizitie/.git/objects/36/077d04d8ebf671f18d6236b21c7386751f1d48' (405)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/68/a6207a4042d4230f67f551e8ad6a4210808ec6' -> 'D:/beizitie/.git/objects/68/a6207a4042d4230f67f551e8ad6a4210808ec6' (227)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/6b/aa6278226a4a98a809f48311bc1d79c8d63876' -> 'D:/beizitie/.git/objects/6b/aa6278226a4a98a809f48311bc1d79c8d63876' (4,056)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/95/f30207ec1d2277cbaf7a8bef660c6838cf2669' -> 'D:/beizitie/.git/objects/95/f30207ec1d2277cbaf7a8bef660c6838cf2669' (394)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/aa/6fbcb57d3717847ebb57484c4cc56eeb4b5a5b' -> 'D:/beizitie/.git/objects/aa/6fbcb57d3717847ebb57484c4cc56eeb4b5a5b' (1,945)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/ac/332928a3a343e4d6e76e7c3a99f6a01a6bf131' -> 'D:/beizitie/.git/objects/ac/332928a3a343e4d6e76e7c3a99f6a01a6bf131' (804)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/c6/51887d3ce37e155b9b92839f7411b8bb24a147' -> 'D:/beizitie/.git/objects/c6/51887d3ce37e155b9b92839f7411b8bb24a147' (5,350)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/c8/309aae47e14961969e2ff72ca539d998202f85' -> 'D:/beizitie/.git/objects/c8/309aae47e14961969e2ff72ca539d998202f85' (96)
+2026-06-25 05:03:57: 新建复制 'Z:/projectC/calligraphy-memory/.git/objects/ce/0b7ccc6e4ad59311a7d26e5088f3133c43c512' -> 'D:/beizitie/.git/objects/ce/0b7ccc6e4ad59311a7d26e5088f3133c43c512' (3,645)
+2026-06-25 05:03:57: 覆盖复制 'Z:/projectC/calligraphy-memory/.git/refs/heads/main' -> 'D:/beizitie/.git/refs/heads/main' (41)
+2026-06-25 05:04:00: == 同步完成. 历时: 00:00:03, 速度: 0 字节/s, 完成: 16, 错误: 0
+2026-06-25 05:04:00: 

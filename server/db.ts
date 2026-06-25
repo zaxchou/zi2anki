@@ -65,7 +65,8 @@ async function initDb(): Promise<void> {
       article_text TEXT DEFAULT '',
       study_mode TEXT DEFAULT 'default',
       source_key TEXT DEFAULT '',
-      content_version INTEGER DEFAULT 1
+      content_version INTEGER DEFAULT 1,
+      paused_at TEXT DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS cards (
@@ -202,6 +203,7 @@ async function migrateSchema(db: pkg.Pool): Promise<void> {
   try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS content_version INTEGER DEFAULT 1`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS source_key TEXT DEFAULT ''`); } catch { /* ignore */ }
   try { await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS archived_at TEXT DEFAULT NULL`); } catch { /* ignore */ }
+  try { await db.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS paused_at TEXT DEFAULT NULL`); } catch { /* ignore */ }
   try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_sort_order ON cards(deck_id, sort_order)`); } catch { /* ignore */ }
   try { await db.query(`CREATE INDEX IF NOT EXISTS idx_decks_source_key ON decks(source_key)`); } catch { /* ignore */ }
   try { await db.query(`CREATE INDEX IF NOT EXISTS idx_cards_source_key ON cards(source_key)`); } catch { /* ignore */ }

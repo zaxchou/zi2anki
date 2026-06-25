@@ -28,6 +28,8 @@ import {
   CardMedia,
   InputAdornment,
   Stack,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -60,6 +62,7 @@ import {
   unpublishDeck,
   setArticleText,
   updateStudyMode,
+  toggleDeckPause,
 } from '@/lib/api';
 import type { Card, Deck, MarketplaceDeck } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -879,6 +882,31 @@ const CardManagePage: React.FC = () => {
             <Button variant="contained" size="small" onClick={handleSaveLimits} disabled={savingLimits}>
               {savingLimits ? '保存中...' : '保存上限'}
             </Button>
+
+            {/* 暂停学习 */}
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={!!deck?.paused_at}
+                    onChange={async () => {
+                      if (!deck) return;
+                      const paused = !deck.paused_at;
+                      setDeck({ ...deck, paused_at: paused ? new Date().toISOString() : null });
+                      try {
+                        await toggleDeckPause(deck.id, paused);
+                      } catch {
+                        setDeck({ ...deck, paused_at: !paused ? new Date().toISOString() : null });
+                      }
+                    }}
+                  />
+                }
+                label={<Typography variant="body2" fontWeight={500}>暂停学习</Typography>}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                开启后暂停新卡和复习卡片的推送，可随时恢复
+              </Typography>
+            </Box>
 
             {/* 学习模式 */}
             <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>

@@ -40,6 +40,8 @@ export interface Deck {
   article_text?: string;
   /** 学习模式：默认/文章顺序/随机 */
   study_mode?: 'default' | 'sequential' | 'random';
+  /** 暂停学习时间（null = 未暂停） */
+  paused_at?: string | null;
 }
 
 /** 单次学习会话 */

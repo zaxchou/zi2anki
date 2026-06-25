@@ -342,6 +342,7 @@ studyRouter.get('/due-counts', async (req: Request, res: Response) => {
          LEFT JOIN user_subscriptions us ON us.deck_id = d.id AND us.user_id = $2
          WHERE (d.user_id = $3 OR us.user_id = $4 OR $5)
            AND ucp.interval > 0 AND ucp.next_review <= $6
+           AND d.paused_at IS NULL
          GROUP BY d.id, d.name ORDER BY d.created_at DESC`,
         [userId, userId, userId, userId, isAdmin, now]
       );

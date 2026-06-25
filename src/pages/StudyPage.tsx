@@ -15,10 +15,12 @@ import {
   Chip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import SortIcon from '@mui/icons-material/Sort';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import { useStudyStore } from '@/stores/useStudyStore';
+import { useDeckStore } from '@/stores/useDeckStore';
 import { fetchDecks, endStudySession as endStudySessionApi, getImageUrl, hasStudiedDeck, updateStudyMode, updateDeckLimits } from '@/lib/api';
 import FlashCard from '@/components/study/FlashCard';
 import ProgressBar from '@/components/study/ProgressBar';
@@ -72,6 +74,26 @@ const StudyPage: React.FC = () => {
       ]);
       const deck = decks.find((d) => d.id === deckId);
       setHasArticle(!!deck?.article_text);
+
+      // 如果牌组已暂停，直接显示暂停占位 UI
+      if (deck?.paused_at) {
+        useStudyStore.setState({
+          phase: 'complete',
+          deckId: deckId!,
+          queue: [],
+          currentIndex: 0,
+          session: {
+            id: crypto.randomUUID(),
+            deck_id: deckId!,
+            started_at: new Date().toISOString(),
+            ended_at: new Date().toISOString(),
+            cards_studied: 0,
+            ratings: { again: 0, hard: 0, good: 0, easy: 0 },
+          },
+          loading: false,
+        });
+        return;
+      }
 
       if (has_studied) {
         // 已有学习记录 → 直接启动（从 deck 读已保存的设置）
@@ -308,6 +330,25 @@ const StudyPage: React.FC = () => {
   }
 
   if (phase === 'complete' && session) {
+    // 暂停状态占位 UI
+    const pausedDeck = useDeckStore.getState().decks.find(d => d.id === deckId);
+    if (pausedDeck?.paused_at) {
+      return (
+        <Box className="flex flex-col items-center justify-center py-12 px-4 min-h-[60vh]">
+          <PauseCircleIcon color="warning" sx={{ fontSize: 64, mb: 2 }} />
+          <Typography variant="h4" className="font-kai mb-2" fontWeight={600}>
+            已暂停学习
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+            该牌组已暂停，前往牌组管理页面恢复
+          </Typography>
+          <Button variant="contained" size="large" onClick={handleConfirmExit}
+            sx={{ px: 6, py: 1.5, borderRadius: 2, fontSize: 16 }}>
+            返回
+          </Button>
+        </Box>
+      );
+    }
     return <StudyComplete session={session} onBackToDashboard={handleConfirmExit} />;
   }
 

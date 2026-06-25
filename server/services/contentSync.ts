@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import type pkg from 'pg';
 import { getUploadsDir } from '../db.js';
 import { imageUrlForPackageFilename, type DeckContentPackage, type ParsedContentPackage, validateContentPackage } from './contentPackage.js';
+import { filenameFromImageUrl } from './contentKeys.js';
 
 export interface ContentSyncResult {
   dry_run: boolean;
@@ -47,19 +48,28 @@ async function ensureUploads(parsed: ParsedContentPackage, dryRun: boolean, resu
   const uploadsDir = getUploadsDir();
   if (!dryRun && !fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+  // 收集所有需要写入的图片：卡片图片 + marketplace 封面
+  const filenames = new Set<string>();
   for (const card of parsed.manifest.cards) {
-    if (!card.image_filename) continue;
-    const buffer = parsed.files.get(card.image_filename);
+    if (card.image_filename) filenames.add(card.image_filename);
+  }
+  const mp = parsed.manifest.deck.marketplace;
+  if (mp) {
+    for (const url of [mp.cover_image, mp.cover_thumb]) {
+      const fn = filenameFromImageUrl(url || '');
+      if (fn) filenames.add(fn);
+    }
+  }
+
+  for (const filename of filenames) {
+    const buffer = parsed.files.get(filename);
     if (!buffer) {
       result.uploads.missing++;
-      result.warnings.push(`Missing upload file in package: ${card.image_filename}`);
+      result.warnings.push(`Missing upload file in package: ${filename}`);
       continue;
     }
-    if (card.image_sha256 && sha256(buffer) !== card.image_sha256) {
-      throw new Error(`Image checksum mismatch: ${card.image_filename}`);
-    }
 
-    const targetPath = path.join(uploadsDir, card.image_filename);
+    const targetPath = path.join(uploadsDir, filename);
     if (fs.existsSync(targetPath)) {
       result.uploads.reused++;
       continue;

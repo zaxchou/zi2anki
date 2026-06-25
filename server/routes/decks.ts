@@ -59,7 +59,7 @@ decksRouter.get('/decks', async (req: Request, res: Response) => {
 
     const { rows } = await db.query(
       `SELECT DISTINCT d.id, d.name, d.card_count, d.daily_new_card_limit, d.daily_review_limit, d.created_at, d.updated_at,
-        d.article_text, d.study_mode,
+        d.article_text, d.study_mode, d.paused_at,
         md.published_at,
         COALESCE(md.cover_thumb, md.cover_image, (
           SELECT image_url FROM cards
@@ -401,6 +401,36 @@ decksRouter.put('/decks/:id/study-mode', async (req: Request, res: Response) => 
   } catch (err) {
     console.error('PUT /decks/:id/study-mode error:', err);
     res.status(500).json({ error: 'Failed to update study mode' });
+  }
+});
+
+// PUT /api/decks/:id/pause —— 暂停/恢复学习
+decksRouter.put('/decks/:id/pause', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { paused } = req.body;
+    if (typeof paused !== 'boolean') {
+      res.status(400).json({ error: 'paused must be a boolean' });
+      return;
+    }
+    const db = getDb();
+    const isAdmin = req.user!.role === 'admin';
+    const existing = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [id, req.user!.userId, isAdmin]
+    )).rows[0];
+    if (!existing) { res.status(404).json({ error: 'Deck not found' }); return; }
+    const now = nowISO();
+    if (paused) {
+      await db.query('UPDATE decks SET paused_at = $1, updated_at = $2 WHERE id = $3', [now, now, id]);
+    } else {
+      await db.query('UPDATE decks SET paused_at = NULL, updated_at = $1 WHERE id = $2', [now, id]);
+    }
+    const { rows } = await db.query('SELECT paused_at FROM decks WHERE id = $1', [id]);
+    res.json({ success: true, paused_at: rows[0].paused_at });
+  } catch (err) {
+    console.error('PUT /decks/:id/pause error:', err);
+    res.status(500).json({ error: 'Failed to toggle pause' });
   }
 });
 

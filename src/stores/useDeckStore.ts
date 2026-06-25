@@ -9,6 +9,7 @@ import {
   renameDeck as renameDeckApi,
   deleteDeckApi,
   updateCardCountApi,
+  toggleDeckPause,
 } from '@/lib/api';
 
 interface DeckStore {
@@ -29,6 +30,8 @@ interface DeckStore {
   deleteDeck: (id: string) => Promise<void>;
   /** 更新牌组卡片计数 */
   updateCardCount: (deckId: string, count: number) => Promise<void>;
+  /** 暂停/恢复牌组学习 */
+  togglePause: (deckId: string, paused: boolean) => Promise<void>;
   /** 清除错误 */
   clearError: () => void;
 }
@@ -116,6 +119,20 @@ export const useDeckStore = create<DeckStore>((set) => ({
       }));
     } catch (err) {
       console.error('[useDeckStore] updateCardCount 失败:', err);
+    }
+  },
+
+  togglePause: async (deckId: string, paused: boolean) => {
+    try {
+      const { paused_at } = await toggleDeckPause(deckId, paused);
+      set((state) => ({
+        decks: state.decks.map((d) =>
+          d.id === deckId ? { ...d, paused_at } : d
+        ),
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '暂停/恢复失败';
+      set({ error: message });
     }
   },
 

@@ -1,0 +1,8 @@
+2026-06-25 04:49:33: -- 分析开始 On File Change Incremental
+2026-06-25 04:49:34: 变更：1， 冲突：0， 复制时间：0， 复制状态：0， 错误： 0, All: 63150
+2026-06-25 04:49:34: Left to Right: Copy File: 1 
+2026-06-25 04:49:34: == 同步开始由 On File Change Incremental
+2026-06-25 04:49:35: Z:/projectC/calligraphy-memory/src/pages/JiziPage.tsx: Source file has changed between Analyze and Sync from '[file] size=37,687 accu-time=2026-06-25 04:49:31 attr=Archive cktype=0' to 'size=37,798 time=2026-06-25 04:49:34', noted in source file state
+2026-06-25 04:49:35: 覆盖复制 'Z:/projectC/calligraphy-memory/src/pages/JiziPage.tsx' -> 'D:/beizitie/src/pages/JiziPage.tsx' (37,687)
+2026-06-25 04:49:37: == 同步完成. 历时: 00:00:03, 速度: 36.9 KB/s, 完成: 1, 错误: 0
+2026-06-25 04:49:37: 

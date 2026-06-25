@@ -127,6 +127,17 @@ export function updateStudyMode(
   });
 }
 
+/** 暂停/恢复牌组学习 */
+export function toggleDeckPause(
+  deckId: string,
+  paused: boolean
+): Promise<{ success: boolean; paused_at: string | null }> {
+  return request(`/api/decks/${deckId}/pause`, {
+    method: 'PUT',
+    body: JSON.stringify({ paused }),
+  });
+}
+
 /** 检查牌组是否有学习记录 */
 export function hasStudiedDeck(deckId: string): Promise<{ has_studied: boolean }> {
   return request(`/api/decks/${deckId}/has-studied`);
