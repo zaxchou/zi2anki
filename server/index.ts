@@ -88,9 +88,17 @@ if (fs.existsSync(distDir)) {
     lastModified: true,
   }));
   // 其他静态文件（不含 hash，走 ETag 协商缓存）
-  app.use(express.static(distDir));
+  // index.html 设置 no-cache：确保浏览器总是获取最新版本，避免旧 index.html
+  // 引用已不存在的 hash 文件导致白屏。
+  app.use(express.static(distDir, {
+    setHeaders: (res, filePath) => {
+      if (path.basename(filePath) === 'index.html') {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
   // SPA fallback：所有非 /api 路由返回 index.html
-  app.get(/^\/(?!api|uploads)/, (_req, res) => {
+  app.get(/^\/(?!api|uploads|assets)/, (_req, res) => {
     res.sendFile(path.join(distDir, 'index.html'));
   });
   console.log(`[生产模式] 前端托管于 ${distDir}`);

@@ -32,6 +32,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LockIcon from '@mui/icons-material/Lock';
 import GroupIcon from '@mui/icons-material/Group';
+import StorageIcon from '@mui/icons-material/Storage';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { fetchDecks, exportDeck, exportAllDecks, importApkgFile, changePassword, publishDeck } from '@/lib/api';
@@ -208,6 +209,18 @@ const SettingsPage: React.FC = () => {
 
           {user?.role === 'admin' && (
             <>
+              <ListItem className="py-4" component={RouterLink} to="/settings/admin-dashboard" sx={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+                <ListItemText
+                  primary="后台数据"
+                  secondary="查看生产数据、用户活跃和内容统计"
+                  primaryTypographyProps={{ variant: 'subtitle1' as const }}
+                />
+                <ListItemSecondaryAction>
+                  <StorageIcon color="action" />
+                </ListItemSecondaryAction>
+              </ListItem>
+              <Divider component="li" />
+
               <ListItem className="py-4" component={RouterLink} to="/settings/users" sx={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
                 <ListItemText
                   primary="用户管理"

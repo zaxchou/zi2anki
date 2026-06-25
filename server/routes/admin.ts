@@ -1,12 +1,195 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { getDb } from '../db.js';
+import { promises as fs } from 'node:fs';
+import { getDb, getUploadsDir } from '../db.js';
 import { requireAdmin } from '../middleware/auth.js';
+
+function toInt(value: unknown): number {
+  return Number(value ?? 0);
+}
+
+function toNullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+async function countUploadFiles(): Promise<number> {
+  try {
+    const entries = await fs.readdir(getUploadsDir(), { withFileTypes: true });
+    return entries.filter((entry) => entry.isFile()).length;
+  } catch {
+    return 0;
+  }
+}
 
 export const adminRouter = Router();
 
 // 所有 admin 路由都需要管理员权限
 adminRouter.use(requireAdmin);
+
+// GET /api/admin/dashboard —— 后台数据运营快照（只读）
+adminRouter.get('/admin/dashboard', async (_req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const [
+      userStats,
+      newUsers,
+      studyActivity,
+      jiziActivity,
+      totalStudy,
+      totalJizi,
+      contentStats,
+      healthStats,
+      activeTodayUsers,
+      active7dUsers,
+      active30dUsers,
+      uploadFiles,
+    ] = await Promise.all([
+      db.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE role = 'admin')::int AS admins,
+          MAX(created_at) AS latest_registered_at
+        FROM users
+      `),
+      db.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date)::int AS new_today,
+          COUNT(*) FILTER (WHERE created_at::timestamptz >= NOW() - INTERVAL '7 days')::int AS new_7d,
+          COUNT(*) FILTER (WHERE created_at::timestamptz >= NOW() - INTERVAL '30 days')::int AS new_30d
+        FROM users
+      `),
+      db.query(`
+        SELECT
+          COUNT(DISTINCT user_id) FILTER (WHERE (started_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date)::int AS study_active_today,
+          MAX(started_at) AS latest_study_at
+        FROM study_sessions
+      `),
+      db.query(`
+        SELECT
+          COUNT(DISTINCT user_id) FILTER (WHERE (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date)::int AS jizi_active_today,
+          MAX(created_at) AS latest_jizi_at
+        FROM jizi_history
+      `),
+      db.query(`
+        SELECT
+          COUNT(*)::int AS total_study_sessions,
+          COALESCE(SUM(cards_studied), 0)::int AS total_cards_studied,
+          MAX(date) AS latest_daily_stat_date
+        FROM daily_stats
+      `),
+      db.query(`SELECT COUNT(*)::int AS total_jizi_requests FROM jizi_history`),
+      db.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM decks) AS decks,
+          (SELECT COUNT(*)::int FROM cards) AS cards,
+          (SELECT COUNT(*)::int FROM marketplace_decks WHERE published_at IS NOT NULL) AS marketplace_decks,
+          (SELECT COUNT(*)::int FROM marketplace_decks WHERE featured = 1) AS featured_decks,
+          (SELECT COUNT(*)::int FROM cards WHERE image_url IS NOT NULL AND image_url != '') AS cards_with_image,
+          (SELECT MAX(updated_at) FROM decks) AS latest_deck_updated_at,
+          (SELECT MAX(created_at) FROM cards) AS latest_card_created_at
+      `),
+      db.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM decks WHERE card_count = 0) AS empty_decks,
+          (SELECT COUNT(*)::int FROM users u WHERE NOT EXISTS (SELECT 1 FROM study_sessions ss WHERE ss.user_id = u.id)) AS users_never_studied,
+          (SELECT COUNT(*)::int FROM cards WHERE image_url IS NULL OR image_url = '') AS cards_without_image,
+          (
+            SELECT COUNT(*)::int
+            FROM decks d
+            LEFT JOIN (
+              SELECT deck_id, COUNT(*)::int AS actual_count
+              FROM cards
+              GROUP BY deck_id
+            ) c ON c.deck_id = d.id
+            WHERE COALESCE(d.card_count, 0) != COALESCE(c.actual_count, 0)
+          ) AS decks_card_count_mismatch
+      `),
+      db.query(`
+        SELECT COUNT(*)::int AS count
+        FROM (
+          SELECT user_id FROM study_sessions
+          WHERE (started_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date
+          UNION
+          SELECT user_id FROM jizi_history
+          WHERE (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date
+        ) active_users
+      `),
+      db.query(`
+        SELECT COUNT(*)::int AS count
+        FROM (
+          SELECT user_id FROM study_sessions WHERE started_at::timestamptz >= NOW() - INTERVAL '7 days'
+          UNION
+          SELECT user_id FROM jizi_history WHERE created_at::timestamptz >= NOW() - INTERVAL '7 days'
+        ) active_users
+      `),
+      db.query(`
+        SELECT COUNT(*)::int AS count
+        FROM (
+          SELECT user_id FROM study_sessions WHERE started_at::timestamptz >= NOW() - INTERVAL '30 days'
+          UNION
+          SELECT user_id FROM jizi_history WHERE created_at::timestamptz >= NOW() - INTERVAL '30 days'
+        ) active_users
+      `),
+      countUploadFiles(),
+    ]);
+
+    const users = userStats.rows[0] ?? {};
+    const newUserCounts = newUsers.rows[0] ?? {};
+    const study = studyActivity.rows[0] ?? {};
+    const jizi = jiziActivity.rows[0] ?? {};
+    const totalStudyStats = totalStudy.rows[0] ?? {};
+    const totalJiziStats = totalJizi.rows[0] ?? {};
+    const content = contentStats.rows[0] ?? {};
+    const health = healthStats.rows[0] ?? {};
+    const totalUsers = toInt(users.total);
+    const adminUsers = toInt(users.admins);
+
+    res.json({
+      fetched_at: new Date().toISOString(),
+      users: {
+        total: totalUsers,
+        admins: adminUsers,
+        normal: Math.max(totalUsers - adminUsers, 0),
+        new_today: toInt(newUserCounts.new_today),
+        new_7d: toInt(newUserCounts.new_7d),
+        new_30d: toInt(newUserCounts.new_30d),
+        latest_registered_at: toNullableString(users.latest_registered_at),
+      },
+      activity: {
+        dau_today: toInt(activeTodayUsers.rows[0]?.count),
+        active_7d: toInt(active7dUsers.rows[0]?.count),
+        mau_30d: toInt(active30dUsers.rows[0]?.count),
+        study_active_today: toInt(study.study_active_today),
+        jizi_active_today: toInt(jizi.jizi_active_today),
+        total_study_sessions: toInt(totalStudyStats.total_study_sessions),
+        total_cards_studied: toInt(totalStudyStats.total_cards_studied),
+        total_jizi_requests: toInt(totalJiziStats.total_jizi_requests),
+        latest_study_at: toNullableString(study.latest_study_at),
+        latest_jizi_at: toNullableString(jizi.latest_jizi_at),
+        latest_daily_stat_date: toNullableString(totalStudyStats.latest_daily_stat_date),
+      },
+      content: {
+        decks: toInt(content.decks),
+        cards: toInt(content.cards),
+        marketplace_decks: toInt(content.marketplace_decks),
+        featured_decks: toInt(content.featured_decks),
+        cards_with_image: toInt(content.cards_with_image),
+        upload_files: uploadFiles,
+        latest_deck_updated_at: toNullableString(content.latest_deck_updated_at),
+        latest_card_created_at: toNullableString(content.latest_card_created_at),
+      },
+      health: {
+        empty_decks: toInt(health.empty_decks),
+        users_never_studied: toInt(health.users_never_studied),
+        cards_without_image: toInt(health.cards_without_image),
+        decks_card_count_mismatch: toInt(health.decks_card_count_mismatch),
+      },
+    });
+  } catch (err) {
+    console.error('GET /admin/dashboard error:', err);
+    res.status(500).json({ error: '获取后台数据失败' });
+  }
+});
 
 // GET /api/admin/users —— 获取所有用户列表
 adminRouter.get('/admin/users', async (_req: Request, res: Response) => {

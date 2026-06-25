@@ -680,3 +680,49 @@ export interface UserStatsResponse {
 export function fetchUserStats(userId: string): Promise<UserStatsResponse> {
   return request<UserStatsResponse>(`/api/admin/users/${userId}/stats`);
 }
+
+export interface AdminDashboardResponse {
+  fetched_at: string;
+  users: {
+    total: number;
+    admins: number;
+    normal: number;
+    new_today: number;
+    new_7d: number;
+    new_30d: number;
+    latest_registered_at: string | null;
+  };
+  activity: {
+    dau_today: number;
+    active_7d: number;
+    mau_30d: number;
+    study_active_today: number;
+    jizi_active_today: number;
+    total_study_sessions: number;
+    total_cards_studied: number;
+    total_jizi_requests: number;
+    latest_study_at: string | null;
+    latest_jizi_at: string | null;
+    latest_daily_stat_date: string | null;
+  };
+  content: {
+    decks: number;
+    cards: number;
+    marketplace_decks: number;
+    featured_decks: number;
+    cards_with_image: number;
+    upload_files: number;
+    latest_deck_updated_at: string | null;
+    latest_card_created_at: string | null;
+  };
+  health: {
+    empty_decks: number;
+    users_never_studied: number;
+    cards_without_image: number;
+    decks_card_count_mismatch: number;
+  };
+}
+
+export function fetchAdminDashboard(): Promise<AdminDashboardResponse> {
+  return request<AdminDashboardResponse>('/api/admin/dashboard');
+}
