@@ -332,6 +332,13 @@ decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response)
       [now, now, id]
     );
 
+    // 重置 deck 自身的学习上限到默认值（新牌组状态）
+    await db.query(
+      `UPDATE decks SET daily_new_card_limit = 20, daily_review_limit = 200, updated_at = $1
+       WHERE id = $2`,
+      [now, id]
+    );
+
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     await db.query('DELETE FROM daily_stats WHERE user_id = $1 AND date = $2 AND deck_id = $3', [req.user!.userId, dateStr, id]);
