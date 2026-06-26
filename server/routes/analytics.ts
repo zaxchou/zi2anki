@@ -10,8 +10,11 @@ analyticsRouter.get('/analytics/:deckId/card-status', async (req: Request, res: 
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
 
-    // 验证牌组存在
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, isAdmin])).rows[0];
+    // 验证牌组存在且当前用户有权访问（owner、订阅者、admin）
+    const deck = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [deckId, req.user!.userId]
+    )).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -44,8 +47,11 @@ analyticsRouter.get('/analytics/:deckId/difficulty', async (req: Request, res: R
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
 
-    // 验证牌组存在
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, isAdmin])).rows[0];
+    // 验证牌组存在且当前用户有权访问（owner、订阅者、admin）
+    const deck = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [deckId, req.user!.userId]
+    )).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -77,22 +83,25 @@ analyticsRouter.get('/analytics/:deckId/ratings', async (req: Request, res: Resp
     const { deckId } = req.params;
     const db = getDb();
 
-    // 验证牌组存在
-    const deck = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [deckId, req.user!.userId, req.user!.role === 'admin'])).rows[0];
+    // 验证牌组存在且当前用户有权访问（owner、订阅者、admin）
+    const deck = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [deckId, req.user!.userId]
+    )).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
     }
 
     const row = (await db.query(
-      `SELECT 
+      `SELECT
          COALESCE(SUM(ratings_again), 0) as again,
          COALESCE(SUM(ratings_hard), 0) as hard,
          COALESCE(SUM(ratings_good), 0) as good,
          COALESCE(SUM(ratings_easy), 0) as easy,
          COALESCE(SUM(cards_studied), 0) as total
-       FROM study_sessions WHERE deck_id = $1`,
-      [deckId]
+       FROM study_sessions WHERE deck_id = $1 AND user_id = $2`,
+      [deckId, req.user!.userId]
     )).rows[0] as {
       again: number; hard: number; good: number; easy: number; total: number;
     };

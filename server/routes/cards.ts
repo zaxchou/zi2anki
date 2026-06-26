@@ -495,16 +495,24 @@ cardsRouter.delete('/cards/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const card = (await db.query(
-      'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = $1 AND d.user_id = $2',
-      [id, req.user!.userId]
-    )).rows[0] as {
+    // 鉴权：仅牌组 owner 或 admin 可删除卡片（订阅者无权删除内容）
+    const isAdmin = req.user!.role === 'admin';
+    const card = isAdmin
+      ? (await db.query(
+          'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = $1',
+          [id]
+        )).rows[0]
+      : (await db.query(
+          'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = $1 AND d.user_id = $2',
+          [id, req.user!.userId]
+        )).rows[0];
+    const cardRow = card as {
       id: string;
       image_url: string;
       deck_id: string;
     } | undefined;
 
-    if (!card) {
+    if (!cardRow) {
       res.status(404).json({ error: 'Card not found' });
       return;
     }
@@ -515,16 +523,16 @@ cardsRouter.delete('/cards/:id', async (req: Request, res: Response) => {
       await client.query('BEGIN');
 
       // 删除图片文件
-      deleteImageFile(card.image_url);
+      deleteImageFile(cardRow.image_url);
 
       // 删除卡片记录
       await client.query('DELETE FROM cards WHERE id = $1', [id]);
 
       // 更新牌组卡片计数
-      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [card.deck_id]);
+      const countResult = await client.query('SELECT COUNT(*) as cnt FROM cards WHERE deck_id = $1', [cardRow.deck_id]);
       const cnt = countResult.rows[0].cnt;
       const now = nowISO();
-      await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, card.deck_id]);
+      await client.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [cnt, now, cardRow.deck_id]);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
