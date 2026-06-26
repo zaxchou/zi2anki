@@ -294,7 +294,10 @@ decksRouter.put('/decks/:id/reset-progress', async (req: Request, res: Response)
     const db = getDb();
     const isAdmin = req.user!.role === 'admin';
 
-    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
+    const existing = (await db.query(
+      'SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3 OR id IN (SELECT deck_id FROM user_subscriptions WHERE user_id = $2))',
+      [id, req.user!.userId, isAdmin]
+    )).rows[0];
     if (!existing) {
       res.status(404).json({ error: 'Deck not found' });
       return;
