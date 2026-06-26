@@ -106,8 +106,8 @@ cardsRouter.get('/decks/:deckId/cards', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/decks/:deckId/cards —— 创建单张卡片
-cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => {
+// POST /api/decks/:deckId/cards —— 创建单张卡片（仅管理员）
+cardsRouter.post('/decks/:deckId/cards', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const { front_text, back_text, image_url } = req.body;
@@ -118,15 +118,6 @@ cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => 
     }
 
     const db = getDb();
-    const isAdmin = req.user!.role === 'admin';
-
-    // 验证牌组存在且当前用户有权操作
-    const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
-      : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
-    if (!deck) {
-      res.status(404).json({ error: 'Deck not found' });
-      return;
-    }
 
     // 处理图片：base64 data URL → 文件
     let finalImageUrl = '';
@@ -181,19 +172,18 @@ cardsRouter.post('/decks/:deckId/cards', async (req: Request, res: Response) => 
   }
 });
 
-// POST /api/decks/:deckId/cards/batch —— 批量导入卡片
+// POST /api/decks/:deckId/cards/batch —— 批量导入卡片（仅管理员）
 cardsRouter.post(
   '/decks/:deckId/cards/batch',
+  requireAdmin,
   batchUpload.array('images', 500),
   async (req: Request, res: Response) => {
     try {
       const { deckId } = req.params as { deckId: string };
       const db = getDb();
-      const isAdmin = req.user!.role === 'admin';
 
-      // 验证牌组存在且当前用户有权操作
-      const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
-        : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+      // 验证牌组存在
+      const deck = (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0];
       if (!deck) {
         // 清理已上传的文件
         const files = req.files as Express.Multer.File[] | undefined;
@@ -285,7 +275,7 @@ cardsRouter.post(
 
 // POST /api/decks/:deckId/cards/batch-text —— 文字批量导入
 // 格式：每两行为一张卡片（正面 / 背面），空行分隔
-cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Response) => {
+cardsRouter.post('/decks/:deckId/cards/batch-text', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { deckId } = req.params;
     const { text } = req.body;
@@ -296,9 +286,7 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Re
     }
 
     const db = getDb();
-    const isAdmin = req.user!.role === 'admin';
-    const deck = isAdmin ? (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0]
-      : (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.user!.userId])).rows[0];
+    const deck = (await db.query('SELECT id FROM decks WHERE id = $1', [deckId])).rows[0];
     if (!deck) {
       res.status(404).json({ error: 'Deck not found' });
       return;
@@ -346,84 +334,47 @@ cardsRouter.post('/decks/:deckId/cards/batch-text', async (req: Request, res: Re
   }
 });
 
-// PUT /api/cards/:id —— 更新卡片
-cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
+// PUT /api/cards/:id —— 更新卡片内容字段（仅管理员）
+cardsRouter.put('/cards/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     const db = getDb();
-    const userId = req.user!.userId;
     const existing = (await db.query(
-      'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = $1',
+      'SELECT c.id, c.image_url FROM cards c WHERE c.id = $1',
       [id]
-    )).rows[0] as { id: string; image_url: string; deck_id: string } | undefined;
+    )).rows[0] as { id: string; image_url: string } | undefined;
 
     if (!existing) {
       res.status(404).json({ error: 'Card not found' });
       return;
     }
 
-    // 验证权限：所有者（admin）可修改所有字段，订阅用户仅可更新 SM-2 进度
-    const isOwner = (await db.query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [existing.deck_id, userId])).rows[0];
-    const isSubscribed = (await db.query(
-      'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
-      [userId, existing.deck_id]
-    )).rows[0];
-
-    if (!isOwner && !isSubscribed && req.user!.role !== 'admin') {
-      res.status(404).json({ error: 'Card not found' });
-      return;
-    }
-
-    // 订阅用户仅可更新 SM-2 进度字段，不能修改卡片内容；admin 不受限
-    const isSubscribedOnly = !isOwner && isSubscribed && req.user!.role !== 'admin';
-
-    const {
-      front_text,
-      back_text,
-      image_url,
-      ease,
-      interval,
-      repetitions,
-      next_review,
-      last_review,
-    } = req.body;
-
-    const now = nowISO();
-
-    // 构建动态更新（仅更新 cards 表的内容字段，SM-2 进度改写到 user_card_progress）
+    const { front_text, back_text, image_url } = req.body;
     const setClauses: string[] = [];
     const values: unknown[] = [];
     let paramIdx = 1;
 
-    // 订阅用户不能修改卡片内容
-    if (front_text !== undefined && !isSubscribedOnly) {
+    if (front_text !== undefined) {
       setClauses.push(`front_text = $${paramIdx++}`);
       values.push(front_text);
     }
-
-    if (back_text !== undefined && !isSubscribedOnly) {
+    if (back_text !== undefined) {
       setClauses.push(`back_text = $${paramIdx++}`);
       values.push(back_text);
     }
-
-    // 处理图片更新
-    if (image_url !== undefined && !isSubscribedOnly) {
+    if (image_url !== undefined) {
       if (typeof image_url === 'string' && image_url.trim() !== '') {
         if (isBase64DataUrl(image_url)) {
-          // 删除旧图片
           deleteImageFile(existing.image_url);
           const newUrl = saveBase64Image(image_url);
           setClauses.push(`image_url = $${paramIdx++}`);
           values.push(newUrl);
         } else if (image_url !== existing.image_url) {
-          // 路径变了
           deleteImageFile(existing.image_url);
           setClauses.push(`image_url = $${paramIdx++}`);
           values.push(image_url);
         }
       } else if (image_url === '' || image_url === null) {
-        // 清空图片
         deleteImageFile(existing.image_url);
         setClauses.push(`image_url = $${paramIdx++}`);
         values.push('');
@@ -431,6 +382,7 @@ cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
     }
 
     if (setClauses.length > 0) {
+      const now = nowISO();
       setClauses.push(`updated_at = $${paramIdx++}`);
       values.push(now);
       const idParam = paramIdx++;
@@ -438,50 +390,7 @@ cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
       await db.query(`UPDATE cards SET ${setClauses.join(', ')} WHERE id = $${idParam}`, values);
     }
 
-    // SM-2 进度字段：UPSERT 到 user_card_progress（不再写入 cards 表）
-    const hasSM2Fields =
-      ease !== undefined ||
-      interval !== undefined ||
-      repetitions !== undefined ||
-      next_review !== undefined ||
-      last_review !== undefined;
-
-    if (hasSM2Fields) {
-      await db.query(
-        `INSERT INTO user_card_progress (user_id, card_id, ease, interval, repetitions, next_review, last_review)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT(user_id, card_id) DO UPDATE SET
-           ease = COALESCE(excluded.ease, user_card_progress.ease),
-           interval = COALESCE(excluded.interval, user_card_progress.interval),
-           repetitions = COALESCE(excluded.repetitions, user_card_progress.repetitions),
-           next_review = COALESCE(excluded.next_review, user_card_progress.next_review),
-           last_review = COALESCE(excluded.last_review, user_card_progress.last_review)`,
-        [
-          req.user!.userId,
-          id,
-          ease ?? null,
-          interval ?? null,
-          repetitions ?? null,
-          next_review ?? null,
-          last_review ?? null,
-        ]
-      );
-    }
-
-    const card = (await db.query(
-      `SELECT c.id, c.deck_id, c.front_text, c.back_text, c.image_url,
-              COALESCE(ucp.ease, 2.5) AS ease,
-              COALESCE(ucp.interval, 0) AS interval,
-              COALESCE(ucp.repetitions, 0) AS repetitions,
-              COALESCE(ucp.next_review, c.next_review) AS next_review,
-              ucp.last_review AS last_review,
-              c.created_at, c.updated_at
-       FROM cards c
-       LEFT JOIN user_card_progress ucp ON ucp.user_id = $1 AND ucp.card_id = c.id
-       WHERE c.id = $2`,
-      [req.user!.userId, id]
-    )).rows[0];
-
+    const card = (await db.query('SELECT * FROM cards WHERE id = $1', [id])).rows[0];
     res.json(card);
   } catch (err) {
     console.error('PUT /cards/:id error:', err);
@@ -489,24 +398,69 @@ cardsRouter.put('/cards/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/cards/:id —— 删除卡片
-cardsRouter.delete('/cards/:id', async (req: Request, res: Response) => {
+// PUT /api/cards/:id/progress —— 记录自己的 SM-2 学习进度（admin + subscriber）
+// 写入 user_card_progress，不动 cards 表内容
+cardsRouter.put('/cards/:id/progress', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+    const isAdmin = req.user!.role === 'admin';
+
+    const db = getDb();
+    const card = (await db.query('SELECT id, deck_id FROM cards WHERE id = $1', [id])).rows[0] as { id: string; deck_id: string } | undefined;
+    if (!card) {
+      res.status(404).json({ error: 'Card not found' });
+      return;
+    }
+
+    // 非 admin 必须是订阅者才能记录进度
+    if (!isAdmin) {
+      const isSubscribed = (await db.query(
+        'SELECT 1 FROM user_subscriptions WHERE user_id = $1 AND deck_id = $2',
+        [userId, card.deck_id]
+      )).rows[0];
+      if (!isSubscribed) {
+        res.status(404).json({ error: 'Card not found' });
+        return;
+      }
+    }
+
+    const { ease, interval, repetitions, next_review, last_review } = req.body;
+    const hasAny = ease !== undefined || interval !== undefined || repetitions !== undefined || next_review !== undefined || last_review !== undefined;
+    if (!hasAny) {
+      res.status(400).json({ error: 'No progress fields provided' });
+      return;
+    }
+
+    await db.query(
+      `INSERT INTO user_card_progress (user_id, card_id, ease, interval, repetitions, next_review, last_review)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT(user_id, card_id) DO UPDATE SET
+         ease = COALESCE(excluded.ease, user_card_progress.ease),
+         interval = COALESCE(excluded.interval, user_card_progress.interval),
+         repetitions = COALESCE(excluded.repetitions, user_card_progress.repetitions),
+         next_review = COALESCE(excluded.next_review, user_card_progress.next_review),
+         last_review = COALESCE(excluded.last_review, user_card_progress.last_review)`,
+      [userId, id, ease ?? null, interval ?? null, repetitions ?? null, next_review ?? null, last_review ?? null]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /cards/:id/progress error:', err);
+    res.status(500).json({ error: 'Failed to record progress' });
+  }
+});
+
+// DELETE /api/cards/:id —— 删除卡片（仅管理员）
+cardsRouter.delete('/cards/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
 
-    // 鉴权：仅牌组 owner 或 admin 可删除卡片（订阅者无权删除内容）
-    const isAdmin = req.user!.role === 'admin';
-    const card = isAdmin
-      ? (await db.query(
-          'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = $1',
-          [id]
-        )).rows[0]
-      : (await db.query(
-          'SELECT c.id, c.image_url, c.deck_id FROM cards c JOIN decks d ON c.deck_id = d.id WHERE c.id = $1 AND d.user_id = $2',
-          [id, req.user!.userId]
-        )).rows[0];
-    const cardRow = card as {
+    const cardRow = (await db.query(
+      'SELECT c.id, c.image_url, c.deck_id FROM cards c WHERE c.id = $1',
+      [id]
+    )).rows[0] as {
       id: string;
       image_url: string;
       deck_id: string;

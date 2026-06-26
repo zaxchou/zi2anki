@@ -131,6 +131,17 @@ export function updateStudyMode(
   });
 }
 
+/** 记录自己的 SM-2 学习进度（写到 user_card_progress） */
+export function updateCardProgress(
+  cardId: string,
+  progress: { ease?: number; interval?: number; repetitions?: number; next_review?: string; last_review?: string }
+): Promise<{ success: boolean }> {
+  return request(`/api/cards/${cardId}/progress`, {
+    method: 'PUT',
+    body: JSON.stringify(progress),
+  });
+}
+
 /** 暂停/恢复牌组学习 */
 export function toggleDeckPause(
   deckId: string,

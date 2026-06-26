@@ -9,7 +9,7 @@ import {
   fetchNewCards,
   fetchDailyStats,
   incrementDailyStats,
-  updateCard,
+  updateCardProgress,
   createStudySession as createStudySessionApi,
   endStudySession as endStudySessionApi,
   todayLocal,
@@ -147,9 +147,9 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       };
       const output = calculateNextReview(rating, sm2Input);
 
-      // 更新卡片（通过 API）
+      // 更新卡片进度（通过 /progress 端点，写入 user_card_progress）
       const wasNew = card.interval === 0;
-      await updateCard(card.id, {
+      await updateCardProgress(card.id, {
         ease: output.ease,
         interval: output.interval,
         repetitions: output.repetitions,

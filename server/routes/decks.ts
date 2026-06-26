@@ -141,12 +141,11 @@ decksRouter.post('/decks', requireAdmin, async (req: Request, res: Response) => 
   }
 });
 
-// PUT /api/decks/:id —— 更新牌组名称
-decksRouter.put('/decks/:id', async (req: Request, res: Response) => {
+// PUT /api/decks/:id —— 更新牌组名称（仅管理员可改内容）
+decksRouter.put('/decks/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
-    const isAdmin = req.user!.role === 'admin';
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'Name is required' });
@@ -154,14 +153,8 @@ decksRouter.put('/decks/:id', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
-    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
-    if (!existing) {
-      res.status(404).json({ error: 'Deck not found' });
-      return;
-    }
-
     const now = nowISO();
-    await db.query('UPDATE decks SET name = $1, updated_at = $2 WHERE id = $3 AND (user_id = $4 OR $5)', [name.trim(), now, id, req.user!.userId, isAdmin]);
+    await db.query('UPDATE decks SET name = $1, updated_at = $2 WHERE id = $3', [name.trim(), now, id]);
 
     const deckResult = await db.query('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = $1', [id]);
     res.json(deckResult.rows[0]);
@@ -256,7 +249,8 @@ decksRouter.delete('/decks/:id', requireAdmin, async (req: Request, res: Respons
 });
 
 // PUT /api/decks/:id/card-count —— 更新卡片计数
-decksRouter.put('/decks/:id/card-count', async (req: Request, res: Response) => {
+// PUT /api/decks/:id/card-count —— 更新卡片计数（仅管理员可改内容；前端未使用）
+decksRouter.put('/decks/:id/card-count', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { count } = req.body;
@@ -267,15 +261,8 @@ decksRouter.put('/decks/:id/card-count', async (req: Request, res: Response) => 
     }
 
     const db = getDb();
-    const isAdmin = req.user!.role === 'admin';
-    const existing = (await db.query('SELECT id FROM decks WHERE id = $1 AND (user_id = $2 OR $3)', [id, req.user!.userId, isAdmin])).rows[0];
-    if (!existing) {
-      res.status(404).json({ error: 'Deck not found' });
-      return;
-    }
-
     const now = nowISO();
-    await db.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3 AND (user_id = $4 OR $5)', [count, now, id, req.user!.userId, isAdmin]);
+    await db.query('UPDATE decks SET card_count = $1, updated_at = $2 WHERE id = $3', [count, now, id]);
 
     const deckResult = await db.query('SELECT id, name, card_count, daily_new_card_limit, daily_review_limit, created_at, updated_at FROM decks WHERE id = $1', [id]);
     res.json(deckResult.rows[0]);
